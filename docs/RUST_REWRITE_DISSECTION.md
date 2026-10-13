@@ -57,7 +57,7 @@ your personal preference. `scat` supplies no Windows GUI toolkit precedent.
 | `src/lib.rs`, `src/main.rs`: reusable library with thin executable | Separate pure core, Windows adapter and application | Three crates enforce the unsafe/platform boundary; app and Windows crates explicitly Windows-only |
 | `src/error.rs`: thiserror; application uses anyhow contexts | Typed domain/platform errors, contextual app errors | Do not return opaque strings across the core API |
 | `src/runtime.rs`: tracing and EnvFilter | Structured, bounded local diagnostics, RUST_LOG override | GUI logs go to a capped local file; one-shot CLI output stays clean |
-| clap derive + serde_json | Small CLI and versioned JSON config | No YAML parser: a six-field clock config does not need two formats |
+| clap derive + serde_json | Small CLI and versioned JSON config | No YAML parser: a small clock config does not need two formats |
 | chrono without default features, clock/std enabled | chrono 0.4 for civil time/ISO formatting | Pure core receives DateTime<FixedOffset>; Windows resolves the current local zone each update |
 | `src/tui/search_worker.rs`: requests/results with IDs over std channels | Generation-tagged discovery results; no async runtime | Bound/coalesce requests; do not copy unbounded queues or unconditional joins around potentially blocked UIA calls |
 | Cargo.lock, fmt, Clippy, MSRV, tests, cargo-deny/audit | Same checks, adapted to Windows and pure-core Linux jobs | Check audit-tool failures explicitly; do not copy a severity filter that may miss advisories with missing severity |
@@ -158,7 +158,7 @@ silently converted to a plausible rectangle.
 ### Time and format contract
 
 Keep the overview's token allowlist. Limit input to 256 Unicode scalar values,
-two nonempty lines, and rendered output to 512 Unicode scalar values. Normalize
+at most two nonempty lines, and rendered output to 512 Unicode scalar values. Normalize
 CRLF once; permit newline but reject other control characters. No `%n`, padding
 modifiers, unlisted directives, HTML or arithmetic. Parse into owned tokens once.
 Report an offending token with a documented character-index span.
@@ -276,7 +276,8 @@ not silently writing beside an executable in a protected folder.
 | P5 Release | R13 acceptance, R14 packaging/licensing, R15 cutover | Measured Windows evidence, install/rollback checks, Rust is default |
 
 The exact dependency graph and issue URLs live in the issue index. Dispatch
-R04, R05 and R06 independently after R01; keep shared contract changes serialized.
+R04 and R06 independently after R01; R05 follows R04 so it can validate formats.
+Keep shared contract changes serialized.
 P3 is blocked on a passed P1 gate. Discovery and shell/COM work need a
 Windows-capable agent and experienced review. Pure logic tasks are appropriate
 for lower-level agents. This is a plan for later assignment, not a claim that
