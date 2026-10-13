@@ -201,7 +201,7 @@ wait and a fresh wall-clock read on wake. Date-only formats recheck each minute.
 The public interface is Settings, not a file schema. The core preference model
 contains format, monitors (primary/all), font size (6–24 pt) and theme
 (system/light/dark), with an internal version for migration. Initial values are
-`%H:%M\\n%g%V.%u`, primary display, 9 pt and system theme. Keep first-run state
+`%H:%M\n%g%V.%u`, primary display, 9 pt and system theme. Keep first-run state
 internal. Read login-startup state from Windows rather than duplicating it.
 
 R05 chooses and documents a maintained serialization approach for a single
