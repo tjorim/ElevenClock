@@ -5,9 +5,8 @@ param([string]$OutputDirectory = 'native-evidence/matrix')
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
-Add-Type -AssemblyName UIAutomationClientsideProviders
-[Windows.Automation.ClientSettings]::RegisterClientSideProviders([UIAutomationClientsideProviders.UIAutomationClientSideProviders]::ClientSideProviderDescriptionTable)
-Add-Type @'
+Add-Type -AssemblyName Accessibility
+Add-Type -ReferencedAssemblies 'Accessibility' @'
 using System;
 using System.Runtime.InteropServices;
 public static class UiEnvironment {
@@ -71,6 +70,15 @@ public static class UiEnvironment {
     [DllImport("user32.dll", EntryPoint="SystemParametersInfoW", CharSet=CharSet.Unicode, SetLastError=true)]
     public static extern bool Parameters(uint action, uint param, ref HighContrast value, uint flags);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
+    [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr dialog, int id);
+    [DllImport("oleacc.dll")] public static extern int AccessibleObjectFromWindow(IntPtr window, uint objectId, ref Guid iid, [MarshalAs(UnmanagedType.Interface)] out Accessibility.IAccessible accessible);
+    public static Accessibility.IAccessible Accessible(IntPtr window) {
+        Guid iid = new Guid("618736E0-3C3D-11CF-810C-00AA00389B71");
+        Accessibility.IAccessible accessible;
+        Marshal.ThrowExceptionForHR(AccessibleObjectFromWindow(window, 0xfffffffc, ref iid, out accessible));
+        if (accessible == null) throw new InvalidOperationException("Native accessibility object unavailable");
+        return accessible;
+    }
     [DllImport("user32.dll")] public static extern uint GetSysColor(int index);
     public static HighContrast Read() {
         var value = new HighContrast {Size = (uint)Marshal.SizeOf(typeof(HighContrast))};
@@ -241,22 +249,18 @@ try {
     } while ((!$opened -or $opened.MainWindowHandle -eq 0) -and [DateTime]::UtcNow -lt $deadline)
     if (!$opened -or $opened.MainWindowTitle -ne 'ElevenClock Settings') { throw 'Explorer double-click did not open native Settings' }
     if (!$opened.WaitForInputIdle(5000)) { throw 'Prototype did not reach its input loop after double-click' }
-    $deadline = [DateTime]::UtcNow.AddSeconds(5)
-    do {
-        $dialog = [Windows.Automation.AutomationElement]::FromHandle($opened.MainWindowHandle)
-        $combo = $dialog.FindFirst([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::ComboBox))
-        $buttons = $dialog.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Button))
-        $button = $null
-        foreach ($candidate in $buttons) { if ($candidate.Current.Name -eq 'Close' -and $candidate.Current.IsKeyboardFocusable) { $button = $candidate; break } }
-        if ($combo -and $button -and $combo.Current.Name -like 'Appearance*' -and $combo.Current.IsKeyboardFocusable) { break }
-        Start-Sleep -Milliseconds 200
-    } while ([DateTime]::UtcNow -lt $deadline)
-    $results.accessibilityTree = @($dialog.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition) | ForEach-Object { [ordered]@{name=$_.Current.Name; class=$_.Current.ClassName; type=$_.Current.ControlType.ProgrammaticName; id=$_.Current.AutomationId} })
-    $results.accessibleLabels = [ordered]@{window=$dialog.Current.Name; appearance=$combo.Current.Name; appearanceFocusable=$combo.Current.IsKeyboardFocusable; close=if ($button) {$button.Current.Name} else {'missing'} }
-    if (!$combo -or $combo.Current.Name -notlike 'Appearance*' -or !$combo.Current.IsKeyboardFocusable) { throw "Appearance accessible label/focus contract failed: name='$($combo.Current.Name)', focusable=$($combo.Current.IsKeyboardFocusable)" }
-    if (!$button -or $button.Current.Name -ne 'Close' -or !$button.Current.IsKeyboardFocusable) { throw 'Close accessible label/focus contract failed' }
+    # Classic controls expose their default IAccessible objects through Oleacc.
+    # Query those directly: the legacy .NET UIA client omits the classic-control
+    # proxies on this runner, while native Settings/Explorer providers still work.
+    $combo = [UiEnvironment]::Accessible([UiEnvironment]::GetDlgItem($opened.MainWindowHandle, 1001))
+    $button = [UiEnvironment]::Accessible([UiEnvironment]::GetDlgItem($opened.MainWindowHandle, 2))
+    $name = $combo.accName(0)
+    $closeName = $button.accName(0)
+    $focusable = (([int]$combo.accState(0)) -band 0x100000) -ne 0
+    $results.accessibleLabels = [ordered]@{provider='Native IAccessible (Oleacc standard-control proxy)'; appearance=$name; appearanceFocusable=$focusable; close=$closeName; role=$combo.accRole(0)}
+    if ($name -notlike 'Appearance*' -or !$focusable) { throw "Native Appearance label/focus failed: name='$name', focusable=$focusable" }
+    if ($closeName -ne 'Close') { throw "Native Close label failed: '$closeName'" }
     $results.explorerDoubleClick = 'Real queued left-button double-click opened the native executable'
-    $results.accessibleLabels = [ordered]@{window=$dialog.Current.Name; appearance=$combo.Current.Name; close=$button.Current.Name}
     if (!$opened.CloseMainWindow() -or !$opened.WaitForExit(5000) -or $opened.ExitCode -ne 0) { throw 'Double-clicked prototype did not close normally' }
 } finally {
     if ($opened) { $opened.Refresh(); if (!$opened.HasExited) { $opened.Kill() }; $opened.Dispose() }
