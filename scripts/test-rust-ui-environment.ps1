@@ -13,6 +13,7 @@ public static class UiEnvironment {
     public struct HighContrast { public uint Size, Flags; public IntPtr Scheme; }
     [DllImport("user32.dll", EntryPoint="SystemParametersInfoW", CharSet=CharSet.Unicode, SetLastError=true)]
     public static extern bool Parameters(uint action, uint param, ref HighContrast value, uint flags);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
     [DllImport("user32.dll")] public static extern uint GetSysColor(int index);
     public static HighContrast Read() {
         var value = new HighContrast {Size = (uint)Marshal.SizeOf(typeof(HighContrast))};
@@ -30,7 +31,7 @@ public static class UiEnvironment {
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 $original = [UiEnvironment]::Read()
 $originalScheme = [Runtime.InteropServices.Marshal]::PtrToStringUni($original.Scheme)
-$results = [ordered]@{highContrast = 'not run'; scaling = 'not run'; displayControls = @()}
+$results = [ordered]@{highContrast = 'not run'; scaling = 'not run'; displayControls = @(); scaleAttempts = @()}
 function Run-Prototype([string]$Case, [int]$Dpi = 0, [string]$Close = 'Window') {
     & pwsh -NoProfile -File scripts/test-rust-settings.ps1 -OutputDirectory (Join-Path $OutputDirectory $Case) -ExpectedDpi $Dpi -CloseGesture $Close
     if ($LASTEXITCODE -ne 0) { throw "Native prototype failed in $Case" }
@@ -83,10 +84,19 @@ try {
     $selected = $selection.Current.GetSelection()
     if ($selected.Count -ne 1) { throw 'Cannot record original display scale' }
     $originalScale = $selected[0].Current.Name
+    $scaleId = $scale.Current.AutomationId
     function Set-Scale([string]$Label) {
+        # Reacquire provider elements after display changes and activate Settings
+        # after the prototype's keyboard/close tests return focus to the runner.
+        $settings = [Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Children, $windowCondition)
+        if (!$settings) { throw 'Settings window disappeared during scale test' }
+        $scale = $settings.FindFirst([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::AutomationIdProperty, $scaleId))
+        [UiEnvironment]::SetForegroundWindow([IntPtr]($settings.Current.NativeWindowHandle)) | Out-Null
+        $scale.SetFocus()
         $scale.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
         Start-Sleep -Milliseconds 300
-        $items = $settings.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::ListItem))
+        $items = [Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::ListItem))
+        $results.scaleAttempts += [ordered]@{requested = $Label; available = @($items | ForEach-Object { $_.Current.Name })}
         $target = $null
         foreach ($item in $items) {
             if ($item.Current.Name -eq $Label -or $item.Current.Name -like "$Label *") { $target = $item; break }
