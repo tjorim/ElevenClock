@@ -108,7 +108,7 @@ try {
     $results.displayModes = @($modes | ForEach-Object { [ordered]@{width=$_.Width; height=$_.Height; bits=$_.Bits; frequency=$_.Frequency} })
     # The initial 1024x768 mode limits Settings to 125%. Pick an actual driver
     # mode with sufficient logical desktop area at 200%, rather than private DPI APIs.
-    $largeMode = $modes | Where-Object { $_.Width -ge 1920 -and $_.Height -ge 1200 -and $_.Bits -eq $originalMode.Bits } | Sort-Object { [long]$_.Width * $_.Height } | Select-Object -First 1
+    $largeMode = $modes | Where-Object { $_.Width -ge 1600 -and $_.Height -ge 1200 -and $_.Bits -eq $originalMode.Bits } | Sort-Object { [long]$_.Width * $_.Height } | Select-Object -First 1
     if (!$largeMode) { throw 'Display driver exposes no mode large enough for the 200% scaling test' }
     [UiEnvironment]::ApplyMode($largeMode)
     $modeChanged = $true
