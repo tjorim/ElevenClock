@@ -248,6 +248,8 @@ try {
         if ($opened) { $opened.Refresh() }
     } while ((!$opened -or $opened.MainWindowHandle -eq 0) -and [DateTime]::UtcNow -lt $deadline)
     if (!$opened -or $opened.MainWindowTitle -ne 'ElevenClock Settings') { throw 'Explorer double-click did not open native Settings' }
+    # Retain a process handle for exit-code queries on an Explorer-started process.
+    $null = $opened.Handle
     if (!$opened.WaitForInputIdle(5000)) { throw 'Prototype did not reach its input loop after double-click' }
     # Classic controls expose their default IAccessible objects through Oleacc.
     # Query those directly: the legacy .NET UIA client omits the classic-control
@@ -261,7 +263,10 @@ try {
     if ($name -notlike 'Appearance*' -or !$focusable) { throw "Native Appearance label/focus failed: name='$name', focusable=$focusable" }
     if ($closeName -ne 'Close') { throw "Native Close label failed: '$closeName'" }
     $results.explorerDoubleClick = 'Real queued left-button double-click opened the native executable'
-    if (!$opened.CloseMainWindow() -or !$opened.WaitForExit(5000) -or $opened.ExitCode -ne 0) { throw 'Double-clicked prototype did not close normally' }
+    if (!$opened.CloseMainWindow()) { throw 'Could not request close on the double-clicked prototype' }
+    if (!$opened.WaitForExit(10000)) { throw 'Double-clicked prototype did not exit after close' }
+    if ($opened.ExitCode -ne 0) { throw "Double-clicked prototype exit code: '$($opened.ExitCode)'" }
+    $results.explorerExitCode = $opened.ExitCode
 } finally {
     if ($opened) { $opened.Refresh(); if (!$opened.HasExited) { $opened.Kill() }; $opened.Dispose() }
     if ($explorer) { $explorer.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close() }
