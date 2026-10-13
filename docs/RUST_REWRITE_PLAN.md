@@ -2,6 +2,11 @@
 
 Prepared 2026-10-13. Planning only; no Rust implementation has started.
 
+This overview is supplemented by [the source dissection and implementation
+contracts](RUST_REWRITE_DISSECTION.md), which define the concrete module layout,
+stack decisions informed by `tjorim/scat`, phase gates and issue breakdown.
+Use that document for implementation details if the overview is less specific.
+
 ## Goal
 
 Build a small, native Windows taskbar clock whose primary features are reliable
@@ -88,18 +93,20 @@ available as reference until the Rust replacement passes the release gates.
 rust/
   crates/clock-core/       # format parsing/rendering, config, update scheduling
   crates/clock-windows/    # taskbar discovery, geometry, events, rendering
-  crates/clock-app/        # executable, settings, tray, startup, lifecycle
+  crates/clock-app/        # executable, CLI, orchestration; no Win32 FFI
 ```
 
 - `clock-core`: platform-independent logic with an injectable time snapshot.
-  Dependencies: `chrono`, `serde`, `toml`; pin resolved dependencies in Cargo.lock.
+  Dependencies: `chrono`, `serde`, `serde_json`, `thiserror`; pin resolved
+  dependencies in Cargo.lock. JSON follows the existing `scat` stack.
 - `clock-windows`: Microsoft `windows` crate for Win32/COM bindings; use native
   windows and DirectWrite/Direct2D for text. Keep HWND, COM, hooks, timers and
   graphics resources behind small RAII wrappers. Confine unsafe code here and
   document lifetime/thread assumptions. Handle graphics-device loss.
-- `clock-app`: one Windows message loop, single-instance mutex, native settings
-  dialog, system tray, capped local diagnostic logs. No browser runtime or Qt.
-- Versioned TOML preferences in `%LOCALAPPDATA%\ElevenClockRust\config.toml`.
+- `clock-app`: owns application orchestration and uses safe `clock-windows`
+  wrappers for the message loop, mutex, native settings and system tray.
+  Use `clap`, `anyhow` and `tracing` as in `scat`; no browser runtime or Qt.
+- Versioned JSON preferences in `%LOCALAPPDATA%\ElevenClockRust\config.json`.
   Use atomic replacement and keep the last valid settings. Avoid modifying the
   old app's data. Settings can apply without restarting the process.
 - Event-driven updates for shell/display/theme/time/power/session changes.
