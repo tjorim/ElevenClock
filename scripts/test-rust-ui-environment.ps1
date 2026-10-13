@@ -5,6 +5,8 @@ param([string]$OutputDirectory = 'native-evidence/matrix')
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
+Add-Type -AssemblyName UIAutomationClientsideProviders
+[Windows.Automation.ClientSettings]::RegisterClientSideProviderAssembly([Reflection.Assembly]::Load('UIAutomationClientsideProviders, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35'))
 Add-Type @'
 using System;
 using System.Runtime.InteropServices;
@@ -249,6 +251,7 @@ try {
         if ($combo -and $button -and $combo.Current.Name -like 'Appearance*' -and $combo.Current.IsKeyboardFocusable) { break }
         Start-Sleep -Milliseconds 200
     } while ([DateTime]::UtcNow -lt $deadline)
+    $results.accessibilityTree = @($dialog.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition) | ForEach-Object { [ordered]@{name=$_.Current.Name; class=$_.Current.ClassName; type=$_.Current.ControlType.ProgrammaticName; id=$_.Current.AutomationId} })
     $results.accessibleLabels = [ordered]@{window=$dialog.Current.Name; appearance=$combo.Current.Name; appearanceFocusable=$combo.Current.IsKeyboardFocusable; close=if ($button) {$button.Current.Name} else {'missing'} }
     if (!$combo -or $combo.Current.Name -notlike 'Appearance*' -or !$combo.Current.IsKeyboardFocusable) { throw "Appearance accessible label/focus contract failed: name='$($combo.Current.Name)', focusable=$($combo.Current.IsKeyboardFocusable)" }
     if (!$button -or $button.Current.Name -ne 'Close' -or !$button.Current.IsKeyboardFocusable) { throw 'Close accessible label/focus contract failed' }
