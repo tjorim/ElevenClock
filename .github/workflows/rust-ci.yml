@@ -2,9 +2,9 @@ name: Rust foundation
 on:
   push:
     branches: [main, rust-rewrite]
-    paths: ['rust/**', '.github/workflows/rust-ci.yml', 'docs/RUST_*.md']
+    paths: ['rust/**', '.github/workflows/rust-ci.yml', 'docs/RUST_*.md', 'docs/windows-evidence/**', 'scripts/*rust*']
   pull_request:
-    paths: ['rust/**', '.github/workflows/rust-ci.yml', 'docs/RUST_*.md']
+    paths: ['rust/**', '.github/workflows/rust-ci.yml', 'docs/RUST_*.md', 'docs/windows-evidence/**', 'scripts/*rust*']
   workflow_dispatch:
 permissions:
   contents: read
@@ -57,25 +57,9 @@ jobs:
           # Dialog and icon resources must be present in the PE resource table.
           $utf16 = [Text.Encoding]::Unicode.GetString($bytes)
           if (!$utf16.Contains('ElevenClock Settings')) { throw 'Missing Settings dialog resource' }
-      - name: Native dialog launch and close smoke check
+      - name: Native dialog launch, focus, capture and close smoke check
         shell: pwsh
-        run: |
-          $app = Start-Process 'rust/target/x86_64-pc-windows-msvc/release/clock-app.exe' -PassThru
-          try {
-            $deadline = [DateTime]::UtcNow.AddSeconds(15)
-            do {
-              Start-Sleep -Milliseconds 200
-              $app.Refresh()
-              if ($app.HasExited) { throw 'Prototype exited before opening Settings' }
-            } while ($app.MainWindowHandle -eq 0 -and [DateTime]::UtcNow -lt $deadline)
-            if ($app.MainWindowTitle -ne 'ElevenClock Settings') { throw 'Expected native Settings window' }
-            if (!$app.CloseMainWindow()) { throw 'Could not request native window close' }
-            if (!$app.WaitForExit(5000)) { throw 'Prototype did not close' }
-            if ($app.ExitCode -ne 0) { throw 'Prototype reported failure' }
-          } finally {
-            $app.Refresh()
-            if (!$app.HasExited) { $app.Kill() }
-          }
+        run: ./scripts/test-rust-settings.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: prototype-${{ matrix.toolchain }}
@@ -83,6 +67,7 @@ jobs:
             rust/target/x86_64-pc-windows-msvc/release/clock-app.exe
             LICENSE
             docs/RUST_DEPENDENCIES.md
+            native-evidence/
           if-no-files-found: error
   dependencies:
     runs-on: ubuntu-latest

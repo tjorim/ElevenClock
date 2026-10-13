@@ -40,7 +40,9 @@ cargo +1.90.0 build --manifest-path rust/Cargo.toml -p clock-app --release --tar
 Repeat with `+stable`. Double-click the resulting `clock-app.exe` for the native
 Settings foundation. It has no command suite, persistence, overlay or background
 clock yet. Closing the prototype exits; R08 adds the continuing runtime lifecycle.
-`rust-ci.yml` checks the GUI subsystem and embedded manifest. It is not evidence
+`rust-ci.yml` checks the GUI subsystem, embedded manifest, native launch/close
+and forward/reverse dialog focus. Its development harness captures the actual
+dialog and records runner OS/build/DPI as prototype evidence. It is not evidence
 of Explorer or interactive UI compatibility. See the [manual gate](windows-evidence/R01.md).
 
 ## Boundaries and ownership
