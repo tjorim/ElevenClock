@@ -1,7 +1,10 @@
 # Development-only native smoke harness; never part of the installed app.
 param(
     [string]$Executable = 'rust/target/x86_64-pc-windows-msvc/release/clock-app.exe',
-    [string]$OutputDirectory = 'native-evidence'
+    [string]$OutputDirectory = 'native-evidence',
+    [int]$ExpectedDpi = 0,
+    [ValidateSet('Window', 'Escape', 'Enter', 'Mnemonic')]
+    [string]$CloseGesture = 'Window'
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
@@ -17,6 +20,32 @@ public static class SettingsNative {
         public IntPtr Active, Focus, Capture, MenuOwner, MoveSize, Caret;
         public Rect CaretRect;
     }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct Keyboard { public ushort Key, Scan; public uint Flags, Time; public IntPtr Extra; }
+    [StructLayout(LayoutKind.Explicit, Size = 40)]
+    public struct Input {
+        [FieldOffset(0)] public uint Type;
+        [FieldOffset(8)] public Keyboard Keyboard;
+    }
+    [DllImport("user32.dll")] public static extern uint SendInput(uint count, Input[] inputs, int size);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+    public static void KeyStroke(ushort key, ushort modifier) {
+        if (!Environment.Is64BitProcess) throw new InvalidOperationException("Harness expects x64");
+        var inputs = new System.Collections.Generic.List<Input>();
+        if (modifier != 0) inputs.Add(Key(modifier, false));
+        inputs.Add(Key(key, false)); inputs.Add(Key(key, true));
+        if (modifier != 0) inputs.Add(Key(modifier, true));
+        if (SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf(typeof(Input))) != inputs.Count) {
+            // Release both keys if input injection fails partially.
+            SendInput(2, new [] {Key(key, true), Key(modifier, true)}, Marshal.SizeOf(typeof(Input)));
+            throw new InvalidOperationException("Windows keyboard input injection failed");
+        }
+    }
+    private static Input Key(ushort key, bool up) {
+        return new Input {Type = 1, Keyboard = new Keyboard {Key = key, Flags = up ? 2u : 0u}};
+    }
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out Rect rect);
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr window, IntPtr dc, uint flags);
     [DllImport("user32.dll")] public static extern IntPtr GetNextDlgTabItem(IntPtr dialog, IntPtr control, bool previous);
@@ -27,6 +56,7 @@ public static class SettingsNative {
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr SendMessageW(IntPtr window, uint message, IntPtr wparam, IntPtr lparam);
 }
 '@
+[SettingsNative]::SetThreadDpiAwarenessContext([IntPtr](-4)) | Out-Null
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 $app = Start-Process $Executable -PassThru
 try {
@@ -38,6 +68,8 @@ try {
     } while ($app.MainWindowHandle -eq 0 -and [DateTime]::UtcNow -lt $deadline)
     if ($app.MainWindowTitle -ne 'ElevenClock Settings') { throw 'Expected native Settings window' }
     $window = $app.MainWindowHandle
+    $dpi = [SettingsNative]::GetDpiForWindow($window)
+    if ($ExpectedDpi -ne 0 -and $dpi -ne $ExpectedDpi) { throw "Actual window DPI $dpi differs from requested $ExpectedDpi" }
     $first = [SettingsNative]::GetNextDlgTabItem($window, [IntPtr]::Zero, $false)
     $second = [SettingsNative]::GetNextDlgTabItem($window, $first, $false)
     $wrap = [SettingsNative]::GetNextDlgTabItem($window, $second, $false)
@@ -55,6 +87,36 @@ try {
     if (![SettingsNative]::GetGUIThreadInfo($thread, [ref]$info) -or $info.Focus -ne $second) { throw 'Forward focus did not reach Close' }
     [SettingsNative]::SendMessageW($window, 0x0028, [IntPtr]1, [IntPtr]::Zero) | Out-Null
     if (![SettingsNative]::GetGUIThreadInfo($thread, [ref]$info) -or $info.Focus -ne $first) { throw 'Reverse focus did not reach Appearance' }
+    # Input goes through the actual Windows input queue and modal dialog manager.
+    [SettingsNative]::SetForegroundWindow($window) | Out-Null
+    if ([SettingsNative]::GetForegroundWindow() -ne $window) { throw 'Keyboard test cannot activate the actual dialog' }
+    function Assert-Focus([IntPtr]$Expected, [string]$Gesture) {
+        $deadline = [DateTime]::UtcNow.AddSeconds(3)
+        do {
+            Start-Sleep -Milliseconds 50
+            if ([SettingsNative]::GetGUIThreadInfo($thread, [ref]$info) -and $info.Focus -eq $Expected) { return }
+        } while ([DateTime]::UtcNow -lt $deadline)
+        throw "$Gesture did not focus the expected control"
+    }
+    [SettingsNative]::KeyStroke(9, 0)
+    Assert-Focus $second 'Tab'
+    [SettingsNative]::KeyStroke(9, 16)
+    Assert-Focus $first 'Shift+Tab'
+    [SettingsNative]::KeyStroke(9, 0)
+    Assert-Focus $second 'Tab'
+    [SettingsNative]::KeyStroke(65, 18)
+    Assert-Focus $first 'Alt+A'
+    # Exercise the theme selector with real arrow input and retain its limitation.
+    [SettingsNative]::KeyStroke(40, 0)
+    Start-Sleep -Milliseconds 100
+    if ([SettingsNative]::SendMessageW($first, 0x0147, [IntPtr]::Zero, [IntPtr]::Zero).ToInt32() -ne 1) { throw 'Down arrow did not select Light' }
+    [SettingsNative]::KeyStroke(40, 0)
+    Start-Sleep -Milliseconds 100
+    if ([SettingsNative]::SendMessageW($first, 0x0147, [IntPtr]::Zero, [IntPtr]::Zero).ToInt32() -ne 2) { throw 'Down arrow did not select Dark' }
+    [SettingsNative]::KeyStroke(38, 0)
+    [SettingsNative]::KeyStroke(38, 0)
+    Start-Sleep -Milliseconds 100
+    if ([SettingsNative]::SendMessageW($first, 0x0147, [IntPtr]::Zero, [IntPtr]::Zero).ToInt32() -ne 0) { throw 'Up arrow did not restore System' }
     $rect = New-Object SettingsNative+Rect
     if (![SettingsNative]::GetWindowRect($window, [ref]$rect)) { throw 'Could not measure Settings window' }
     $bitmap = [Drawing.Bitmap]::new(($rect.Right - $rect.Left), ($rect.Bottom - $rect.Top))
@@ -77,11 +139,18 @@ try {
         title = $app.MainWindowTitle
         tabOrder = @(1001, 2)
         forwardAndReverseDialogFocus = 'passed'
+        queuedKeyboardInput = 'Tab, Shift+Tab, Alt+A and theme-selection arrows passed'
+        closeGesture = $CloseGesture
         capture = 'PrintWindow of the actual native dialog'
-        interactiveKeyboardDpiThemeAcceptance = 'not performed by this harness'
+        interactiveWindows11Acceptance = 'not performed by this Server CI harness'
         commit = $env:GITHUB_SHA
     } | ConvertTo-Json | Tee-Object -FilePath (Join-Path $OutputDirectory 'context.json')
-    if (!$app.CloseMainWindow()) { throw 'Could not request native window close' }
+    switch ($CloseGesture) {
+        'Window' { if (!$app.CloseMainWindow()) { throw 'Could not request native window close' } }
+        'Escape' { [SettingsNative]::KeyStroke(27, 0) }
+        'Enter' { [SettingsNative]::KeyStroke(13, 0) }
+        'Mnemonic' { [SettingsNative]::KeyStroke(67, 18) }
+    }
     if (!$app.WaitForExit(5000)) { throw 'Prototype did not close' }
     if ($app.ExitCode -ne 0) { throw 'Prototype reported failure' }
 } finally {

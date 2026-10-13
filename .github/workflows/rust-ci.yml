@@ -26,6 +26,7 @@ jobs:
       - run: cargo +${{ matrix.toolchain }} test --manifest-path rust/Cargo.toml -p clock-core --doc --locked
   windows:
     runs-on: windows-latest
+    timeout-minutes: 15
     strategy:
       matrix:
         toolchain: ['1.90.0', stable]
@@ -60,7 +61,12 @@ jobs:
       - name: Native dialog launch, focus, capture and close smoke check
         shell: pwsh
         run: ./scripts/test-rust-settings.ps1
+      - name: High contrast, keyboard and real display-scaling feasibility
+        if: matrix.toolchain == 'stable'
+        shell: powershell
+        run: ./scripts/test-rust-ui-environment.ps1
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: prototype-${{ matrix.toolchain }}
           path: |
