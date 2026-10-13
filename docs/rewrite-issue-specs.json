@@ -344,7 +344,8 @@
       "Startup defaults off and enabling/disabling affects only the dedicated Rust key.",
       "Windows logon starts exactly one instance through the existing mutex.",
       "Paths containing spaces/Unicode round-trip; failed write leaves checkbox consistent with OS state.",
-      "Legacy ElevenClock startup and preferences remain unchanged."
+      "Legacy ElevenClock startup and preferences remain unchanged.",
+      "A standard non-administrator account can enable/disable login startup without UAC elevation; no HKLM, service or elevated task is used."
     ],
     "validation": "Unit-test command quoting/state reconciliation; use a temporary test registry value for integration tests; explicit manual logon test and cleanup.",
     "exclude": "No scheduled task, service, machine-wide registry writes, installer implementation or silent repair of legacy startup.",
@@ -402,14 +403,17 @@
       "Create per-user installer with a new AppId, install directory, executable/startup identity and uninstall behavior. The per-user installer with Start menu shortcut is the normal end-user deliverable; a ZIP remains optional and useful for development smoke tests.",
       "Check install/update/uninstall, path quoting, startup disabled default, coexistence with legacy files and rollback to old release. Do not run both overlay apps at once during validation.",
       "Release workflow uploads artifacts on PR/manual runs; publishing versioned releases/signing requires configured identity and release action, not automatic creation during this issue.",
-      "Verify double-click/Start menu launch, quiet login startup, first-run Settings, no-console behavior and a complete Settings/Support journey on a clean Windows account without terminal commands."
+      "Verify double-click/Start menu launch, quiet login startup, first-run Settings, no-console behavior and a complete Settings/Support journey on a clean Windows account without terminal commands.",
+      "Install binaries under %LOCALAPPDATA%\\Programs\\ElevenClockRust, private data under %LOCALAPPDATA%\\ElevenClockRust, and the shortcut in the current user's Start menu. Installer/uninstaller run unelevated (Inno Setup PrivilegesRequired=lowest with no elevation override); app manifest uses asInvoker. No system-wide mode in v1.",
+      "Test missing native-runtime prerequisites under a standard account. Prefer supported app-local deployment/linking; flag any unavoidable admin requirement and alternatives to the owner before adoption. Never silently launch an elevated prerequisite installer."
     ],
     "accept": [
       "Clean Windows portable run and installer lifecycle pass with no Python/Qt runtime.",
       "Uninstall removes only owned files/startup registration; existing legacy config survives.",
       "Artifacts have checksums, source commit and consistent notices; any unsigned status is accurate.",
       "Rollback steps actually restore an earlier supported executable/native clock.",
-      "Installer creates the correct Start menu shortcut; installed product includes no diagnostic CLI/probe tools and requires no manual preference setup."
+      "Installer creates the correct Start menu shortcut; installed product includes no diagnostic CLI/probe tools and requires no manual preference setup.",
+      "Install, update, startup, uninstall and ZIP launch pass on a standard non-administrator account without UAC prompts or machine-wide writes."
     ],
     "validation": "Locked release build, automated API/development-harness smoke tests, artifact checksum verification and clean-VM GUI install/update/uninstall/rollback walkthrough; record signing availability accurately.",
     "exclude": "No auto-updater, store submission, reuse of legacy installer identity or public release announcement.",
