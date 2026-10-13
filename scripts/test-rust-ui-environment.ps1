@@ -6,7 +6,7 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 Add-Type -AssemblyName Accessibility
-Add-Type -ReferencedAssemblies 'Accessibility' @'
+Add-Type -ReferencedAssemblies @('System.dll', [Accessibility.IAccessible].Assembly.Location) @'
 using System;
 using System.Runtime.InteropServices;
 public static class UiEnvironment {
