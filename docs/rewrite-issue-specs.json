@@ -1,0 +1,448 @@
+[
+  {
+    "id": "R01",
+    "phase": "P0",
+    "title": "Bootstrap native Windows app, Rust contracts and CI",
+    "deps": [],
+    "level": "General Rust agent; contract review before dependent work",
+    "files": "`rust/{Cargo.toml,Cargo.lock}`, three crate manifests and minimal lib/main/model/error stubs, a native Settings window shell, `.github/workflows/rust-ci.yml`, Rust contribution guide and dependency policy.",
+    "before": "`requirements.txt`, `build.cmd` and the Basic health check workflow build/check Python; `elevenclock/globals.py` holds shared state. The rewrite needs a GUI application foundation and isolated Windows boundary.",
+    "scope": [
+      "Create `rust-rewrite` from main with reviewed planning documents included; keep legacy code intact. Feature PRs target this integration branch.",
+      "Create platform-independent clock-core, Windows-only clock-windows and Windows GUI-subsystem clock-app. Use Rust 2024, select/verify a supported stable toolchain and record the MSRV consistently in manifests, CI and docs. Do not inherit a compiler floor from another project.",
+      "Define the shared models/errors in the dissection: PhysicalRect, TaskbarId/ShellGeneration, TaskbarSnapshot, ClockText, Cadence and event/effect boundaries. Forbid unsafe in core/app; isolate FFI in clock-windows.",
+      "Build a minimal native Settings window shell with standard controls, icon, focus/tab order and DPI-v2 manifest. Test system/light/dark/high contrast feasibility and scaling; document any native-control limitation before R10. This is a UI foundation, not the full settings form.",
+      "Use Windows bindings for native surfaces and chrono for datetime logic. Add typed errors/logging/serialization dependencies only when needed; no command parser or public CLI. Select dependencies on this application's needs.",
+      "Set up Linux core tests/doc tests and Windows MSRV/stable checks, fmt, Clippy, tests and locked x64 MSVC release build. Audit failures are explicit and notices retained.",
+      "Document developer commands, resource lifetime rules, branch policy and dependency updates. Ensure development probes/tests will not be bundled with the end-user app."
+    ],
+    "accept": [
+      "Core checks run without Windows dependencies; Windows workspace/MSRV/stable checks pass with --locked.",
+      "Double-clicking the prototype opens a native window without a console; keyboard navigation and recorded DPI/theme checks meet the initial UI contract or identify a blocking design decision.",
+      "Minimal contracts are documented so R02/R04/R05/R06 can implement without circular dependencies.",
+      "No public command suite, JSON preference interface, Python deletion or license rebranding."
+    ],
+    "validation": "`cargo fmt --manifest-path rust/Cargo.toml --check`; Linux `cargo test --manifest-path rust/Cargo.toml -p clock-core --locked` and `--doc`; Windows `cargo check --manifest-path rust/Cargo.toml --workspace --all-targets --locked`, `cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets --locked -- -D warnings`, workspace tests/doc tests and release build.",
+    "exclude": "No complete Settings form, Explorer probing, formatter implementation, end-user CLI, installer or unrelated stack dependencies.",
+    "handoff": "CI URLs, agreed contracts, native Settings shell screenshots/keyboard/DPI/theme results and contributor toolchain commands."
+  },
+  {
+    "id": "R02",
+    "phase": "P1",
+    "title": "Probe native clock bounds and record a supported taskbar discovery strategy",
+    "deps": [
+      "R01"
+    ],
+    "level": "Windows/COM specialist; interactive Windows desktop required",
+    "files": "`clock-windows/src/taskbar/{mod,probe,uia,geometry}.rs`, a probe example, `docs/windows-evidence/discovery.md` and discovery ADR.",
+    "before": "`elevenclock/__init__.py:572–774` finds Shell_TrayWnd/Shell_SecondaryTrayWnd and computes preferred geometry; there is no Rust clock-bounds contract yet.",
+    "scope": [
+      "Enumerate taskbar HWNDs, map to monitors, record signed physical geometry, per-monitor DPI, OS build and shell generation.",
+      "Probe UI Automation and native child-window geometry for a clock-only rectangle. Use locale-independent properties; explicitly reject a rectangle that includes bell/Show Desktop/other tray controls.",
+      "Run UIA outside the UI thread with COM ownership on the worker, generation-tagged value results, a bounded/coalesced queue and observable failure reasons.",
+      "Measure call latency and stale-object behavior on Explorer restart. A deadline does not cancel COM: prove bounded teardown/cancellation or document an isolated same-executable helper alternative before downstream code depends on it. Never accumulate stalled workers.",
+      "Record candidate strategies, actual successful selectors and failure cases on two stock Windows 11 x64 builds, including a mixed-DPI second display. Publish exact build numbers, not a general Windows 11 claim.",
+      "Implement safe failure: return unsupported/no verified rectangle rather than guessing a slot or changing Explorer."
+    ],
+    "accept": [
+      "Each accepted clock rect fits its taskbar/monitor and excludes adjacent control hit targets.",
+      "Probe stays responsive when UIA errors, stalls or returns stale data; generation mismatch is rejected.",
+      "Actual evidence supports a chosen discovery strategy and identifies untested/unsupported combinations.",
+      "Document a go/no-go result; leave the manual gate unchecked if no interactive desktop is available."
+    ],
+    "validation": "Unit-test geometry validation with negative coordinates, invalid rectangles, DPI and generation mismatch; run the probe on recorded Windows builds and capture structured output plus annotated screenshots.",
+    "exclude": "No overlay, renderer, guessed fixed offsets, localized label matching, Explorer injection or UIA objects sent across threads.",
+    "handoff": "ADR, reproducible probe commands, verified selectors, output fixtures, exact Windows builds and an explicit COM timeout/teardown decision."
+  },
+  {
+    "id": "R03",
+    "phase": "P1",
+    "title": "Prove a non-activating clock overlay and native calendar access",
+    "deps": [
+      "R02"
+    ],
+    "level": "Windows shell specialist; interactive evidence is a hard gate",
+    "files": "`clock-windows/src/overlay.rs`, prototype interaction adapter, `docs/windows-evidence/overlay-spike.md`; reuse R02 discovery.",
+    "before": "`__init__.py:624–774` creates topmost Qt clocks/cover windows; `:799` defaults to Win+N. Rust needs evidence that an external overlay works without disabling Explorer's clock.",
+    "scope": [
+      "Build a minimal overlay with test text `2642.2`, no settings UI. Use verified clock-only bounds, WS_EX_TOOLWINDOW/NOACTIVATE, borderless style and per-monitor DPI v2 manifest.",
+      "Cover native clock text with an opaque rectangle while leaving bell/Show Desktop targets intact. Prototype taskbar-relative z-order instead of unconditional global topmost.",
+      "Demonstrate auto-hide show/hide, foreground/fullscreen transitions, mixed DPI, Explorer restart and removal on discovery failure.",
+      "Test UIA invoke of the native clock; if unavailable test deliberate one-shot Win+N fallback. Do not recursively invoke the overlay or replay mouse clicks.",
+      "Record whether the native clock remains available after forced termination. If any mandatory condition fails, narrow support or amend design and keep P3 blocked."
+    ],
+    "accept": [
+      "Screenshots/video and exact build IDs show complete clock coverage without adjacent control obstruction.",
+      "Overlay does not activate on display, appear in Alt-Tab or float over fullscreen/hidden taskbar.",
+      "Click opens native calendar/notifications on claimed builds; no repeated input/stuck modifiers.",
+      "Forced termination and unsupported discovery restore native access immediately; no persistent Explorer mutation.",
+      "Written P1 go/no-go references both R02 and R03 evidence."
+    ],
+    "validation": "Run primary/all-display prototype on R02 builds, auto-hide both states, DPI change, open calendar, click neighbors, restart Explorer and kill the process. Unit-test any added z-order/visibility decisions where practical.",
+    "exclude": "No finished settings, complete renderer, notification replication, shell patching or claimed universal Windows compatibility.",
+    "handoff": "Prototype entry command, measured integration strategy and evidence table. P3 issues must not begin until this gate passes."
+  },
+  {
+    "id": "R04",
+    "phase": "P2",
+    "title": "Implement validated datetime formatting and explicit ISO week-date presets",
+    "deps": [
+      "R01"
+    ],
+    "level": "Suitable for a lower-level Rust agent; cross-platform pure logic",
+    "files": "`clock-core/src/format.rs` and focused format tests/benchmark; do not modify shell or shared config implementation.",
+    "before": "`__init__.py:988 loadTimeFormat`, `:1314 updateTextLoop`; `tools.py:153–190` uses Python strftime plus an arithmetic/time-offset DSL.",
+    "scope": [
+      "Implement CompiledFormat::parse/render/cadence using owned tokens and chrono, consuming one DateTime<FixedOffset> snapshot.",
+      "Allow exactly the directives in the plan, Unicode literals, %% and one newline. Normalize CRLF; at most two nonempty lines, 256 input Unicode scalars and 512 rendered scalars; reject other controls, modifiers and unlisted directives with indexed errors.",
+      "Add ISO `%g%V.%u`, calendar-year `%y%V.%u`, and `%H:%M\\n%g%V.%u` presets with explicit names. No expression/offset compatibility layer.",
+      "Classify seconds-containing formats as Second cadence; all others as Minute. Render once for all lines; English weekday/month names initially.",
+      "Provide preview helpers usable by settings and developer tests without shell dependencies."
+    ],
+    "accept": [
+      "2026-10-13 renders 2642.2; ISO 2027-01-01 renders 2653.5 versus calendar-year 2753.5; 2027-01-04 -> 2701.1; 2025-12-29 ISO -> 2601.1.",
+      "Tests cover week 53, Monday/Sunday, leap day, literal percent, Unicode, malformed directives and all bounds.",
+      "Generated arbitrary input never panics or exceeds output bounds; errors use documented character spans.",
+      "No mutable global time, OS queries, HTML or arithmetic evaluation."
+    ],
+    "validation": "Run core unit/doc tests, targeted proptest cases and a small Criterion parse-versus-render benchmark. Include explicit-offset Europe/Amsterdam DST snapshots without treating a fixed offset as a zone rule.",
+    "exclude": "No Windows clock access, UI, config persistence, custom zones or legacy formatting DSL.",
+    "handoff": "Token table, preset examples, test output and stable API for R05/R07/R10/R11."
+  },
+  {
+    "id": "R05",
+    "phase": "P2",
+    "title": "Implement private per-user preference persistence and recovery",
+    "deps": [
+      "R01",
+      "R04"
+    ],
+    "level": "Core work suitable for a lower-level agent; Windows persistence review required",
+    "files": "`clock-core/src/preferences.rs`, `clock-windows/src/preferences_store.rs` and focused persistence tests.",
+    "before": "`tools.py:205–278` stores booleans as file presence and strings in separate ~/.elevenclock files; writes can restart all clocks.",
+    "scope": [
+      "Define typed preferences: format, primary/all monitors, font size 6–24 pt, theme system/light/dark; validate formats with R04. Keep version/migration and first-run state internal.",
+      "Implement PreferencesStore behind a safe interface in an app-owned LocalAppData location resolved with Windows Known Folders. Select/document a maintained encoding based on robust saves, validation and migration; no mandated JSON contract or user-editable configuration interface.",
+      "Missing preferences use defaults. Preserve corrupt/incompatible data, return a recoverable UI error and use safe defaults for that launch. Unsupported newer versions must not be overwritten automatically.",
+      "Use a same-directory temporary write, flush/close and tested Windows replacement for existing-target and first-create cases. Failed saves preserve previous disk/active preferences.",
+      "Apply immutable ValidatedPreferences only after a successful save. Reset to defaults produces a draft for the Settings UI; first-run completion is persisted internally. Startup state is read from Windows, not duplicated.",
+      "Provide temporary/in-memory stores for tests. No path override flags, environment-variable configuration, manual-edit workflow, Reload command, watcher or legacy migration."
+    ],
+    "accept": [
+      "Defaults round-trip; invalid enums/font bounds/formats and unsupported stored versions produce specific errors.",
+      "First save and replacement pass Windows tests; failed replacement leaves prior settings intact.",
+      "Damaged data is preserved; reset/recovery can be driven by Settings without file edits or a terminal.",
+      "First-run state persists and old ElevenClock preferences remain untouched."
+    ],
+    "validation": "Core preference validation tests; Windows temporary-directory tests for initial save, replacement, locked/denied targets and injected pre-replacement failures. Test corrupt/newer-version recovery and reset draft behavior.",
+    "exclude": "No user-facing file schema, JSON editor, CLI/path overrides, autostart control, settings controls, per-monitor overrides or watcher.",
+    "handoff": "Typed preference/store APIs, short internal encoding/migration decision, Windows failure tests and error/recovery contract for Settings."
+  },
+  {
+    "id": "R06",
+    "phase": "P2",
+    "title": "Implement deterministic scheduling and per-taskbar visibility state",
+    "deps": [
+      "R01"
+    ],
+    "level": "Suitable for a lower-level Rust agent; no interactive Windows needed",
+    "files": "`clock-core/src/{schedule,state}.rs` and deterministic event/geometry fixtures.",
+    "before": "`__init__.py:1194–1338` polls visibility/text; `:179–283` rebuilds clocks; global screen/clock state is shared across callbacks.",
+    "scope": [
+      "Implement next_delay and reduce(state,event)->effects against R01 contracts. Use passed wall snapshots and cadence, never live OS time in core.",
+      "Maintain Unavailable/Hidden(reason)/Visible per transient taskbar and shell generation; discard stale discovery. Reconcile additions/removals instead of recreating every clock.",
+      "Support topology/discovery, visibility/fullscreen, lock/unlock, theme/config, tick/time-change, ExplorerLost and Quit inputs.",
+      "Emit discovery, overlay create/destroy/bounds, hide/paint and timer effects; prevent duplicate windows and paint only on text/theme/geometry change.",
+      "Align second/minute cadence to next boundary; date-only rechecks each minute. Model resume/clock jumps as fresh time snapshots, not accumulated +24h offsets."
+    ],
+    "accept": [
+      "Unknown bounds, stale generation, locked session, fullscreen or hidden taskbar never produce visible overlays.",
+      "ExplorerLost destroys/invalidate overlays; subsequent generation can recover without app restart.",
+      "Repeated identical events are idempotent; two monitors can have different visibility.",
+      "Tests cover backward/forward clock jumps, local midnight and fixed-offset DST transition inputs without sleeping."
+    ],
+    "validation": "Core unit/property tests using fake time and event sequences; include monotonic wait versus wall snapshot distinction and negative-coordinate topology fixtures.",
+    "exclude": "No WinEvent hooks, COM, actual timers, platform clock reads or framework/event-loop dependency.",
+    "handoff": "State transition table, fixture sequences and precise effect contract for the runtime integrator."
+  },
+  {
+    "id": "R07",
+    "phase": "P3",
+    "title": "Build DirectWrite clock rendering with DPI, theme and overflow handling",
+    "deps": [
+      "R03",
+      "R04",
+      "R05",
+      "R06"
+    ],
+    "level": "Windows graphics agent; P1 gate must be passed",
+    "files": "`clock-windows/src/{render,theme,overlay}.rs`; replace prototype drawing while preserving proven R03 shell behavior.",
+    "before": "Qt Label/stylesheet rendering, `checkAndUpdateBackground` at `__init__.py:1120` samples screen pixels; clock and cover widgets manage separate visual state.",
+    "scope": [
+      "Render R04 ClockText via DirectWrite/Direct2D in the verified clock region with system font, configured point size and one/two-line layout.",
+      "Implement DPI conversion at explicit boundaries, preserving signed physical coordinates. UI thread owns graphics resources and HWNDs.",
+      "Use system/light/dark/high-contrast palettes with opaque coverage. Respect high-contrast over cosmetic theme choices; no screen capture.",
+      "Measure layout before painting/apply. If current/future text does not fit, report overflow and hide that monitor's overlay; never widen over bell/tray or silently truncate.",
+      "Cache text layouts/brushes appropriately, repaint only on dirty state and recover from device loss without leaked handles."
+    ],
+    "accept": [
+      "Crisp readable text at 100/125/150/200% including mixed DPI; both supported line counts fit or yield explicit overflow.",
+      "No native text shows through; adjacent control targets remain unchanged.",
+      "Theme/high-contrast switch takes effect without restarting process.",
+      "Longer month/day/year-boundary output cannot overlap tray controls; device-loss path recreates resources."
+    ],
+    "validation": "Pure layout boundary tests where possible plus interactive screenshots at the DPI/theme matrix, long-format and font-size tests, and a graphics resource recreation/handle-count check.",
+    "exclude": "No animation, mica/transparency matching, screenshot sampling, icons for notifications or settings UI.",
+    "handoff": "Renderer API, layout/overflow result types, DPI/theme screenshots and resource ownership notes."
+  },
+  {
+    "id": "R08",
+    "phase": "P3",
+    "title": "Integrate event-driven runtime, multi-monitor reconciliation and Explorer recovery",
+    "deps": [
+      "R02",
+      "R03",
+      "R05",
+      "R06",
+      "R07"
+    ],
+    "level": "Experienced Windows runtime agent; interactive desktop required",
+    "files": "`clock-windows/src/{runtime,events,instance}.rs`, taskbar worker integration, `clock-app/src/app.rs`.",
+    "before": "`__init__.py:245 screenCheckThread`, `:285` lockfiles, `:340` wake polling, `:977–979` per-clock threads and `:1943–1948` global workers.",
+    "scope": [
+      "Wire core reducer effects to the proven discovery/renderer with one UI message loop and the R02 bounded UIA strategy.",
+      "Add per-user/session single-instance mutex and a fixed signal to show settings in an existing instance; duplicate launch must not add clocks.",
+      "Handle display/DPI/settings/theme/time, power/session and TaskbarCreated events plus filtered WinEvent hooks. Keep callbacks short; coalesce topology discovery.",
+      "Implement primary/all monitor modes with negative-coordinate/mixed-DPI topology, hotplug and primary swap; invalidate stale HWNDs and queued generation results.",
+      "Track actual taskbar auto-hide and fullscreen per monitor; supplement missing events with documented two-second recovery polling and bounded transition polling where needed.",
+      "Use one fresh local-time snapshot per update, monotonic waits and no high-frequency perpetual clock loop. On quit/failure unhook and release resources; leave native clock usable.",
+      "Use GUI activation: first interactive launch opens the Settings shell; a later Start menu/executable launch focuses the existing Settings window. Login startup runs quietly; closing Settings keeps the clock running. No console or public command suite."
+    ],
+    "accept": [
+      "Default two-line clock works on primary and all monitors without process restart for format/theme changes.",
+      "Explorer kill/restart restores tray/clock state and rejects old discovery results.",
+      "Hotplug, DPI changes, lock/unlock, resume and timezone/manual time changes reconcile correctly.",
+      "Second launch signals the existing process; no lockfiles, unbounded threads or leaked hooks.",
+      "Unsupported geometry/overflow removes only affected overlays and surfaces a reason.",
+      "First-run, second-launch, close-to-background and Exit behavior match the Windows product contract without requiring command-line arguments."
+    ],
+    "validation": "Reducer regression tests plus recorded interactive matrix for shell restart, monitor changes, auto-hide/fullscreen, sleep/lock and clock changes; capture steady-state thread/handle counts.",
+    "exclude": "No ad hoc second state machine, WNF, internet sync, global keyboard hook or permanent Explorer modification.",
+    "handoff": "Event-to-core mapping, fallback polling rates, shutdown semantics and actual Windows run evidence."
+  },
+  {
+    "id": "R09",
+    "phase": "P3",
+    "title": "Finish clock actions, tray controls and accessible native interaction",
+    "deps": [
+      "R03",
+      "R07",
+      "R08"
+    ],
+    "level": "Windows UI/accessibility agent; interactive validation required",
+    "files": "`clock-windows/src/{interaction,tray}.rs`, minimal overlay accessibility provider and settings-open callback wiring.",
+    "before": "`__init__.py:1340–1407,1850` custom gestures/keyboard shortcuts; `tools.py:409 TaskbarIconTray` and notification labels overlap the clock UI.",
+    "scope": [
+      "Productionize the R03 selected native calendar invocation/fallback, with one activation per click and cleanup on failure.",
+      "Add fixed right-click/tray menu: Settings, Pause/Resume replacement and Exit. Keyboard activation opens the same menu.",
+      "Re-register tray icon on Explorer restart using the runtime's existing recovery event; do not build a second recovery loop.",
+      "Expose the displayed clock through a minimal UIA name/value and invoke action. Avoid second-by-second screen-reader announcements.",
+      "Keep overlay non-activating; settings/menu may take focus intentionally. Unknown invocation failure removes overlay for native access and records the reason."
+    ],
+    "accept": [
+      "Mouse and keyboard users can reach Settings/Exit; paused mode reliably shows the native clock.",
+      "Calendar opens once without stuck modifiers or recursive overlay invocation.",
+      "Bell/Show Desktop and normal app focus remain usable.",
+      "Screen reader can identify and invoke clock; no live announcement flood."
+    ],
+    "validation": "Interactive mouse/keyboard and Narrator tests on supported builds; invocation-failure and Explorer restart tests; unit-test action dispatch/coalescing where appropriate.",
+    "exclude": "No arbitrary commands, customizable double/middle gestures, duplicated notification counter, shell injection or synthetic mouse relay.",
+    "handoff": "Action behavior table, UIA pattern choice, manual accessibility results and callbacks for R10."
+  },
+  {
+    "id": "R10",
+    "phase": "P4",
+    "title": "Build native Windows Settings with format preview and complete preference flow",
+    "deps": [
+      "R04",
+      "R05",
+      "R07",
+      "R09"
+    ],
+    "level": "Windows controls agent; suitable after interfaces stabilize",
+    "files": "`clock-windows/src/settings.rs` and app settings coordination; use existing format/preferences/render APIs.",
+    "before": "`settings.py` is 3,463 lines and `welcome.py` 1,279; most options are intentionally outside the reduced product.",
+    "scope": [
+      "Complete the R01 native window shell with Date & time (presets, format editor, token help and live preview), Appearance (primary/all displays, font size, system/light/dark), Startup placeholder for R12 and Support host for R11.",
+      "Preview current time plus documented New Year examples; clearly distinguish ISO week-year from calendar-year presets. Users need no external format command or file editing.",
+      "Use core parser errors and renderer fit checks. Apply persists before PreferencesApplied; failed save keeps previous live settings and editable draft. Cancel/close discards unsaved changes; Reset to defaults stages a draft for Apply.",
+      "Implement first-run and later Settings activation through the existing runtime. Closing Settings leaves the clock running; Exit remains an explicit tray/clock action.",
+      "Use a proper app icon, standard window behavior, native controls, accessible labels, logical tab order, system fonts and tested DPI/theme/high contrast. Keep validation messages beside controls; do not expose internal storage details.",
+      "Reserve OS-owned startup state for R12 and in-app diagnostics host for R11. Do not add a duplicate startup boolean or auto-enable it."
+    ],
+    "accept": [
+      "Preset/format edits preview 2642.2 for the fixture, with clear year-boundary semantics.",
+      "Errors for invalid formats/font bounds/fit/save failure are actionable; Apply updates without restart and Cancel/Reset behave predictably.",
+      "First-run and subsequent Start menu launches, focus, close-to-background and Exit all work as documented.",
+      "Keyboard/Narrator, DPI and theme checks pass; every retained preference is available through Settings without terminal/file editing."
+    ],
+    "validation": "Draft/apply/cancel/reset orchestration tests with fake store/layout; interactive launch/focus, native control, DPI/theme/high-contrast and screen-reader checks.",
+    "exclude": "No settings parity port, news panel, command interface, preference-file editor, custom timezone editor, startup implementation or support-report implementation.",
+    "handoff": "Settings screenshots, complete click/keyboard walkthrough, preview/validation examples and persistence-failure evidence."
+  },
+  {
+    "id": "R11",
+    "phase": "P4",
+    "title": "Add in-app support status, Copy diagnostics and bounded local logs",
+    "deps": [
+      "R02",
+      "R05",
+      "R08",
+      "R10"
+    ],
+    "level": "Windows UI/support agent; interactive clipboard and accessibility verification required",
+    "files": "`clock-app/src/{diagnostics,logging}.rs`, `clock-windows/src/support.rs`, safe clipboard wrapper and R10 Support-section integration.",
+    "before": "`tools.py:113` and startup/crash paths capture stdout and open a browser error URL. A desktop app needs understandable in-app status and deliberate report copying.",
+    "scope": [
+      "Add a Support section to Settings showing app version, Windows build, replacement state and actionable explanations when native clock fallback is active.",
+      "Use the runtime safe snapshot API plus a bounded Refresh status operation. UIA failure/timeouts must not block Settings; do not add a diagnostics service or public IPC.",
+      "Generate a human-readable report containing app commit/version, OS build/architecture, discovery strategy, monitor bounds/DPI and failure reasons. Exclude usernames, file paths and unrelated window titles.",
+      "Show exactly what will be copied in a selectable preview. Copy diagnostics writes to Windows clipboard on explicit click and gives accessible success/failure feedback; handle clipboard contention gracefully.",
+      "Keep local transition logs bounded at 1 MiB per file with at most three retained files. Logging failure cannot stop the clock; no automatic upload or network logging.",
+      "Keep deterministic format fixtures, shell probes and measurement harnesses in development/test artifacts only. Do not ship clap, a format/config/doctor command suite, console attachment or environment-variable setup for users."
+    ],
+    "accept": [
+      "User can understand replacement status and copy the previewed report entirely through Settings.",
+      "Refresh/failure/clipboard contention leaves UI responsive and old clipboard intact where writing fails before replacement.",
+      "Reports omit personal paths/titles and do not upload automatically; supported status fields remain readable.",
+      "Log rotation is bounded, disk errors do not stop the clock and normal launch never flashes/attaches a console."
+    ],
+    "validation": "Report-format/redaction and log-rotation tests, fake snapshot timeout/error tests; interactive keyboard/Narrator support flow, clipboard contention and no-console launch checks.",
+    "exclude": "No CLI, command parser, public JSON diagnostics schema, telemetry, external diagnostic service or automatic crash upload.",
+    "handoff": "Support screenshots, sample redacted plain-text report, copy success/failure evidence, bounded-refresh behavior and logging limits."
+  },
+  {
+    "id": "R12",
+    "phase": "P4",
+    "title": "Implement opt-in per-user login startup with distinct app identity",
+    "deps": [
+      "R05",
+      "R08",
+      "R10"
+    ],
+    "level": "Small Windows integration task; suitable for a bounded agent assignment",
+    "files": "`clock-windows/src/startup.rs`, the R10 startup checkbox adapter and focused tests.",
+    "before": "`ElevenClock.iss:130` writes HKCU Run value `elevenClock`; copying it would conflict with the legacy app.",
+    "scope": [
+      "Define a distinct ElevenClockRust startup value under HKCU Run and use an absolute correctly quoted executable path. No admin privileges.",
+      "Settings reads actual registration state and enables/disables only this app's exact value on explicit user action.",
+      "Do not duplicate OS-owned startup state in stored preferences. Surface failures and leave unrelated values untouched.",
+      "Handle spaces/Unicode paths and stale/moved portable executable with a diagnostic and explicit repair action; do not silently enable startup.",
+      "Document installer cooperation: uninstall removes only the Rust-owned registration."
+    ],
+    "accept": [
+      "Startup defaults off and enabling/disabling affects only the dedicated Rust key.",
+      "Windows logon starts exactly one instance through the existing mutex.",
+      "Paths containing spaces/Unicode round-trip; failed write leaves checkbox consistent with OS state.",
+      "Legacy ElevenClock startup and preferences remain unchanged."
+    ],
+    "validation": "Unit-test command quoting/state reconciliation; use a temporary test registry value for integration tests; explicit manual logon test and cleanup.",
+    "exclude": "No scheduled task, service, machine-wide registry writes, installer implementation or silent repair of legacy startup.",
+    "handoff": "Exact owned registry value/app identity, quoting tests, manual logon evidence and uninstall contract."
+  },
+  {
+    "id": "R13",
+    "phase": "P5",
+    "title": "Run Windows compatibility, recovery and performance acceptance gates",
+    "deps": [
+      "R07",
+      "R08",
+      "R09",
+      "R10",
+      "R11",
+      "R12"
+    ],
+    "level": "Windows validation agent; real interactive hardware/VM access required",
+    "files": "`docs/windows-evidence/acceptance.md`, repeatable measurement scripts and focused regression fixtures for observed failures.",
+    "before": "Legacy Basic health check installs dependencies and runs compileall. It does not demonstrate shell behavior or resource stability.",
+    "scope": [
+      "Execute the dissection's matrix on two exact stock Windows 11 x64 builds and record OS patch, app commit, CPU/logical cores, monitors, DPI and themes.",
+      "Cover one/two displays, negative origins, primary swap/hotplug, 100/125/150/200% mixed DPI, auto-hide, fullscreen per monitor, native calendar/neighbor clicks, Narrator, lock/resume and time/timezone changes.",
+      "Exercise Explorer restart, forced app kill, repeated launch/settings cycles, invalid stored preferences, overflow and unsupported discovery.",
+      "Measure ten minutes each of date-only/minute/seconds modes: CPU-time delta divided by wall time × logical processors, private working set, handles, threads, timer/discovery rate. Include any helper process.",
+      "Run eight-hour soak and report resource trends. Targets: <0.2% total CPU and <40 MiB private working set on recorded reference hardware; failures must be documented, not silently waived.",
+      "Write a pass/fail support matrix. File/fix concrete blockers through scoped follow-ups and rerun affected checks.",
+      "Complete an end-user walkthrough from Start menu launch through first-run Settings, preset edit/preview/Apply, Cancel/Reset, startup choice, diagnostic preview/copy, closing Settings and Exit without a terminal or manual preference edits."
+    ],
+    "accept": [
+      "Evidence names the exact app commit/build combinations and includes reproducible commands and captured results.",
+      "Every required compatibility case is passed or explicitly blocks release/narrows documented support.",
+      "Forced termination reveals native clock; no leaked hooks/windows or growing resource counts.",
+      "Performance/soak results are measured; no claim based only on a microbenchmark, CI run or simulation.",
+      "The complete Windows user flow is usable without developer tools, command-line flags or editing settings files."
+    ],
+    "validation": "Run the actual matrix and attached development-only measurement scripts; use R11 in-app diagnostics to record build/status. Preserve screenshots and measured results; no synthetic pass fixtures.",
+    "exclude": "No unreviewed scope reduction, invented screenshots, fabricated performance values or wholesale architecture changes.",
+    "handoff": "Release-gate report and exact supported builds. Keep unchecked if desktop access or eight-hour execution is unavailable."
+  },
+  {
+    "id": "R14",
+    "phase": "P5",
+    "title": "Package native x64 releases and verify licensing, install and rollback",
+    "deps": [
+      "R13"
+    ],
+    "level": "Windows release agent; licensing conclusions must be evidence-backed",
+    "files": "Rust release workflow, dedicated packaging files, notices, release/rollback docs and installer smoke-test scripts.",
+    "before": "`build.cmd` bundles PyInstaller/PySide6 and strips DLLs; old Inno Setup AppId/startup/reset actions target legacy ElevenClock. README says Apache while LICENSE is GPL v3.",
+    "scope": [
+      "Produce locked MSVC release executable and ZIP containing source/version provenance, applicable notices and SHA256 checksums; preserve separate debug symbols as a CI artifact.",
+      "Verify native runtime DLL requirements on a clean supported Windows machine; document if runtime installation is needed instead of claiming a self-contained EXE without testing.",
+      "Resolve README/LICENSE discrepancy by tracing applicable source/assets and preserving obligations; do not relicense merely because code is Rust. Block distribution if unresolved.",
+      "Create per-user installer with a new AppId, install directory, executable/startup identity and uninstall behavior. The per-user installer with Start menu shortcut is the normal end-user deliverable; a ZIP remains optional and useful for development smoke tests.",
+      "Check install/update/uninstall, path quoting, startup disabled default, coexistence with legacy files and rollback to old release. Do not run both overlay apps at once during validation.",
+      "Release workflow uploads artifacts on PR/manual runs; publishing versioned releases/signing requires configured identity and release action, not automatic creation during this issue.",
+      "Verify double-click/Start menu launch, quiet login startup, first-run Settings, no-console behavior and a complete Settings/Support journey on a clean Windows account without terminal commands."
+    ],
+    "accept": [
+      "Clean Windows portable run and installer lifecycle pass with no Python/Qt runtime.",
+      "Uninstall removes only owned files/startup registration; existing legacy config survives.",
+      "Artifacts have checksums, source commit and consistent notices; any unsigned status is accurate.",
+      "Rollback steps actually restore an earlier supported executable/native clock.",
+      "Installer creates the correct Start menu shortcut; installed product includes no diagnostic CLI/probe tools and requires no manual preference setup."
+    ],
+    "validation": "Locked release build, automated API/development-harness smoke tests, artifact checksum verification and clean-VM GUI install/update/uninstall/rollback walkthrough; record signing availability accurately.",
+    "exclude": "No auto-updater, store submission, reuse of legacy installer identity or public release announcement.",
+    "handoff": "Artifact links, dependency/runtime report, licensing evidence and install/rollback results."
+  },
+  {
+    "id": "R15",
+    "phase": "P5",
+    "title": "Cut over to Rust and retire legacy runtime/build workflows",
+    "deps": [
+      "R14"
+    ],
+    "level": "Repository integration agent; only after release gates pass",
+    "files": "Root README/contributor docs, root Cargo workspace relocation if chosen, legacy Python/build/workflow removals and migration guide.",
+    "before": "The repository still defaults to the original Python/Qt app while the rewrite lives under rust/; archived code remains useful until acceptance completes.",
+    "scope": [
+      "Verify R13/R14 passed for the exact candidate and record a legacy reference tag/commit before deleting working-tree files.",
+      "Make Rust the default documented build/run path and update CI/dependency-update paths consistently. If moving rust/ to root, update every manifest/script/example and rerun all checks.",
+      "Remove obsolete Python/PyInstaller/Qt runtime, old build commands and Python/translation/update workflows from active release tree; retain required licenses/notices and useful historical docs in Git.",
+      "Rewrite README for actual supported builds/features and migration limitations. Include Settings format presets, in-app Support and rollback; do not advertise old internet sync/notification/custom-gesture features.",
+      "Preserve users' legacy config/startup choice; document disabling the old overlay before running Rust. No automatic import/destructive reset.",
+      "Open final integration PR into main with release evidence; do not auto-merge it.",
+      "End-user docs teach installation, Start menu/Settings, Copy diagnostics and uninstall; developer build/test commands stay in the contributor guide. Remove any leftover public CLI or hand-edited configuration instructions."
+    ],
+    "accept": [
+      "Fresh checkout follows Rust docs and passes required CI; active release tree does not depend on Python/Qt.",
+      "All removed features and unsupported platforms are accurately documented.",
+      "Legacy baseline remains retrievable and user data untouched.",
+      "Final PR links exact acceptance/package evidence and requires no undocumented local setup.",
+      "A fresh user can follow the release guide without a terminal; developer probes/examples are excluded from the installed app."
+    ],
+    "validation": "Fresh Windows build/run, Linux core checks, full applicable CI, link/path checks and rollback instructions against the tagged baseline.",
+    "exclude": "No main auto-merge, deletion of history/tags/user preferences or additional feature work.",
+    "handoff": "Final integration PR, migration guide, legacy reference and verified CI/artifact links."
+  }
+]
