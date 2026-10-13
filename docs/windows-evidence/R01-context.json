@@ -1,0 +1,15 @@
+{
+  "os": "Microsoft Windows Server 2025 Datacenter",
+  "version": "10.0.26100",
+  "build": "26100",
+  "dpi": 96,
+  "title": "ElevenClock Settings",
+  "tabOrder": [
+    1001,
+    2
+  ],
+  "forwardAndReverseDialogFocus": "passed",
+  "capture": "PrintWindow of the actual native dialog",
+  "interactiveKeyboardDpiThemeAcceptance": "not performed by this harness",
+  "commit": "299138c23a01bed13b8f6aef241d65f7b4b98e1a"
+}
