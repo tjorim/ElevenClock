@@ -1,0 +1,109 @@
+name: Rust foundation
+on:
+  push:
+    branches: [main, rust-rewrite]
+    paths: ['rust/**', '.github/workflows/rust-ci.yml', 'docs/RUST_*.md']
+  pull_request:
+    paths: ['rust/**', '.github/workflows/rust-ci.yml', 'docs/RUST_*.md']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        toolchain: ['1.90.0', stable]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: rustfmt, clippy
+      - run: cargo +${{ matrix.toolchain }} fmt --manifest-path rust/Cargo.toml --all --check
+      - run: cargo +${{ matrix.toolchain }} clippy --manifest-path rust/Cargo.toml -p clock-core --all-targets --locked -- -D warnings
+      - run: cargo +${{ matrix.toolchain }} test --manifest-path rust/Cargo.toml -p clock-core --locked
+      - run: cargo +${{ matrix.toolchain }} test --manifest-path rust/Cargo.toml -p clock-core --doc --locked
+  windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        toolchain: ['1.90.0', stable]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: rustfmt, clippy
+          targets: x86_64-pc-windows-msvc
+      - run: cargo +${{ matrix.toolchain }} fmt --manifest-path rust/Cargo.toml --all --check
+      - run: cargo +${{ matrix.toolchain }} check --manifest-path rust/Cargo.toml --workspace --all-targets --locked
+      - run: cargo +${{ matrix.toolchain }} clippy --manifest-path rust/Cargo.toml --workspace --all-targets --locked -- -D warnings
+      - run: cargo +${{ matrix.toolchain }} test --manifest-path rust/Cargo.toml --workspace --locked
+      - run: cargo +${{ matrix.toolchain }} test --manifest-path rust/Cargo.toml --workspace --doc --locked
+      - run: cargo +${{ matrix.toolchain }} build --manifest-path rust/Cargo.toml -p clock-app --release --target x86_64-pc-windows-msvc --locked
+      - name: Check GUI subsystem and linked native resources
+        shell: pwsh
+        run: |
+          $exe = 'rust/target/x86_64-pc-windows-msvc/release/clock-app.exe'
+          $bytes = [IO.File]::ReadAllBytes($exe)
+          $pe = [BitConverter]::ToInt32($bytes, 0x3c)
+          if ([BitConverter]::ToUInt16($bytes, $pe + 0x5c) -ne 2) { throw 'Expected Windows GUI subsystem' }
+          $sdk = Get-ChildItem 'C:/Program Files (x86)/Windows Kits/10/bin/*/x64/mt.exe' | Sort-Object FullName -Descending | Select-Object -First 1
+          if (!$sdk) { throw 'Windows SDK manifest tool unavailable' }
+          & $sdk.FullName "-inputresource:$exe;#1" '-out:app.manifest'
+          if ($LASTEXITCODE -ne 0) { throw 'Missing embedded manifest' }
+          if (!(Select-String -Path app.manifest -Pattern 'PerMonitorV2' -Quiet)) { throw 'Missing DPI-v2 manifest' }
+          # Dialog and icon resources must be present in the PE resource table.
+          $utf16 = [Text.Encoding]::Unicode.GetString($bytes)
+          if (!$utf16.Contains('ElevenClock Settings')) { throw 'Missing Settings dialog resource' }
+      - name: Native dialog launch and close smoke check
+        shell: pwsh
+        run: |
+          $app = Start-Process 'rust/target/x86_64-pc-windows-msvc/release/clock-app.exe' -PassThru
+          try {
+            $deadline = [DateTime]::UtcNow.AddSeconds(15)
+            do {
+              Start-Sleep -Milliseconds 200
+              $app.Refresh()
+              if ($app.HasExited) { throw 'Prototype exited before opening Settings' }
+            } while ($app.MainWindowHandle -eq 0 -and [DateTime]::UtcNow -lt $deadline)
+            if ($app.MainWindowTitle -ne 'ElevenClock Settings') { throw 'Expected native Settings window' }
+            if (!$app.CloseMainWindow()) { throw 'Could not request native window close' }
+            if (!$app.WaitForExit(5000)) { throw 'Prototype did not close' }
+            if ($app.ExitCode -ne 0) { throw 'Prototype reported failure' }
+          } finally {
+            $app.Refresh()
+            if (!$app.HasExited) { $app.Kill() }
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prototype-${{ matrix.toolchain }}
+          path: |
+            rust/target/x86_64-pc-windows-msvc/release/clock-app.exe
+            LICENSE
+            docs/RUST_DEPENDENCIES.md
+          if-no-files-found: error
+  dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install cargo-audit --locked --version 0.22.2
+      - name: Advisory audit (failures are never ignored)
+        working-directory: rust
+        run: cargo audit --deny warnings
+      - name: Retain dependency license inventory and original notices
+        if: always()
+        run: |
+          cargo metadata --manifest-path rust/Cargo.toml --locked --format-version 1 > dependency-metadata.json
+          python3 scripts/rust-license-check.py dependency-metadata.json > dependency-notices.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-notices
+          path: |
+            dependency-metadata.json
+            dependency-notices.txt
+            LICENSE
+            docs/RUST_DEPENDENCIES.md

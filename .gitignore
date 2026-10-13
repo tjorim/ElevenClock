@@ -32,3 +32,6 @@ ElevenClock.Installer.exe.zip
 .vs/
 scripts/APIKEY.txt
 sign.cmd.lnk
+
+# Rust build output
+rust/target/

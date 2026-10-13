@@ -1,0 +1,12 @@
+[package]
+name = "clock-windows"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+clock-core.workspace = true
+windows.workspace = true
+

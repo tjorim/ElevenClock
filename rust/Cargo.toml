@@ -1,0 +1,17 @@
+[workspace]
+members = ["crates/clock-core", "crates/clock-windows", "crates/clock-app"]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.90"
+version = "0.1.0"
+publish = false
+# Repository licensing/asset notices are retained; R14 resolves the existing conflict.
+license-file = "../LICENSE"
+
+[workspace.dependencies]
+clock-core = { path = "crates/clock-core" }
+clock-windows = { path = "crates/clock-windows" }
+chrono = { version = "0.4.42", default-features = false, features = ["std"] }
+windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_System_LibraryLoader", "Win32_UI_WindowsAndMessaging", "Win32_UI_Controls", "Win32_UI_HiDpi", "Win32_Graphics_Gdi"] }
