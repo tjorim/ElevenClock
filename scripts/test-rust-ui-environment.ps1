@@ -144,11 +144,16 @@ try {
     } while (!$settings -and [DateTime]::UtcNow -lt $deadline)
     if (!$settings) { throw 'Windows Settings display page unavailable on this runner' }
     $comboCondition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::ComboBox)
-    $combos = $settings.FindAll([Windows.Automation.TreeScope]::Descendants, $comboCondition)
+    # Window creation precedes loading the asynchronous Display Settings page.
+    $deadline = [DateTime]::UtcNow.AddSeconds(15)
+    do {
+        $combos = $settings.FindAll([Windows.Automation.TreeScope]::Descendants, $comboCondition)
+        foreach ($combo in $combos) {
+            if ($combo.Current.Name -match 'Scale|size of text' -or $combo.Current.AutomationId -match 'Scale|Dpi') { $scale = $combo; break }
+        }
+        if (!$scale) { Start-Sleep -Milliseconds 300 }
+    } while (!$scale -and [DateTime]::UtcNow -lt $deadline)
     $results.displayControls = @($combos | ForEach-Object { [ordered]@{name = $_.Current.Name; id = $_.Current.AutomationId} })
-    foreach ($combo in $combos) {
-        if ($combo.Current.Name -match 'Scale|size of text' -or $combo.Current.AutomationId -match 'Scale|Dpi') { $scale = $combo; break }
-    }
     if (!$scale) { throw 'Display Scale selector unavailable on this runner' }
     $selection = $scale.GetCurrentPattern([Windows.Automation.SelectionPattern]::Pattern)
     $selected = $selection.Current.GetSelection()
