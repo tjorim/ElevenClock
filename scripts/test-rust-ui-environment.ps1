@@ -215,12 +215,19 @@ try {
         foreach ($window in $windows) { if ($window.Current.Name -like '*release*') { $explorer = $window; break } }
     } while (!$explorer -and [DateTime]::UtcNow -lt $deadline)
     if (!$explorer) { throw 'Could not open the executable folder in Explorer' }
-    $items = $explorer.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::ListItem))
-    $file = $null
-    foreach ($item in $items) { if ($item.Current.Name -in @('clock-app', 'clock-app.exe')) { $file = $item; break } }
-    if (!$file -or $file.Current.IsOffscreen) { throw 'Executable file item is not visible in Explorer' }
     $handle = [IntPtr]($explorer.Current.NativeWindowHandle)
+    $explorer.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).SetWindowVisualState([Windows.Automation.WindowVisualState]::Normal)
     [UiEnvironment]::SetForegroundWindow($handle) | Out-Null
+    $file = $null
+    $deadline = [DateTime]::UtcNow.AddSeconds(15)
+    do {
+        $items = $explorer.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::ListItem))
+        foreach ($item in $items) { if ($item.Current.Name -in @('clock-app', 'clock-app.exe')) { $file = $item; break } }
+        if (!$file) { Start-Sleep -Milliseconds 200 }
+    } while (!$file -and [DateTime]::UtcNow -lt $deadline)
+    if (!$file) { throw 'Executable file item did not load in Explorer' }
+    if ($file.Current.IsOffscreen) { $file.GetCurrentPattern([Windows.Automation.ScrollItemPattern]::Pattern).ScrollIntoView(); Start-Sleep -Milliseconds 200 }
+    if ($file.Current.IsOffscreen) { throw 'Executable file item is not visible in Explorer' }
     if ([UiEnvironment]::GetForegroundWindow() -ne $handle) { throw 'Explorer could not be activated for the mouse test' }
     $bounds = $file.Current.BoundingRectangle
     [UiEnvironment]::DoubleClick([int]($bounds.Left + [Math]::Min(40, $bounds.Width/2)), [int]($bounds.Top + $bounds.Height/2))
@@ -231,11 +238,17 @@ try {
         if ($opened) { $opened.Refresh() }
     } while ((!$opened -or $opened.MainWindowHandle -eq 0) -and [DateTime]::UtcNow -lt $deadline)
     if (!$opened -or $opened.MainWindowTitle -ne 'ElevenClock Settings') { throw 'Explorer double-click did not open native Settings' }
-    $dialog = [Windows.Automation.AutomationElement]::FromHandle($opened.MainWindowHandle)
-    $combo = $dialog.FindFirst([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::ComboBox))
-    $buttons = $dialog.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Button))
-    $button = $null
-    foreach ($candidate in $buttons) { if ($candidate.Current.Name -eq 'Close' -and $candidate.Current.IsKeyboardFocusable) { $button = $candidate; break } }
+    if (!$opened.WaitForInputIdle(5000)) { throw 'Prototype did not reach its input loop after double-click' }
+    $deadline = [DateTime]::UtcNow.AddSeconds(5)
+    do {
+        $dialog = [Windows.Automation.AutomationElement]::FromHandle($opened.MainWindowHandle)
+        $combo = $dialog.FindFirst([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::ComboBox))
+        $buttons = $dialog.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Button))
+        $button = $null
+        foreach ($candidate in $buttons) { if ($candidate.Current.Name -eq 'Close' -and $candidate.Current.IsKeyboardFocusable) { $button = $candidate; break } }
+        if ($combo -and $button -and $combo.Current.Name -like 'Appearance*' -and $combo.Current.IsKeyboardFocusable) { break }
+        Start-Sleep -Milliseconds 200
+    } while ([DateTime]::UtcNow -lt $deadline)
     $results.accessibleLabels = [ordered]@{window=$dialog.Current.Name; appearance=$combo.Current.Name; appearanceFocusable=$combo.Current.IsKeyboardFocusable; close=if ($button) {$button.Current.Name} else {'missing'} }
     if (!$combo -or $combo.Current.Name -notlike 'Appearance*' -or !$combo.Current.IsKeyboardFocusable) { throw "Appearance accessible label/focus contract failed: name='$($combo.Current.Name)', focusable=$($combo.Current.IsKeyboardFocusable)" }
     if (!$button -or $button.Current.Name -ne 'Close' -or !$button.Current.IsKeyboardFocusable) { throw 'Close accessible label/focus contract failed' }
