@@ -208,5 +208,14 @@
     "activeDisplayMode":  {
                               "width":  1600,
                               "height":  1200
-                          }
+                          },
+    "accessibleLabels":  {
+                             "provider":  "Native IAccessible (Oleacc standard-control proxy)",
+                             "appearance":  "Appearance:",
+                             "appearanceFocusable":  true,
+                             "close":  "Close",
+                             "role":  46
+                         },
+    "explorerDoubleClick":  "Real queued left-button double-click opened the native executable",
+    "explorerExitCode":  0
 }

@@ -13,5 +13,5 @@
   "closeGesture": "Window",
   "capture": "PrintWindow of the actual native dialog",
   "interactiveWindows11Acceptance": "not performed by this Server CI harness",
-  "commit": "6300f9febae6923a299f265de33a2696717ad178"
+  "commit": "35bee7826e9e6178c8ded55dc96d99587cdc5195"
 }
