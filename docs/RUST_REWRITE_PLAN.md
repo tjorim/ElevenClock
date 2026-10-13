@@ -75,8 +75,8 @@ system time nor changes global Windows date-format settings.
 The supported end-user installation is **per-user and requires no administrator
 rights**. A system-wide install is out of scope for v1.
 
-- Default executable location: `%LOCALAPPDATA%\\Programs\\ElevenClockRust`.
-- Private preferences/logs: `%LOCALAPPDATA%\\ElevenClockRust`, separate from binaries.
+- Default executable location: `%LOCALAPPDATA%\Programs\ElevenClockRust`.
+- Private preferences/logs: `%LOCALAPPDATA%\ElevenClockRust`, separate from binaries.
 - Start menu shortcut: current user's Programs folder, resolved through Windows Known Folders.
 - Installer/uninstaller: ordinary-user execution with no UAC elevation prompt.
   For Inno Setup use `PrivilegesRequired=lowest` and no elevation override;
