@@ -42,7 +42,10 @@ Settings foundation. It has no command suite, persistence, overlay or background
 clock yet. Closing the prototype exits; R08 adds the continuing runtime lifecycle.
 `rust-ci.yml` checks the GUI subsystem, embedded manifest, native launch/close
 and forward/reverse dialog focus. Its development harness captures the actual
-dialog and records runner OS/build/DPI as prototype evidence. It is not evidence
+dialog and records runner OS/build/DPI as prototype evidence. The environment
+harness uses actual Windows high contrast and Display Scale selections at
+100/125/150/200%, restoring the original settings; it never injects DPI messages
+or uses a private DPI setter. It is not evidence
 of Explorer or interactive UI compatibility. See the [manual gate](windows-evidence/R01.md).
 
 ## Boundaries and ownership

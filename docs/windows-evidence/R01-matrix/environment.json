@@ -1,0 +1,212 @@
+﻿{
+    "highContrast":  {
+                         "state":  "enabled and captured",
+                         "flags":  127,
+                         "scheme":  "High Contrast Black",
+                         "windowColor":  2105376,
+                         "windowTextColor":  16777215,
+                         "buttonFaceColor":  2105376,
+                         "buttonTextColor":  16777215
+                     },
+    "scaling":  "Actual window DPI verified at 100/125/150/200 percent",
+    "displayControls":  [
+                            {
+                                "name":  "Scale",
+                                "id":  "SystemSettings_Display_Scaling_ItemSizeOverride_ComboBox"
+                            },
+                            {
+                                "name":  "Display resolution",
+                                "id":  "SystemSettings_Display_Resolution_ComboBox"
+                            },
+                            {
+                                "name":  "Display orientation",
+                                "id":  "SystemSettings_Display_Orientation_ComboBox"
+                            }
+                        ],
+    "scaleAttempts":  [
+                          {
+                              "requested":  "100%",
+                              "available":  [
+                                                "System",
+                                                "Bluetooth \u0026 devices",
+                                                "Network \u0026 internet",
+                                                "Personalization",
+                                                "Apps",
+                                                "Accounts",
+                                                "Time \u0026 language",
+                                                "Accessibility",
+                                                "Privacy \u0026 security",
+                                                "Windows Update",
+                                                "100% (Recommended)",
+                                                "125%",
+                                                "150%",
+                                                "175%",
+                                                "200%",
+                                                "1600 × 1200",
+                                                "Landscape"
+                                            ]
+                          },
+                          {
+                              "requested":  "125%",
+                              "available":  [
+                                                "System",
+                                                "Bluetooth \u0026 devices",
+                                                "Network \u0026 internet",
+                                                "Personalization",
+                                                "Apps",
+                                                "Accounts",
+                                                "Time \u0026 language",
+                                                "Accessibility",
+                                                "Privacy \u0026 security",
+                                                "Windows Update",
+                                                "100% (Recommended)",
+                                                "125%",
+                                                "150%",
+                                                "175%",
+                                                "200%",
+                                                "1600 × 1200",
+                                                "Landscape"
+                                            ]
+                          },
+                          {
+                              "requested":  "150%",
+                              "available":  [
+                                                "System",
+                                                "Bluetooth \u0026 devices",
+                                                "Network \u0026 internet",
+                                                "Personalization",
+                                                "Apps",
+                                                "Accounts",
+                                                "Time \u0026 language",
+                                                "Accessibility",
+                                                "Privacy \u0026 security",
+                                                "Windows Update",
+                                                "100% (Recommended)",
+                                                "125%",
+                                                "150%",
+                                                "175%",
+                                                "200%",
+                                                "1600 × 1200",
+                                                "Landscape"
+                                            ]
+                          },
+                          {
+                              "requested":  "200%",
+                              "available":  [
+                                                "System",
+                                                "Bluetooth \u0026 devices",
+                                                "Network \u0026 internet",
+                                                "Personalization",
+                                                "Apps",
+                                                "Accounts",
+                                                "Time \u0026 language",
+                                                "Accessibility",
+                                                "Privacy \u0026 security",
+                                                "Windows Update",
+                                                "100% (Recommended)",
+                                                "125%",
+                                                "150%",
+                                                "175%",
+                                                "200%",
+                                                "1600 × 1200",
+                                                "Landscape"
+                                            ]
+                          },
+                          {
+                              "requested":  "100% (Recommended)",
+                              "available":  [
+                                                "100% (Recommended)",
+                                                "125%",
+                                                "150%",
+                                                "175%",
+                                                "200%",
+                                                "1600 × 1200",
+                                                "Landscape"
+                                            ]
+                          }
+                      ],
+    "displayModes":  [
+                         {
+                             "width":  640,
+                             "height":  480,
+                             "bits":  32,
+                             "frequency":  64
+                         },
+                         {
+                             "width":  800,
+                             "height":  600,
+                             "bits":  32,
+                             "frequency":  64
+                         },
+                         {
+                             "width":  1024,
+                             "height":  768,
+                             "bits":  32,
+                             "frequency":  64
+                         },
+                         {
+                             "width":  1152,
+                             "height":  864,
+                             "bits":  32,
+                             "frequency":  64
+                         },
+                         {
+                             "width":  1280,
+                             "height":  720,
+                             "bits":  32,
+                             "frequency":  64
+                         },
+                         {
+                             "width":  1280,
+                             "height":  800,
+                             "bits":  32,
+                             "frequency":  64
+                         },
+                         {
+                             "width":  1280,
+                             "height":  1024,
+                             "bits":  32,
+                             "frequency":  64
+                         },
+                         {
+                             "width":  1366,
+                             "height":  768,
+                             "bits":  32,
+                             "frequency":  64
+                         },
+                         {
+                             "width":  1440,
+                             "height":  900,
+                             "bits":  32,
+                             "frequency":  64
+                         },
+                         {
+                             "width":  1600,
+                             "height":  900,
+                             "bits":  32,
+                             "frequency":  64
+                         },
+                         {
+                             "width":  1600,
+                             "height":  1200,
+                             "bits":  32,
+                             "frequency":  64
+                         },
+                         {
+                             "width":  1680,
+                             "height":  1050,
+                             "bits":  32,
+                             "frequency":  64
+                         },
+                         {
+                             "width":  1920,
+                             "height":  1080,
+                             "bits":  32,
+                             "frequency":  64
+                         }
+                     ],
+    "activeDisplayMode":  {
+                              "width":  1600,
+                              "height":  1200
+                          }
+}

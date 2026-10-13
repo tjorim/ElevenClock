@@ -46,6 +46,25 @@ public static class UiEnvironment {
         if (result != 0) throw new InvalidOperationException("Actual display mode change failed: " + result);
     }
     [StructLayout(LayoutKind.Sequential)]
+    public struct Mouse { public int X, Y; public uint Data, Flags, Time; public IntPtr Extra; }
+    [StructLayout(LayoutKind.Explicit, Size=40)]
+    public struct Input { [FieldOffset(0)] public uint Type; [FieldOffset(8)] public Mouse Mouse; }
+    [DllImport("user32.dll")] public static extern uint SendInput(uint count, Input[] values, int size);
+    [DllImport("user32.dll")] public static extern int GetSystemMetrics(int index);
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    public static void DoubleClick(int x, int y) {
+        if (!Environment.Is64BitProcess) throw new InvalidOperationException("Harness expects x64");
+        var values = new [] {
+            new Input {Mouse = new Mouse {X=(int)(x*65535.0/(GetSystemMetrics(0)-1)), Y=(int)(y*65535.0/(GetSystemMetrics(1)-1)), Flags=0x8001}},
+            new Input {Mouse = new Mouse {Flags=2}}, new Input {Mouse = new Mouse {Flags=4}},
+            new Input {Mouse = new Mouse {Flags=2}}, new Input {Mouse = new Mouse {Flags=4}}
+        };
+        if (SendInput(5, values, Marshal.SizeOf(typeof(Input))) != 5) {
+            SendInput(1, new [] {new Input {Mouse = new Mouse {Flags=4}}}, Marshal.SizeOf(typeof(Input)));
+            throw new InvalidOperationException("Windows mouse input injection failed");
+        }
+    }
+    [StructLayout(LayoutKind.Sequential)]
     public struct HighContrast { public uint Size, Flags; public IntPtr Scheme; }
     [DllImport("user32.dll", EntryPoint="SystemParametersInfoW", CharSet=CharSet.Unicode, SetLastError=true)]
     public static extern bool Parameters(uint action, uint param, ref HighContrast value, uint flags);
@@ -172,5 +191,51 @@ try {
         if ($modeChanged) { [UiEnvironment]::ApplyMode($originalMode) }
     }
     if ($settings) { $settings.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close() }
+    $results | ConvertTo-Json -Depth 6 | Set-Content -Encoding UTF8 (Join-Path $OutputDirectory 'environment.json')
+}
+
+# Exercise the literal executable double-click path through Explorer, then query
+# the native accessible labels. This remains a developer-only desktop harness.
+$explorer = $null
+$opened = $null
+try {
+    $before = @(Get-Process -Name clock-app -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+    $folder = (Resolve-Path 'rust/target/x86_64-pc-windows-msvc/release').Path
+    Start-Process explorer.exe -ArgumentList ('"' + $folder + '"')
+    $cabinet = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ClassNameProperty, 'CabinetWClass')
+    $deadline = [DateTime]::UtcNow.AddSeconds(15)
+    do {
+        Start-Sleep -Milliseconds 300
+        $windows = [Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children, $cabinet)
+        foreach ($window in $windows) { if ($window.Current.Name -like '*release*') { $explorer = $window; break } }
+    } while (!$explorer -and [DateTime]::UtcNow -lt $deadline)
+    if (!$explorer) { throw 'Could not open the executable folder in Explorer' }
+    $items = $explorer.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::ListItem))
+    $file = $null
+    foreach ($item in $items) { if ($item.Current.Name -in @('clock-app', 'clock-app.exe')) { $file = $item; break } }
+    if (!$file -or $file.Current.IsOffscreen) { throw 'Executable file item is not visible in Explorer' }
+    $handle = [IntPtr]($explorer.Current.NativeWindowHandle)
+    [UiEnvironment]::SetForegroundWindow($handle) | Out-Null
+    if ([UiEnvironment]::GetForegroundWindow() -ne $handle) { throw 'Explorer could not be activated for the mouse test' }
+    $bounds = $file.Current.BoundingRectangle
+    [UiEnvironment]::DoubleClick([int]($bounds.Left + [Math]::Min(40, $bounds.Width/2)), [int]($bounds.Top + $bounds.Height/2))
+    $deadline = [DateTime]::UtcNow.AddSeconds(15)
+    do {
+        Start-Sleep -Milliseconds 200
+        $opened = Get-Process -Name clock-app -ErrorAction SilentlyContinue | Where-Object { $_.Id -notin $before } | Select-Object -First 1
+        if ($opened) { $opened.Refresh() }
+    } while ((!$opened -or $opened.MainWindowHandle -eq 0) -and [DateTime]::UtcNow -lt $deadline)
+    if (!$opened -or $opened.MainWindowTitle -ne 'ElevenClock Settings') { throw 'Explorer double-click did not open native Settings' }
+    $dialog = [Windows.Automation.AutomationElement]::FromHandle($opened.MainWindowHandle)
+    $combo = $dialog.FindFirst([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::ComboBox))
+    $button = $dialog.FindFirst([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Button))
+    if (!$combo -or $combo.Current.Name -notlike 'Appearance*' -or !$combo.Current.IsKeyboardFocusable) { throw 'Appearance accessible label/focus contract failed' }
+    if (!$button -or $button.Current.Name -ne 'Close' -or !$button.Current.IsKeyboardFocusable) { throw 'Close accessible label/focus contract failed' }
+    $results.explorerDoubleClick = 'Real queued left-button double-click opened the native executable'
+    $results.accessibleLabels = [ordered]@{window=$dialog.Current.Name; appearance=$combo.Current.Name; close=$button.Current.Name}
+    if (!$opened.CloseMainWindow() -or !$opened.WaitForExit(5000) -or $opened.ExitCode -ne 0) { throw 'Double-clicked prototype did not close normally' }
+} finally {
+    if ($opened) { $opened.Refresh(); if (!$opened.HasExited) { $opened.Kill() }; $opened.Dispose() }
+    if ($explorer) { $explorer.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close() }
     $results | ConvertTo-Json -Depth 6 | Set-Content -Encoding UTF8 (Join-Path $OutputDirectory 'environment.json')
 }
