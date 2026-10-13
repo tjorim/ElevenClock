@@ -70,6 +70,32 @@ These are planning defaults, open to adjustment before implementation.
 The operating system remains the time authority. The app neither changes the
 system time nor changes global Windows date-format settings.
 
+## Installation and privilege requirements
+
+The supported end-user installation is **per-user and requires no administrator
+rights**. A system-wide install is out of scope for v1.
+
+- Default executable location: `%LOCALAPPDATA%\Programs\ElevenClockRust`.
+- Private preferences/logs: `%LOCALAPPDATA%\ElevenClockRust`, separate from binaries.
+- Start menu shortcut: current user's Programs folder, resolved through Windows Known Folders.
+- Installer/uninstaller: ordinary-user execution with no UAC elevation prompt.
+  For Inno Setup use `PrivilegesRequired=lowest` and no elevation override;
+  the app manifest requests `asInvoker`.
+- Opt-in login startup: app-owned HKCU Run value, never HKLM, a service or an
+  elevated scheduled task.
+- Optional ZIP: extract and run from a user-writable folder without installation;
+  it uses the same private per-user preferences and requires no elevation.
+- Verify install, first launch, taskbar replacement, settings, startup, update,
+  uninstall and ZIP execution using a standard non-administrator account on
+  clean supported Windows builds, including missing-runtime cases.
+- A runtime prerequisite must not silently trigger an elevated installer.
+  Prefer compatible app-local deployment or supported linking choices. If any
+  dependency or shell operation genuinely requires administrator rights, stop
+  that design change and flag the reason and alternatives to the project owner
+  before adopting it.
+- Enterprise application-control policy can still block execution. Report this
+  in the UI/documentation; requesting elevation is not the default workaround.
+
 ## Date/time contract
 
 Use `chrono` with a documented, validated subset of its strftime syntax. Parse
