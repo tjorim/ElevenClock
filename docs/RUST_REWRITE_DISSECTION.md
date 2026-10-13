@@ -360,3 +360,7 @@ conflict is resolved from evidence. A Rust rewrite does not reset copyright.
 Use a new installer AppId/startup identity. Archive the old baseline in Git,
 retain legacy settings, and provide rollback instructions. Remove Python,
 PyInstaller, Qt and obsolete workflows only in R15 after acceptance and packaging.
+
+## 7. Installation privileges
+
+Follow the [installation and privilege requirements](RUST_REWRITE_PLAN.md#installation-and-privilege-requirements): per-user installer and optional ZIP, standard-user execution, no elevated prerequisites, and a mandatory non-administrator acceptance run. R12 and R14 own startup and packaging verification respectively. Flag unavoidable administrator requirements to the project owner before adopting them.
