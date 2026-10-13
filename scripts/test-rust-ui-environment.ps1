@@ -80,7 +80,7 @@ try {
     }
     if (!$scale) { throw 'Display Scale selector unavailable on this runner' }
     $selection = $scale.GetCurrentPattern([Windows.Automation.SelectionPattern]::Pattern)
-    $selected = $selection.GetCurrentSelection()
+    $selected = $selection.Current.GetSelection()
     if ($selected.Count -ne 1) { throw 'Cannot record original display scale' }
     $originalScale = $selected[0].Current.Name
     function Set-Scale([string]$Label) {
