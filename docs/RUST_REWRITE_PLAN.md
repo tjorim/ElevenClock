@@ -4,7 +4,7 @@ Prepared 2026-10-13. Planning only; no Rust implementation has started.
 
 This overview is supplemented by [the source dissection and implementation
 contracts](RUST_REWRITE_DISSECTION.md), which define the concrete module layout,
-stack decisions informed by `tjorim/scat`, phase gates and issue breakdown.
+Windows-specific design decisions, phase gates and issue breakdown.
 Use that document for implementation details if the overview is less specific.
 
 ## Goal
@@ -14,6 +14,25 @@ visual replacement of the system clock and user-defined date/time formats.
 The motivating example is `2642.2`: 2026, week 42, Tuesday (Monday = 1).
 Rewrite the retained functionality completely in Rust; feature parity with the
 Python application is explicitly not the goal.
+
+## Windows app experience
+
+Install and launch from the Start menu. On first launch, show a small native
+Settings window with a working clock preview and login startup off by default.
+Subsequent launches focus the existing Settings window. Closing Settings keeps
+the clock running; Exit in the clock/tray menu stops replacement and reveals
+the native clock.
+
+Users choose a date preset or edit its format in Settings, see immediate sample
+output, select primary/all displays and appearance, and click Apply. No terminal,
+configuration-file editing, environment variables or separate tools are needed.
+A Support section explains unsupported shell states and offers Copy diagnostics.
+The installer provides the normal end-user delivery path; ZIP builds are useful
+for development and optional installation-free use.
+
+The architecture is chosen for this Windows app. Prior Rust projects do not
+establish a preferred stack. Settings storage is an internal implementation
+detail, with all supported preferences available through the UI.
 
 ## Repository and evidence
 
@@ -46,7 +65,7 @@ These are planning defaults, open to adjustment before implementation.
 | Shell behavior | DPI changes, auto-hide, fullscreen hiding, Explorer restart recovery | Reproducing notification counts, focus-assist indicators, Copilot controls |
 | Interaction | Native calendar/notifications access, context menu, tray icon, settings, exit | User scripts, arbitrary commands, configurable gestures |
 | Preferences | Format, monitor selection, font size, theme, opt-in login startup | Import of every legacy preference, full localization |
-| Delivery | Portable executable first; per-user installer after stabilization | In-app updater, telemetry, store integration |
+| Delivery | Per-user installer and Start menu entry; optional ZIP after validation | In-app updater, telemetry, store integration |
 
 The operating system remains the time authority. The app neither changes the
 system time nor changes global Windows date-format settings.
@@ -91,24 +110,26 @@ available as reference until the Rust replacement passes the release gates.
 
 ```text
 rust/
-  crates/clock-core/       # format parsing/rendering, config, update scheduling
+  crates/clock-core/       # format parsing/rendering, preferences, scheduling
   crates/clock-windows/    # taskbar discovery, geometry, events, rendering
-  crates/clock-app/        # executable, CLI, orchestration; no Win32 FFI
+  crates/clock-app/        # GUI startup and application orchestration; no Win32 FFI
 ```
 
-- `clock-core`: platform-independent logic with an injectable time snapshot.
-  Dependencies: `chrono`, `serde`, `serde_json`, `thiserror`; pin resolved
-  dependencies in Cargo.lock. JSON follows the existing `scat` stack.
-- `clock-windows`: Microsoft `windows` crate for Win32/COM bindings; use native
-  windows and DirectWrite/Direct2D for text. Keep HWND, COM, hooks, timers and
-  graphics resources behind small RAII wrappers. Confine unsafe code here and
-  document lifetime/thread assumptions. Handle graphics-device loss.
-- `clock-app`: owns application orchestration and uses safe `clock-windows`
-  wrappers for the message loop, mutex, native settings and system tray.
-  Use `clap`, `anyhow` and `tracing` as in `scat`; no browser runtime or Qt.
-- Versioned JSON preferences in `%LOCALAPPDATA%\ElevenClockRust\config.json`.
-  Use atomic replacement and keep the last valid settings. Avoid modifying the
-  old app's data. Settings can apply without restarting the process.
+- `clock-core`: platform-independent formatting, typed preferences and scheduling
+  with injectable time. Use `chrono` for ISO calendar arithmetic and typed errors.
+- `clock-windows`: Microsoft `windows` bindings, DirectWrite/Direct2D clock
+  rendering, native Win32 settings controls and Windows lifecycle integration.
+  Keep HWND, COM, hooks and graphics resources behind safe RAII wrappers.
+- `clock-app`: GUI-subsystem executable and application coordinator, using the
+  safe Windows facade. No public command interface, console attachment or
+  command parser. Developer probes/tests are separate development artifacts.
+- `PreferencesStore` persists validated per-user settings in an app-owned
+  LocalAppData location. Its file encoding is selected and documented in R05
+  based on reliable saves/migrations; it is not a public configuration format.
+  Failed saves preserve the previous settings. Do not touch legacy user data.
+- Use maintained stable Rust with a recorded MSRV, Cargo.lock and focused CI.
+  Select dependencies for these responsibilities, not for similarity to another
+  repository. Structured errors and bounded logs support the GUI.
 - Event-driven updates for shell/display/theme/time/power/session changes.
   Use an adaptive wall-clock timer: one second when seconds are shown, at most
   one minute otherwise. Re-read local time at each wake and after resume or time
@@ -158,6 +179,11 @@ as a finished taskbar replacement.
 
 ## Implementation sequence and completion criteria
 
+The numbered issue dependencies in [the index](RUST_REWRITE_ISSUES.md) govern
+assignment. The early foundation includes a native Settings window shell so
+window behavior and controls can be assessed before the complete settings UI.
+
+
 1. **Repository preparation.** Hosted fork created; upstream commit and
    licensing discrepancy recorded above. Add Cargo workspace,
    Windows manifest and CI on an implementation branch. No legacy deletion yet.
@@ -169,14 +195,14 @@ as a finished taskbar replacement.
    and adaptive scheduling. Complete date-boundary and invalid-format tests.
    This can progress independently of shell discovery once implementation starts.
 4. **Usable vertical slice.** Show `%H:%M` / `%g%V.%u` over the primary clock;
-   add context menu, tray exit, config loading and last-valid fallback. Verify
+   add context menu, tray exit, stored preferences and last-valid fallback. Verify
    `2026-10-13 -> 2642.2` using an injected test clock.
 5. **Reliability and monitor support.** Add all-monitor mode, mixed DPI, hotplug,
    theme/high contrast, fullscreen, auto-hide, lock/unlock, suspend/resume and
    Explorer recovery. Pass the manual matrix below before calling this a beta.
 6. **Settings and delivery.** Add native format preview/settings and opt-in
-   per-user startup. Ship portable x64 builds, then a per-user installer with
-   clean uninstall. Publish checksums, license notices and matching source;
+   per-user startup and Copy diagnostics. Validate development ZIP builds, then
+   ship a per-user installer with a Start menu entry and clean uninstall. Publish checksums, license notices and matching source;
    signing depends on availability of a signing identity.
 7. **Rust cutover.** After acceptance, make Rust the default build, replace
    legacy build/release workflows, and remove Python/Qt runtime and packaging
@@ -207,6 +233,8 @@ Manual Windows matrix:
   access to settings and screen-reader labeling of the clock.
 - Explorer kill/restart, app kill/restart, duplicate launch, sleep/resume,
   lock/unlock, timezone change, manual system-time change and date rollover.
+- Start menu launch, first-run Settings, second-launch focus, close-to-background,
+  Apply/Cancel/Reset, Copy diagnostics and Exit all work without a terminal.
 - Startup/uninstall leave the native clock and system preferences intact.
 
 Proposed performance budgets, to measure rather than claim: idle average under
