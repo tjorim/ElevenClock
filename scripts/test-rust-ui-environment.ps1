@@ -9,6 +9,42 @@ Add-Type @'
 using System;
 using System.Runtime.InteropServices;
 public static class UiEnvironment {
+    [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]
+    public struct DisplayMode {
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst=32)] public string Device;
+        public ushort SpecVersion, DriverVersion, Size, Extra;
+        public uint Fields;
+        public int X, Y;
+        public uint Orientation, FixedOutput;
+        public short Color, Duplex, YResolution, TTOption, Collate;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst=32)] public string Form;
+        public ushort LogPixels;
+        public uint Bits, Width, Height, Flags, Frequency, IcmMethod, IcmIntent,
+            Media, Dither, Reserved1, Reserved2, PanningWidth, PanningHeight;
+    }
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)]
+    public static extern bool EnumDisplaySettingsW(string device, int index, ref DisplayMode mode);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)]
+    public static extern int ChangeDisplaySettingsExW(string device, ref DisplayMode mode, IntPtr window, uint flags, IntPtr parameter);
+    public static DisplayMode ReadMode(int index) {
+        var mode = new DisplayMode {Size = (ushort)Marshal.SizeOf(typeof(DisplayMode))};
+        if (!EnumDisplaySettingsW(null, index, ref mode)) throw new InvalidOperationException("Display mode unavailable");
+        return mode;
+    }
+    public static DisplayMode[] Modes() {
+        var modes = new System.Collections.Generic.List<DisplayMode>();
+        for (int index=0; index<512; index++) {
+            var mode = new DisplayMode {Size = (ushort)Marshal.SizeOf(typeof(DisplayMode))};
+            if (!EnumDisplaySettingsW(null, index, ref mode)) break;
+            modes.Add(mode);
+        }
+        return modes.ToArray();
+    }
+    public static void ApplyMode(DisplayMode mode) {
+        mode.Fields = 0x00180000; // DM_PELSWIDTH | DM_PELSHEIGHT
+        int result = ChangeDisplaySettingsExW(null, ref mode, IntPtr.Zero, 0, IntPtr.Zero);
+        if (result != 0) throw new InvalidOperationException("Actual display mode change failed: " + result);
+    }
     [StructLayout(LayoutKind.Sequential)]
     public struct HighContrast { public uint Size, Flags; public IntPtr Scheme; }
     [DllImport("user32.dll", EntryPoint="SystemParametersInfoW", CharSet=CharSet.Unicode, SetLastError=true)]
@@ -31,7 +67,7 @@ public static class UiEnvironment {
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 $original = [UiEnvironment]::Read()
 $originalScheme = [Runtime.InteropServices.Marshal]::PtrToStringUni($original.Scheme)
-$results = [ordered]@{highContrast = 'not run'; scaling = 'not run'; displayControls = @(); scaleAttempts = @()}
+$results = [ordered]@{highContrast = 'not run'; scaling = 'not run'; displayControls = @(); scaleAttempts = @(); displayModes = @()}
 function Run-Prototype([string]$Case, [int]$Dpi = 0, [string]$Close = 'Window') {
     & pwsh -NoProfile -File scripts/test-rust-settings.ps1 -OutputDirectory (Join-Path $OutputDirectory $Case) -ExpectedDpi $Dpi -CloseGesture $Close
     if ($LASTEXITCODE -ne 0) { throw "Native prototype failed in $Case" }
@@ -53,7 +89,7 @@ try {
     }
 } finally {
     [UiEnvironment]::Apply($original.Flags, $originalScheme)
-    $results | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $OutputDirectory 'environment.json')
+    $results | ConvertTo-Json -Depth 6 | Set-Content -Encoding UTF8 (Join-Path $OutputDirectory 'environment.json')
 }
 # Verify distinct ordinary dialog exit gestures before changing display settings.
 Run-Prototype 'keyboard-escape' 0 'Escape'
@@ -65,7 +101,22 @@ $windowCondition = [Windows.Automation.PropertyCondition]::new([Windows.Automati
 $settings = $null
 $scale = $null
 $originalScale = $null
+$originalMode = [UiEnvironment]::ReadMode(-1)
+$modeChanged = $false
 try {
+    $modes = [UiEnvironment]::Modes()
+    $results.displayModes = @($modes | ForEach-Object { [ordered]@{width=$_.Width; height=$_.Height; bits=$_.Bits; frequency=$_.Frequency} })
+    # The initial 1024x768 mode limits Settings to 125%. Pick an actual driver
+    # mode with sufficient logical desktop area at 200%, rather than private DPI APIs.
+    $largeMode = $modes | Where-Object { $_.Width -ge 1920 -and $_.Height -ge 1200 -and $_.Bits -eq $originalMode.Bits } | Sort-Object { [long]$_.Width * $_.Height } | Select-Object -First 1
+    if (!$largeMode) { throw 'Display driver exposes no mode large enough for the 200% scaling test' }
+    [UiEnvironment]::ApplyMode($largeMode)
+    $modeChanged = $true
+    Start-Sleep -Seconds 1
+    $actualMode = [UiEnvironment]::ReadMode(-1)
+    if ($actualMode.Width -ne $largeMode.Width -or $actualMode.Height -ne $largeMode.Height) { throw 'Driver did not apply the requested display mode' }
+    $results.activeDisplayMode = [ordered]@{width=$actualMode.Width; height=$actualMode.Height}
+
     Start-Process 'ms-settings:display'
     $deadline = [DateTime]::UtcNow.AddSeconds(15)
     do {
@@ -115,7 +166,11 @@ try {
     $results.scaling = 'Unavailable or failed: ' + $_.Exception.Message
     throw
 } finally {
-    if ($scale -and $originalScale) { Set-Scale $originalScale }
+    try {
+        if ($scale -and $originalScale) { Set-Scale $originalScale }
+    } finally {
+        if ($modeChanged) { [UiEnvironment]::ApplyMode($originalMode) }
+    }
     if ($settings) { $settings.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close() }
-    $results | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $OutputDirectory 'environment.json')
+    $results | ConvertTo-Json -Depth 6 | Set-Content -Encoding UTF8 (Join-Path $OutputDirectory 'environment.json')
 }
