@@ -228,7 +228,9 @@ try {
     if (!$opened -or $opened.MainWindowTitle -ne 'ElevenClock Settings') { throw 'Explorer double-click did not open native Settings' }
     $dialog = [Windows.Automation.AutomationElement]::FromHandle($opened.MainWindowHandle)
     $combo = $dialog.FindFirst([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::ComboBox))
-    $button = $dialog.FindFirst([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Button))
+    $buttons = $dialog.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Button))
+    $button = $null
+    foreach ($candidate in $buttons) { if ($candidate.Current.Name -eq 'Close' -and $candidate.Current.IsKeyboardFocusable) { $button = $candidate; break } }
     if (!$combo -or $combo.Current.Name -notlike 'Appearance*' -or !$combo.Current.IsKeyboardFocusable) { throw 'Appearance accessible label/focus contract failed' }
     if (!$button -or $button.Current.Name -ne 'Close' -or !$button.Current.IsKeyboardFocusable) { throw 'Close accessible label/focus contract failed' }
     $results.explorerDoubleClick = 'Real queued left-button double-click opened the native executable'
