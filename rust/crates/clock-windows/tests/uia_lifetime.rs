@@ -672,17 +672,33 @@ mod imp {
         for attempt in 1..=4 {
             let log = dir.path().join(format!("explorer-{attempt}.jsonl"));
             let mut client = spawn_trace("taskbar", &log, 120, None);
-            wait_for(
-                "steady state before the freeze",
-                Duration::from_secs(60),
-                || {
-                    read_log(&log)
-                        .iter()
-                        .filter(|r| r["event"] == "end" && r["ok"] == true)
-                        .count()
-                        >= 30
-                },
-            );
+            let steady_wait = Instant::now();
+            let steady = loop {
+                let ok_calls = read_log(&log)
+                    .iter()
+                    .filter(|r| r["event"] == "end" && r["ok"] == true)
+                    .count();
+                if ok_calls >= 30 {
+                    break true;
+                }
+                if steady_wait.elapsed() > Duration::from_secs(60) {
+                    break false;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            };
+            if !steady {
+                // The shell was not yet usable (still starting after the previous
+                // restart). Record it rather than aborting the whole case.
+                let _ = finish(&mut client, Duration::from_millis(1));
+                attempts.push(json!({"attempt": attempt, "steady_state_timeout": true,
+                    "log_tail": read_log(&log).iter().rev().take(6).collect::<Vec<_>>()}));
+                evidence(
+                    "explorer-restart-correlation",
+                    json!({"correlated": correlated, "attempts": attempts}),
+                );
+                std::thread::sleep(Duration::from_secs(5));
+                continue;
+            }
             let before = probe::current_shell();
             let pid = before.expect("a running shell").0;
             let mut freeze = Freeze::new(pid);
@@ -752,9 +768,15 @@ mod imp {
             let fresh_shell = matches!((before, after), (Some(b), Some(a)) if b != a);
             if held_failed && fresh_shell && recovered.is_some() {
                 correlated = true;
+            }
+            evidence(
+                "explorer-restart-correlation",
+                json!({"correlated": correlated, "attempts": attempts}),
+            );
+            if correlated {
                 break;
             }
-            std::thread::sleep(Duration::from_secs(3));
+            std::thread::sleep(Duration::from_secs(5));
         }
         evidence(
             "explorer-restart-correlation",
