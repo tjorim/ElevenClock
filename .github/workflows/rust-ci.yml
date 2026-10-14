@@ -77,13 +77,11 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always() && matrix.toolchain == 'stable'
         with:
-          name: prototype-${{ matrix.toolchain }}
+          # Evidence only (Settings/UI smoke captures). The placeholder app binary is
+          # deliberately not published; releases come from R14.
+          name: windows-ui-evidence
           retention-days: 14
-          path: |
-            rust/target/x86_64-pc-windows-msvc/release/clock-app.exe
-            LICENSE
-            docs/RUST_DEPENDENCIES.md
-            native-evidence/
+          path: native-evidence/
           if-no-files-found: error
   dependencies:
     runs-on: ubuntu-latest

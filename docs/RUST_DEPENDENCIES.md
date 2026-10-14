@@ -28,8 +28,8 @@ The repository LICENSE, Python code and existing icon notices are preserved.
 The inherited license-file points at that existing LICENSE; it does not assert
 that the README/LICENSE conflict has been resolved or rebrand the project.
 R14 must establish the applicable GPL/asset obligations before distribution.
-CI prototype artifacts include the repository LICENSE and this policy; they are
-verification builds, not a release package or installer.
+CI does not publish the application binary: its artifacts are test evidence only
+(screenshots, JSON, logs), so nothing from CI is a release package or installer.
 
 R02 adds **development-only** `serde_json` 1.0 for the probe's structured evidence
 and generation-envelope tests. It uses the maintained Serde JSON implementation
