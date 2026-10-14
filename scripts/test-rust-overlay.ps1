@@ -37,10 +37,22 @@ public static class OverlayEvidence {
     [StructLayout(LayoutKind.Sequential)] public struct Mouse { public int X,Y; public uint Data,Flags,Time; public IntPtr Extra; }
     [StructLayout(LayoutKind.Explicit,Size=40)] public struct Input { [FieldOffset(0)]public uint Type; [FieldOffset(8)]public Mouse Mouse; }
     [DllImport("user32.dll")] static extern uint SendInput(uint count,Input[] inputs,int size);
+    [StructLayout(LayoutKind.Sequential)] public struct Point { public int X,Y; }
+    [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(Point point);
+    public static bool HitsOverlay(int x,int y,uint expectedProcess) {
+        var window=WindowFromPoint(new Point{X=x,Y=y});uint process;
+        GetWindowThreadProcessId(window,out process);
+        var text=new System.Text.StringBuilder(256);GetClassNameW(window,text,256);
+        return process==expectedProcess && text.ToString()=="ElevenClock.R03.Overlay" && IsWindowVisible(window);
+    }
+    public static void Press() {
+        var down=new Input { Mouse=new Mouse { Flags=2 } };var up=new Input { Mouse=new Mouse { Flags=4 } };
+        uint count=SendInput(2,new[]{down,up},Marshal.SizeOf(typeof(Input)));
+        if(count!=2) {if(count==1) SendInput(1,new[]{up},Marshal.SizeOf(typeof(Input)));throw new InvalidOperationException("Harness click failed");}
+    }
     public static void Click(int x,int y) {
         if (!SetCursorPos(x,y)) throw new InvalidOperationException("Cursor failed");
-        var down=new Input { Mouse=new Mouse { Flags=2 } }; var up=new Input { Mouse=new Mouse { Flags=4 } };
-        if(SendInput(2,new[]{down,up},Marshal.SizeOf(typeof(Input)))!=2) throw new InvalidOperationException("Harness click failed");
+        Press();
     }
     [DllImport("user32.dll")] static extern int GetSystemMetrics(int index);
     public static void Move(int x,int y) {
@@ -72,6 +84,22 @@ function Wait-Overlay([bool]$visible, [int]$seconds=20) {
     do { [Windows.Forms.Application]::DoEvents();$h=Overlay;if ($h -ne [IntPtr]::Zero -and [OverlayEvidence]::IsWindowVisible($h) -eq $visible) { return $h };Start-Sleep -Milliseconds 25 } while ([DateTime]::UtcNow -lt $end)
     if (!$visible -and (Overlay) -eq [IntPtr]::Zero) { return [IntPtr]::Zero }
     Capture 'wait-failed'; throw "Overlay visible=$visible not observed"
+}
+function Click-Overlay($process,$point) {
+    # A real user moves, then presses. Wait for the taskbar's mouse-move raise
+    # and the prototype's relative z-order reconciliation before ONE gesture.
+    [OverlayEvidence]::Move($point[0],$point[1])
+    $deadline=[DateTime]::UtcNow.AddSeconds(12);$stable=$null
+    do {
+        if ([OverlayEvidence]::HitsOverlay($point[0],$point[1],[uint32]$process.Id)) {
+            if (!$stable) {$stable=[DateTime]::UtcNow}
+            if (([DateTime]::UtcNow-$stable).TotalMilliseconds -ge 100) {
+                [OverlayEvidence]::Press();return
+            }
+        } else {$stable=$null}
+        [Windows.Forms.Application]::DoEvents();Start-Sleep -Milliseconds 10
+    } while ([DateTime]::UtcNow -lt $deadline)
+    throw 'Actual pointer hit did not stabilize on the overlay; no click sent'
 }
 function Wait-Action([string]$name) {
     $deadline=[DateTime]::UtcNow.AddSeconds(12)
@@ -142,7 +170,7 @@ try {
     $fixture.TopMost=$false;$fixture.FormBorderStyle='Sizable';$fixture.Bounds=New-Object Drawing.Rectangle(100,100,480,320)
     Wait-Overlay $true|Out-Null
     # One physical click made by the test harness, not relayed by the overlay.
-    [OverlayEvidence]::Click($point[0],$point[1]);$report=Wait-Action 'primary';Start-Sleep -Seconds 1
+    Click-Overlay $p $point;$report=Wait-Action 'primary';Start-Sleep -Seconds 1
     Capture 'calendar-after-click' 
     $actions=@($report.reports.result.action|Where-Object {$_})
     if ($actions.Count -ne 1) {throw "Expected exactly one calendar action, observed $($actions.Count)"}
@@ -159,7 +187,7 @@ try {
     [OverlayEvidence]::Click(150,115)
     $p=Start-Spike 'keyboard-calendar' 'primary-keyboard';$h=Wait-Overlay $true
     $keyboardPoint=Clock-Point $h
-    [OverlayEvidence]::Click($keyboardPoint[0],$keyboardPoint[1]);$keyboardReport=Wait-Action 'keyboard-calendar';Start-Sleep -Seconds 1
+    Click-Overlay $p $keyboardPoint;$keyboardReport=Wait-Action 'keyboard-calendar';Start-Sleep -Seconds 1
     Capture 'calendar-keyboard' 
     $keyboardActions=@($keyboardReport.reports.result.action|Where-Object {$_})
     if ($keyboardActions.Count -ne 1 -or $keyboardActions[0] -ne 'win_n_once') {throw 'Separate deliberate keyboard click did not produce exactly one Win+N'}

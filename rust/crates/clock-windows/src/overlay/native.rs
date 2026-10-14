@@ -9,7 +9,11 @@ use windows::{
         Foundation::*,
         Graphics::Gdi::*,
         System::{LibraryLoader::GetModuleHandleW, Threading::*},
-        UI::{HiDpi::GetDpiForWindow, WindowsAndMessaging::*},
+        UI::{
+            HiDpi::GetDpiForWindow,
+            Input::KeyboardAndMouse::{GetCapture, ReleaseCapture, SetCapture},
+            WindowsAndMessaging::*,
+        },
     },
     core::{Result, w},
 };
@@ -280,8 +284,41 @@ unsafe extern "system" fn window_proc(hwnd: HWND, message: u32, wp: WPARAM, lp: 
     unsafe {
         match message {
             WM_MOUSEACTIVATE => LRESULT(MA_NOACTIVATE as isize),
+            WM_LBUTTONDOWN => {
+                // GWLP_USERDATA is an owned scalar press flag, never a pointer
+                // to borrowed state. Capture keeps the release on this window.
+                SetWindowLongPtrW(hwnd, GWLP_USERDATA, 1);
+                SetCapture(hwnd);
+                LRESULT(0)
+            }
             WM_LBUTTONUP => {
-                let _ = PostMessageW(Some(hwnd), WM_APP + 3, WPARAM(0), LPARAM(0));
+                let pressed = SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0) == 1;
+                if GetCapture() == hwnd {
+                    let _ = ReleaseCapture();
+                }
+                let mut point = POINT::default();
+                let mut rect = RECT::default();
+                if pressed
+                    && GetCursorPos(&mut point).is_ok()
+                    && GetWindowRect(hwnd, &mut rect).is_ok()
+                    && point.x >= rect.left
+                    && point.x < rect.right
+                    && point.y >= rect.top
+                    && point.y < rect.bottom
+                {
+                    let _ = PostMessageW(Some(hwnd), WM_APP + 3, WPARAM(0), LPARAM(0));
+                }
+                LRESULT(0)
+            }
+            WM_CANCELMODE | WM_CAPTURECHANGED => {
+                SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
+                if message == WM_CANCELMODE && GetCapture() == hwnd {
+                    let _ = ReleaseCapture();
+                }
+                LRESULT(0)
+            }
+            WM_CLOSE => {
+                PostQuitMessage(0);
                 LRESULT(0)
             }
             WM_DPICHANGED | WM_DISPLAYCHANGE | WM_SETTINGCHANGE => {
