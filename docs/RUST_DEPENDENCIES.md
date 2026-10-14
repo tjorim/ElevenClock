@@ -16,8 +16,10 @@ Transitive updates need the same checks. No audit failure is silently suppressed
 any exception needs a reviewed, dated rationale and remediation issue.
 
 CI cargo-audit denies warnings; unavailable advisory data is a failure. License
-checks fail on terms outside the explicit reviewed set and retain the dependency
-metadata plus original LICENSE/COPYING/NOTICE files as an artifact. Review the
+checks fail on terms outside the explicit reviewed set or with missing original
+LICENSE/COPYING/NOTICE text; CI does not upload the inventory. Regenerate it on
+demand with `cargo metadata --manifest-path rust/Cargo.toml --locked --format-version 1 > dependency-metadata.json`
+and `python3 scripts/rust-license-check.py dependency-metadata.json`. Review the
 inventory on updates. SPDX metadata is not a substitute for shipping attribution.
 The inventory script is development-only. Release packaging must retain applicable
 notices and satisfy the selected terms for each dependency.
@@ -26,8 +28,8 @@ The repository LICENSE, Python code and existing icon notices are preserved.
 The inherited license-file points at that existing LICENSE; it does not assert
 that the README/LICENSE conflict has been resolved or rebrand the project.
 R14 must establish the applicable GPL/asset obligations before distribution.
-CI prototype artifacts include the repository LICENSE and this policy; they are
-verification builds, not a release package or installer.
+CI uploads test evidence (screenshots, JSON, logs) and one runnable development
+build (`elevenclock-dev-x64`) for testing; neither is a release package or installer.
 
 R02 adds **development-only** `serde_json` 1.0 for the probe's structured evidence
 and generation-envelope tests. It uses the maintained Serde JSON implementation
@@ -37,8 +39,8 @@ zmij (MIT/Apache-2.0 alternatives); existing metadata dependencies are reused.
 It is a dev-dependency of clock-windows and does not enter clock-app's normal
 dependency graph. The Windows bindings enable documented COM, UIA, registry,
 process and job APIs; no additional runtime package, command parser or async
-runtime is introduced. Retain the complete inventory/notices for these developer
-artifacts too.
+runtime is introduced. The license check covers these developer
+dependencies too.
 
 R04 adds development-only **proptest** (locked 1.12.0) for generated formatter
 validation and **Criterion** 0.7.0 (default features disabled) for parse/render

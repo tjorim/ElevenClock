@@ -38,8 +38,11 @@ cargo +1.90.0 build --manifest-path rust/Cargo.toml -p clock-app --release --tar
 ```
 
 Repeat with `+stable`. Double-click the resulting `clock-app.exe` for the native
-Settings foundation. It has no command suite, persistence, overlay or background
-clock yet. Closing the prototype exits; R08 adds the continuing runtime lifecycle.
+runtime and Settings shell. It has no command suite. Closing Settings keeps the
+clock running in the background; **Exit ElevenClock** quits (R08, see
+[its record](windows-evidence/R08.md)). This is a work in progress with no
+release: the experimental R02 candidate places the clock overlay, and P1 is still
+NO-GO (#23), so expect rough edges.
 `rust-ci.yml` checks the GUI subsystem, embedded manifest, native launch/close
 and forward/reverse dialog focus. Its development harness captures the actual
 dialog and records runner OS/build/DPI as prototype evidence. The environment
@@ -108,7 +111,7 @@ probe commands and the unchecked Windows gate, and the
 [discovery ADR](adr/0001-taskbar-discovery.md) before any downstream use.
 
 When the local workspace is Linux, use the
-[hosted desktop workflow](../.github/workflows/taskbar-probe.yml) for actual
+[hosted desktop workflow](../.github/workflows/runtime-lifecycle.yml) for actual
 Win32/COM verification. It runs the same probe on Windows Server x64 and Windows
 11 ARM64 with native ARM64 and emulated x64 binaries, retaining screenshots,
 structured output, Explorer-restart observations and helper-lifetime results.
@@ -154,3 +157,21 @@ host. `clock-windows::theme` resolves opaque palettes (high contrast first). See
 the [R07 handoff](windows-evidence/R07.md) for the API, resource ownership and the
 unchecked interactive gates. `ELEVENCLOCK_R07_THEME` is a development-only switch
 for the overlay harness, not a user setting.
+
+## R08 runtime development
+
+`clock-windows::runtime::Runtime` is generic over a `Platform` and fully tested on
+Linux with a scripted platform; the Windows implementation is `runtime::native`.
+`tests/discovery_worker.rs` (custom `main`, no libtest harness) runs real child
+processes on every host and, on Windows, job-object and parent-loss tests. The app's
+discovery helper is the same executable started with a private marker
+([ADR 0002](adr/0002-same-executable-discovery-helper.md)); it is not a user command.
+
+```sh
+cargo +1.90.0 test --manifest-path rust/Cargo.toml -p clock-windows --locked
+```
+
+There is no feature flag or support gate for overlays: the experimental candidate is
+always used, after geometric validation of its rectangle.
+Hosted lifecycle evidence: `scripts/test-rust-lifecycle.ps1` via
+[runtime-lifecycle.yml](../.github/workflows/runtime-lifecycle.yml).

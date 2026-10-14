@@ -115,7 +115,9 @@ function Assert-NoHelpers([string]$Phase) {
     throw "Probe processes remained after $Phase"
 }
 function Wait-Stall([Diagnostics.Process]$Parent, [string]$Marker) {
-    $deadline = [DateTime]::UtcNow.AddSeconds(4)
+    # A cold, freshly built binary on a loaded hosted ARM64 runner can need more than
+    # a few seconds to start; the marker still proves entry into the stalled operation.
+    $deadline = [DateTime]::UtcNow.AddSeconds(15)
     while (!(Test-Path $Marker) -and [DateTime]::UtcNow -lt $deadline -and !$Parent.HasExited) { Start-Sleep -Milliseconds 20 }
     if (!(Test-Path $Marker)) { throw 'Injected helper did not confirm entry into its stalled operation' }
     return [Diagnostics.Process]::GetProcessById([int](Get-Content $Marker))

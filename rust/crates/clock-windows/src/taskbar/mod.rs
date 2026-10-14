@@ -1,10 +1,15 @@
 //! R02 discovery experiments. No selector is verified on stock Windows yet.
 //! Geometry validation is portable; HWNDs and COM objects never leave the probe.
+pub mod candidate;
 pub mod geometry;
 #[cfg(windows)]
+pub mod helper;
+#[cfg(windows)]
 pub mod probe;
+pub mod protocol;
 #[cfg(windows)]
 pub mod uia;
+pub mod worker;
 
 use clock_core::ShellGeneration;
 

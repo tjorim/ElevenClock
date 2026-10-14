@@ -24,3 +24,12 @@ windows-numerics = "0.2.0"
 [dev-dependencies]
 tempfile = "3.23"
 
+# A custom main lets this target double as its own stand-in helper process.
+[[test]]
+name = "discovery_worker"
+harness = false
+
+# Same pattern: one executable plays runner, provider and UI Automation clients.
+[[test]]
+name = "uia_lifetime"
+harness = false

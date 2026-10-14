@@ -129,7 +129,7 @@ powershell -NoProfile -File scripts/test-rust-taskbar.ps1 -RestartExplorer
 
 For a native ARM64 probe, build with `--target aarch64-pc-windows-msvc` and supply
 that executable plus `-ProbeTarget aarch64-pc-windows-msvc` to the harness. The
-[hosted workflow](../../.github/workflows/taskbar-probe.yml) does this automatically
+[hosted workflow](../../.github/workflows/runtime-lifecycle.yml) does this automatically
 and adds `-PrepareHostedDesktop` only for ephemeral GitHub machines. To capture
 without restarting Explorer, omit `-RestartExplorer`. The harness stops only
 Explorer processes in its own session, waits for recovery, and records failures.
