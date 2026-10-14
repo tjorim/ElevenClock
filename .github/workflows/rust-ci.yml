@@ -94,20 +94,10 @@ jobs:
       - name: Advisory audit (failures are never ignored)
         working-directory: rust
         run: cargo audit --deny warnings
-      - name: Retain dependency license inventory and original notices
-        if: always()
+      # Gates every PR. The inventory is regenerated on demand (see
+      # docs/RUST_DEPENDENCIES.md); it is not uploaded as an artifact.
+      - name: License inventory and original-notice check
         run: |
           python3 scripts/test-rust-license-check.py
           cargo metadata --manifest-path rust/Cargo.toml --locked --format-version 1 > dependency-metadata.json
-          python3 scripts/rust-license-check.py dependency-metadata.json > dependency-notices.txt
-      # The checks above gate every PR; the notice bundle is a release record, so it
-      # is only kept for pushes to main/rust-rewrite, not for each PR run.
-      - uses: actions/upload-artifact@v4
-        if: always() && github.event_name != 'pull_request'
-        with:
-          name: dependency-notices
-          path: |
-            dependency-metadata.json
-            dependency-notices.txt
-            LICENSE
-            docs/RUST_DEPENDENCIES.md
+          python3 scripts/rust-license-check.py dependency-metadata.json > /dev/null
