@@ -618,6 +618,7 @@ mod imp {
     /// never leave the desktop frozen.
     struct Freeze {
         process: windows::Win32::Foundation::HANDLE,
+        pid: u32,
         suspended: bool,
     }
     impl Freeze {
@@ -634,14 +635,22 @@ mod imp {
             assert!(status >= 0, "NtSuspendProcess failed: {status:#x}");
             Self {
                 process,
+                pid,
                 suspended: true,
             }
         }
-        fn terminate(&mut self) {
-            // SAFETY: valid handle with PROCESS_TERMINATE. A suspended process can be
-            // terminated; the death is what the outstanding call must observe.
-            let _ = unsafe { windows::Win32::System::Threading::TerminateProcess(self.process, 1) };
+        /// End the (still suspended) process the way an administrator would, with
+        /// `taskkill /F /PID`, so Windows' shell auto-restart behaves as it does for
+        /// a user-initiated kill. Termination of a suspended process is allowed.
+        fn terminate(&mut self) -> bool {
+            let ok = Command::new("taskkill")
+                .args(["/F", "/PID", &self.pid.to_string()])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .is_ok_and(|s| s.success());
             self.suspended = false;
+            ok
         }
     }
     impl Drop for Freeze {
@@ -721,19 +730,33 @@ mod imp {
                 std::thread::sleep(Duration::from_millis(10));
             }
             let kill_issued = micros();
-            freeze.terminate();
+            let taskkill_ok = freeze.terminate();
             drop(freeze);
             let kill_done = micros();
-            // Windows normally restarts the shell itself; start it if it does not.
+            // Sample whether the shell comes back by itself, once a second.
+            let mut recovery_samples = Vec::new();
             let restart = Instant::now();
-            while target("taskbar").is_none() && restart.elapsed() < Duration::from_secs(25) {
-                std::thread::sleep(Duration::from_millis(250));
+            while restart.elapsed() < Duration::from_secs(45) {
+                let present = target("taskbar").is_some();
+                recovery_samples.push(json!({"s": restart.elapsed().as_secs(), "taskbar": present, "explorer_processes": explorer_processes()}));
+                if present {
+                    break;
+                }
+                std::thread::sleep(Duration::from_secs(1));
             }
+            // Windows normally restarts the shell itself; start it if it does not.
+            let mut started_manually = false;
             if target("taskbar").is_none() {
-                let _ = Command::new("explorer.exe").spawn();
-                wait_for("taskbar to return", Duration::from_secs(40), || {
-                    target("taskbar").is_some()
-                });
+                started_manually = true;
+                let _ = Command::new("cmd")
+                    .args(["/C", "start", "", "explorer.exe"])
+                    .spawn()
+                    .map(|mut c| c.wait());
+                let manual = Instant::now();
+                while target("taskbar").is_none() && manual.elapsed() < Duration::from_secs(40) {
+                    recovery_samples.push(json!({"s": manual.elapsed().as_secs(), "after_manual_start": true, "taskbar": target("taskbar").is_some(), "explorer_processes": explorer_processes()}));
+                    std::thread::sleep(Duration::from_secs(2));
+                }
             }
             let finished = finish(&mut client, Duration::from_secs(120));
             let records = read_log(&log);
@@ -758,6 +781,10 @@ mod imp {
                 "shell_before": before.map(|s| json!({"pid": s.0, "started": s.1})),
                 "shell_after": after.map(|s| json!({"pid": s.0, "started": s.1})),
                 "freeze_micros": freeze_t, "terminate_issued_micros": kill_issued, "terminate_done_micros": kill_done,
+                "taskkill_ok": taskkill_ok,
+                "shell_restarted_by_windows": !started_manually && target("taskbar").is_some(),
+                "shell_started_manually": started_manually,
+                "shell_recovery_samples": recovery_samples,
                 "call_held_outstanding": held.as_ref().map(|(op, seq, t)| json!({"op": op, "seq": seq, "begin_micros": t, "held_for_ms": (kill_issued.saturating_sub(*t)) / 1000})),
                 "outstanding_call_result": held_end,
                 "outstanding_call_failed_at_death": held_failed,
@@ -786,6 +813,18 @@ mod imp {
             correlated,
             "no attempt held a UIA call outstanding until Explorer's death and then recovered; see evidence"
         );
+    }
+
+    fn explorer_processes() -> usize {
+        Command::new("tasklist")
+            .args(["/FO", "CSV", "/NH", "/FI", "IMAGENAME eq explorer.exe"])
+            .output()
+            .map(|o| {
+                String::from_utf8_lossy(&o.stdout)
+                    .matches("explorer.exe")
+                    .count()
+            })
+            .unwrap_or(0)
     }
 
     pub fn main() {
