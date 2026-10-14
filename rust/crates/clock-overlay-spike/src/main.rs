@@ -129,15 +129,6 @@ mod experiment {
     }
     pub fn run() -> Result<(), Error> {
         let args: Vec<_> = std::env::args().skip(1).collect();
-        if unsafe {
-            !AreDpiAwarenessContextsEqual(
-                GetThreadDpiAwarenessContext(),
-                DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
-            )
-            .as_bool()
-        } {
-            return Err("Embedded DPI-v2 manifest required".into());
-        }
         if args.first().map(String::as_str) == Some("--helper") {
             let request: Value = serde_json::from_str(args.get(1).ok_or("Missing request")?)?;
             let sequence = request["sequence"].as_u64().ok_or("Missing sequence")?;
@@ -146,12 +137,21 @@ mod experiment {
             if &handshake != b"r03-go" {
                 return Err("Invalid handshake".into());
             }
+            if unsafe {
+                !AreDpiAwarenessContextsEqual(
+                    GetThreadDpiAwarenessContext(),
+                    DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
+                )
+                .as_bool()
+            } {
+                return Err("Embedded DPI-v2 manifest required".into());
+            }
             let action = (|| -> Result<Value, Error> {
                 if request["action"] == "invoke" {
                     let slot = decode(&request["slot"])?;
                     Ok(json!({"action": prototype_interaction::invoke(&slot, request["fallback"].as_bool().unwrap_or(false), request["keyboard_only"].as_bool().unwrap_or(false))?}))
                 } else {
-                    if std::env::var_os("ELEVENCLOCK_R03_REJECT_DISCOVERY").is_some() {
+                    if request["reject"].as_bool().unwrap_or(false) || std::env::var_os("ELEVENCLOCK_R03_REJECT_DISCOVERY").is_some() {
                         return Err("Injected unsupported-discovery result; no geometry accepted".into());
                     }
                     Ok(json!({"slots": prototype_interaction::discover(sequence, request["all"].as_bool().unwrap_or(false))?.iter().map(encode).collect::<Vec<_>>()}))
@@ -163,6 +163,15 @@ mod experiment {
             )?;
             return Ok(());
         }
+        if unsafe {
+            !AreDpiAwarenessContextsEqual(
+                GetThreadDpiAwarenessContext(),
+                DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
+            )
+            .as_bool()
+        } {
+            return Err("Embedded DPI-v2 manifest required".into());
+        }
         if args.len() != 3
             || !matches!(
                 args[2].as_str(),
@@ -172,6 +181,7 @@ mod experiment {
                     | "all-win-n"
                     | "primary-keyboard"
                     | "all-keyboard"
+                    | "primary-reject"
             )
         {
             return Err("Development usage: overlay_spike evidence.json seconds primary|all|primary-win-n|all-win-n".into());
@@ -183,6 +193,7 @@ mod experiment {
         let path = std::path::PathBuf::from(&args[0]);
         let all = args[2].starts_with("all");
         let fallback = args[2].ends_with("win-n");
+        let reject_after_first = args[2] == "primary-reject";
         let keyboard_only = args[2].ends_with("keyboard");
         let (tx, rx) = mpsc::sync_channel(1);
         let (observation_tx, observation_rx) = mpsc::sync_channel::<String>(128);
@@ -200,11 +211,18 @@ mod experiment {
                     Some(slot) => {
                         json!({"sequence":sequence,"action":"invoke","slot":encode(slot),"fallback":fallback,"keyboard_only":keyboard_only})
                     }
-                    None => json!({"sequence":sequence,"action":"discover","all":all}),
+                    None => {
+                        json!({"sequence":sequence,"action":"discover","all":all,"reject":reject_after_first && sequence > 1})
+                    }
                 };
                 // Coverage is removed before every blocking discovery; stale
                 // geometry cannot persist while a provider stalls.
-                if tx.send(Update::Failed).is_err() {
+                let (ack_tx, ack_rx) = mpsc::sync_channel(1);
+                if tx.send(Update::RemoveBeforeProbe(ack_tx)).is_err() {
+                    break;
+                }
+                if ack_rx.recv_timeout(Duration::from_secs(2)).is_err() {
+                    let _ = fs::write(&path, json!({"status":"fatal_supervision_failure","reason":"UI removal acknowledgement missing"}).to_string());
                     break;
                 }
                 let result = helper(&request, sequence);

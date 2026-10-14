@@ -71,7 +71,7 @@ New-Item -ItemType Directory -Force $OutputDirectory | Out-Null
 $output = (Resolve-Path $OutputDirectory).Path
 $reg = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
 $r02=Get-Content 'native-evidence/r02/context.json' -Raw|ConvertFrom-Json
-$context = [ordered]@{nativeArchitecture=$r02.nativeArchitecture;os=$r02.os;displays=$r02.displays;source=(& git rev-parse HEAD).Trim(); build=$reg.CurrentBuildNumber; ubr=$reg.UBR; probeTarget=$ProbeTarget; executableSha256=(Get-FileHash $exe).Hash; results=[ordered]@{coverageCaptures=@()}; limitations=@('No production selector or P1 GO', 'Stock native x64 and mixed-DPI repetitions remain in #21', 'Screenshots require inspection; API success alone does not prove calendar visibility')}
+$context = [ordered]@{nativeArchitecture=$r02.nativeArchitecture;os=$r02.os;displays=$r02.displays;source=(& git rev-parse HEAD).Trim(); build=$reg.CurrentBuildNumber; ubr=$reg.UBR; probeTarget=$ProbeTarget; executableSha256=(Get-FileHash $exe).Hash; results=[ordered]@{coverageCaptures=@();failedCriteria=@()}; limitations=@('No production selector or P1 GO', 'Stock native x64 and mixed-DPI repetitions remain in #21', 'Screenshots require inspection; API success alone does not prove calendar visibility')}
 function Save-Context { $context | ConvertTo-Json -Depth 30 | Set-Content -Encoding utf8 (Join-Path $output 'context.json') }
 function Capture([string]$name) {
     $r=[Windows.Forms.SystemInformation]::VirtualScreen
@@ -238,6 +238,15 @@ try {
     $context.results.autoHide=[ordered]@{hidden=$true;shown=$true}
     [OverlayEvidence]::AutoHide($false)|Out-Null
     if (([OverlayEvidence]::TaskbarState() -band 1) -ne 0) {throw 'Auto-hide setting was not restored'}
+    # A live successful lease followed by a controlled rejection. This proves
+    # dynamic removal, not only refusing an unsupported startup.
+    Stop-Spike $p;$p=$null
+    $p=Start-Spike 'unsupported' 'primary-reject';Wait-Overlay $true|Out-Null
+    Capture-Overlay 'before-unsupported'
+    Wait-Overlay $false 4|Out-Null
+    if ((Overlay) -ne [IntPtr]::Zero) {throw 'Rejected discovery retained an overlay'}
+    $context.results.unsupported=[ordered]@{noOverlay=$true;removalAfterLiveCoverage=$true;nativeExplorerMutation=$false;injectedRejection=$true}
+    Capture 'unsupported-native';Stop-Spike $p;$p=$null
     # Neighbor controls remain physically outside the opaque slot. Record fresh
     # UIA point targets and actual click screenshots, leaving visual semantics
     # for inspection instead of claiming them from API return codes.
@@ -264,18 +273,11 @@ try {
     Wait-Overlay $false 3|Out-Null;Capture 'explorer-loss'
     Start-Sleep -Seconds 1
     if ([OverlayEvidence]::FindWindowW('Shell_TrayWnd',$null) -eq [IntPtr]::Zero) {Start-Process explorer.exe|Out-Null}
-    Wait-Overlay $true 30|Out-Null;Capture-Overlay 'explorer-recovered'
-    $context.results.explorerRestart=[ordered]@{oldPids=@($old.Id);newPids=@((Get-Process explorer|Where-Object {$_.SessionId -eq $session}).Id);lossHides=$true;recovered=$true}
+    $recovered=$false;$recoveryFailure=$null
+    try {Wait-Overlay $true 30|Out-Null;Capture-Overlay 'explorer-recovered';$recovered=$true}
+    catch {$recoveryFailure=$_.Exception.Message;$context.results.failedCriteria+='Explorer restart visible coverage';Capture 'explorer-recovery-failure'}
+    $context.results.explorerRestart=[ordered]@{oldPids=@($old.Id);newPids=@((Get-Process explorer|Where-Object {$_.SessionId -eq $session}).Id);lossHides=$true;recovered=$recovered;failure=$recoveryFailure}
     Stop-Spike $p;$p=$null
-    # Controlled unsupported discovery while Explorer remains unchanged. This
-    # explicitly injected rejection tests removal, not a real provider failure.
-    $env:ELEVENCLOCK_R03_REJECT_DISCOVERY='1'
-    $p=Start-Spike 'unsupported' 'primary';Start-Sleep -Seconds 3
-    if ((Overlay) -ne [IntPtr]::Zero) {throw 'Unsupported discovery created an overlay'}
-    $context.results.unsupported=[ordered]@{noOverlay=$true;nativeExplorerMutation=$false;injectedRejection=$true}
-    Capture 'unsupported-native'
-    Stop-Spike $p;$p=$null
-    Remove-Item Env:ELEVENCLOCK_R03_REJECT_DISCOVERY
     # Use the actual Settings selector for a single-display DPI transition.
     # This is not the missing mixed-DPI topology evidence in #21.
     Stop-Spike $p;$p=$null
@@ -315,9 +317,12 @@ try {
     $settings.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close();$settings=$null
     Stop-Spike $p;$p=$null
     $p=Start-Spike 'all-after-dpi' 'all-win-n';Wait-Overlay $true|Out-Null;Capture-Overlay 'dpi-restored'
+    if ($context.results.failedCriteria.Count) {
+        $context.status='measured_no_go';throw ('R03 NO-GO: '+($context.results.failedCriteria -join ', '))
+    }
     $context.status='hosted_checks_passed_visual_review_and_desktop_variants_pending'
 } catch {
-    $context.status='harness_failed';$context.failure=$_.Exception.Message;Capture 'failure';throw
+    if ($context.status -ne 'measured_no_go') {$context.status='harness_failed'};$context.failure=$_.Exception.Message;Capture 'failure';throw
 } finally {
     if ($p) {Stop-Spike $p}
     if ($originalScale) {Set-Scale $originalScale}

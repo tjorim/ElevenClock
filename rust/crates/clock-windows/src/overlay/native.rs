@@ -31,6 +31,7 @@ pub struct ExperimentSlot {
 pub enum Update {
     Slots(Vec<ExperimentSlot>),
     Failed,
+    RemoveBeforeProbe(SyncSender<()>),
     InteractionComplete,
 }
 struct WindowClass {
@@ -182,6 +183,10 @@ pub fn run(
             }
             while let Ok(update) = updates.try_recv() {
                 windows.clear();
+                if let Update::RemoveBeforeProbe(ack) = update {
+                    let _ = ack.try_send(());
+                    continue;
+                }
                 if matches!(update, Update::InteractionComplete) {
                     wait_for_update = false;
                 }
@@ -242,7 +247,9 @@ pub fn run(
                     )
                 });
                 let state = format!(
-                    "show={show}; current={current}; shell_current={}; taskbar_visible={}; taskbar_dpi={}; expected_dpi={}; foreground={fg_bounds:?}; taskbar={:?}",
+                    "root_topmost={}; own_topmost={}; show={show}; current={current}; shell_current={}; taskbar_visible={}; taskbar_dpi={}; expected_dpi={}; foreground={fg_bounds:?}; taskbar={:?}",
+                    GetWindowLongPtrW(window.taskbar, GWL_EXSTYLE) & WS_EX_TOPMOST.0 as isize != 0,
+                    GetWindowLongPtrW(window.hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST.0 as isize != 0,
                     shell_current(window.taskbar, &window.slot),
                     IsWindowVisible(window.taskbar).as_bool(),
                     GetDpiForWindow(window.taskbar),
