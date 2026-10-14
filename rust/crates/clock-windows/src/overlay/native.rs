@@ -105,6 +105,32 @@ fn taskbar(slot: &ExperimentSlot) -> Result<HWND> {
     Err(windows::core::Error::from_win32())
 }
 
+/// Windows can enumerate windows from other z-order bands between taskbar
+/// entries. Anchoring after a non-topmost predecessor would demote our window.
+/// Find the nearest predecessor with the same documented topmost classification.
+fn relative_predecessor(root: HWND, topmost: bool) -> Result<Option<HWND>> {
+    let mut cursor = root;
+    for _ in 0..128 {
+        let Ok(previous) = (unsafe { GetWindow(cursor, GW_HWNDPREV) }) else {
+            return Ok(None);
+        };
+        if previous.is_invalid() {
+            return Ok(None);
+        }
+        let same_band =
+            (unsafe { GetWindowLongPtrW(previous, GWL_EXSTYLE) } & WS_EX_TOPMOST.0 as isize != 0)
+                == topmost;
+        if same_band {
+            return Ok(Some(previous));
+        }
+        cursor = previous;
+    }
+    Err(windows::core::Error::new(
+        windows::core::HRESULT(0x80004005u32 as i32),
+        "Taskbar predecessor inventory exceeded its bound",
+    ))
+}
+
 /// Revalidate the native epoch immediately before an interaction, including
 /// creation time so PID reuse cannot authorize an old click.
 pub(crate) fn check_slot(slot: &ExperimentSlot) -> Result<()> {
@@ -297,7 +323,14 @@ pub fn run(
                 }
                 // Now insert immediately before the taskbar in its actual band.
                 // Do not raise an already adjacent overlay above other apps.
-                let preceding = GetWindow(window.taskbar, GW_HWNDPREV).unwrap_or(HWND_TOP);
+                let preceding = match relative_predecessor(window.taskbar, root_topmost) {
+                    Ok(value) => value.unwrap_or(HWND_TOP),
+                    Err(error) => {
+                        let _ = ShowWindow(window.hwnd, SW_HIDE);
+                        let _ = observations.try_send(error.to_string());
+                        continue;
+                    }
+                };
                 let adjacent = preceding == window.hwnd;
                 let insert = if preceding.is_invalid() || adjacent {
                     HWND_TOP
