@@ -60,7 +60,7 @@ public static class OverlayEvidence {
         var move=new Input { Mouse=new Mouse { X=(int)((long)(x-left)*65535/(width-1)),Y=(int)((long)(y-top)*65535/(height-1)),Flags=0xc001 } };
         if(SendInput(1,new[]{move},Marshal.SizeOf(typeof(Input)))!=1) throw new InvalidOperationException("Harness movement failed");
     }
-    public static uint State(uint state) { var d=new Appbar { Size=(uint)Marshal.SizeOf(typeof(Appbar)),Param=new IntPtr(state) };return SHAppBarMessage(10,ref d).ToUInt32(); }
+    public static uint State(uint state) { var d=new Appbar { Size=(uint)Marshal.SizeOf(typeof(Appbar)),Window=FindWindowW("Shell_TrayWnd",null),Param=new IntPtr(state&1u) };return SHAppBarMessage(10,ref d).ToUInt32(); }
     public static uint AutoHide(bool enabled) {return State((TaskbarState()&~1u)|(enabled?1u:0u));}
     public static uint TaskbarState() { var d=new Appbar { Size=(uint)Marshal.SizeOf(typeof(Appbar)) };return SHAppBarMessage(4,ref d).ToUInt32(); }
 }
@@ -225,8 +225,11 @@ try {
     $p=Start-Spike 'all' 'all-win-n';$h=Wait-Overlay $true;Capture-Overlay 'all-visible'
     $context.results.allDisplays=[ordered]@{availableDisplays=[Windows.Forms.Screen]::AllScreens.Count; claimedMixedDpi=$false}
     # Actual auto-hide state on an ephemeral hosted desktop, restored in finally.
+    # ABS_ALWAYSONTOP is deprecated since Windows 7; set only the supported
+    # auto-hide bit and verify it through the read-only state query.
     if ($env:GITHUB_ACTIONS -ne 'true') {throw 'Auto-hide/restart tests require the explicitly ephemeral hosted runner'}
     [OverlayEvidence]::AutoHide($true)|Out-Null
+    if (([OverlayEvidence]::TaskbarState() -band 1) -ne 1) {throw 'Auto-hide setting was not applied'}
     [OverlayEvidence]::Move(400,300)
     Wait-Overlay $false 5|Out-Null;Capture 'autohide-hidden'
     $screen=[Windows.Forms.Screen]::PrimaryScreen.Bounds
@@ -234,45 +237,7 @@ try {
     Wait-Overlay $true 20|Out-Null;Capture-Overlay 'autohide-shown'
     $context.results.autoHide=[ordered]@{hidden=$true;shown=$true}
     [OverlayEvidence]::AutoHide($false)|Out-Null
-    # Use the actual Settings selector for a single-display DPI transition.
-    # This is not the missing mixed-DPI topology evidence in #21.
-    Stop-Spike $p;$p=$null
-    Start-Process 'ms-settings:display'
-    $deadline=[DateTime]::UtcNow.AddSeconds(20);$scale=$null
-    do {
-        $settings=[Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Children,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,'Settings'))
-        if ($settings) {
-            $combos=$settings.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::ComboBox))
-            $scale=$combos|Where-Object {$_.Current.Name -match 'Scale|size of text' -or $_.Current.AutomationId -match 'Scale|Dpi'}|Select-Object -First 1
-        }
-        if (!$scale) {Start-Sleep -Milliseconds 250}
-    } while (!$scale -and [DateTime]::UtcNow -lt $deadline)
-    if (!$scale) {throw 'Display Scale selector unavailable'}
-    $selected=$scale.GetCurrentPattern([Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection()
-    if ($selected.Count -ne 1) {throw 'Cannot record initial scale'}
-    $originalScale=$selected[0].Current.Name;$script:scaleId=$scale.Current.AutomationId
-    Set-Scale '100%'
-    [OverlayEvidence]::SetForegroundWindow($fixture.Handle)|Out-Null
-    $p=Start-Spike 'dpi-transition' 'primary-win-n'
-    $h=Wait-Overlay $true
-    $beforeDpi=[OverlayEvidence]::GetDpiForWindow($h)
-    Set-Scale '125%'
-    [OverlayEvidence]::SetForegroundWindow($fixture.Handle)|Out-Null
-    $deadline=[DateTime]::UtcNow.AddSeconds(20)
-    do {$h=Wait-Overlay $true 20;$afterDpi=[OverlayEvidence]::GetDpiForWindow($h);if ($afterDpi -eq 120) {break};Start-Sleep -Milliseconds 50} while ([DateTime]::UtcNow -lt $deadline)
-    if ($beforeDpi -ne 96 -or $afterDpi -ne 120) {throw "DPI transition not observed: $beforeDpi -> $afterDpi"}
-    Capture-Overlay 'dpi-125';$context.results.dpiChange=[ordered]@{before=$beforeDpi;after=$afterDpi;actualSettingsSelection=$true;mixedDpi=$false}
-    Set-Scale $originalScale;$originalScale=$null
-    $deadline=[DateTime]::UtcNow.AddSeconds(20)
-    do {
-        $nativeBar=[OverlayEvidence]::FindWindowW('Shell_TrayWnd',$null)
-        if ($nativeBar -ne [IntPtr]::Zero -and [OverlayEvidence]::GetDpiForWindow($nativeBar) -eq 96) {break}
-        Start-Sleep -Milliseconds 100
-    } while ([DateTime]::UtcNow -lt $deadline)
-    if ($nativeBar -eq [IntPtr]::Zero -or [OverlayEvidence]::GetDpiForWindow($nativeBar) -ne 96) {throw 'Native taskbar DPI restore did not complete'}
-    $settings.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close();$settings=$null
-    Stop-Spike $p;$p=$null
-    $p=Start-Spike 'all-after-dpi' 'all-win-n';Wait-Overlay $true|Out-Null
+    if (([OverlayEvidence]::TaskbarState() -band 1) -ne 0) {throw 'Auto-hide setting was not restored'}
     # Neighbor controls remain physically outside the opaque slot. Record fresh
     # UIA point targets and actual click screenshots, leaving visual semantics
     # for inspection instead of claiming them from API return codes.
@@ -311,6 +276,45 @@ try {
     Capture 'unsupported-native'
     Stop-Spike $p;$p=$null
     Remove-Item Env:ELEVENCLOCK_R03_REJECT_DISCOVERY
+    # Use the actual Settings selector for a single-display DPI transition.
+    # This is not the missing mixed-DPI topology evidence in #21.
+    Stop-Spike $p;$p=$null
+    Start-Process 'ms-settings:display'
+    $deadline=[DateTime]::UtcNow.AddSeconds(20);$scale=$null
+    do {
+        $settings=[Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Children,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,'Settings'))
+        if ($settings) {
+            $combos=$settings.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::ComboBox))
+            $scale=$combos|Where-Object {$_.Current.Name -match 'Scale|size of text' -or $_.Current.AutomationId -match 'Scale|Dpi'}|Select-Object -First 1
+        }
+        if (!$scale) {Start-Sleep -Milliseconds 250}
+    } while (!$scale -and [DateTime]::UtcNow -lt $deadline)
+    if (!$scale) {throw 'Display Scale selector unavailable'}
+    $selected=$scale.GetCurrentPattern([Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection()
+    if ($selected.Count -ne 1) {throw 'Cannot record initial scale'}
+    $originalScale=$selected[0].Current.Name;$script:scaleId=$scale.Current.AutomationId
+    Set-Scale '100%'
+    [OverlayEvidence]::SetForegroundWindow($fixture.Handle)|Out-Null
+    $p=Start-Spike 'dpi-transition' 'primary-win-n'
+    $h=Wait-Overlay $true
+    $beforeDpi=[OverlayEvidence]::GetDpiForWindow($h)
+    Set-Scale '125%'
+    [OverlayEvidence]::SetForegroundWindow($fixture.Handle)|Out-Null
+    $deadline=[DateTime]::UtcNow.AddSeconds(20)
+    do {$h=Wait-Overlay $true 20;$afterDpi=[OverlayEvidence]::GetDpiForWindow($h);if ($afterDpi -eq 120) {break};Start-Sleep -Milliseconds 50} while ([DateTime]::UtcNow -lt $deadline)
+    if ($beforeDpi -ne 96 -or $afterDpi -ne 120) {throw "DPI transition not observed: $beforeDpi -> $afterDpi"}
+    Capture-Overlay 'dpi-125';$context.results.dpiChange=[ordered]@{before=$beforeDpi;after=$afterDpi;actualSettingsSelection=$true;mixedDpi=$false}
+    Set-Scale $originalScale;$originalScale=$null
+    $deadline=[DateTime]::UtcNow.AddSeconds(20)
+    do {
+        $nativeBar=[OverlayEvidence]::FindWindowW('Shell_TrayWnd',$null)
+        if ($nativeBar -ne [IntPtr]::Zero -and [OverlayEvidence]::GetDpiForWindow($nativeBar) -eq 96) {break}
+        Start-Sleep -Milliseconds 100
+    } while ([DateTime]::UtcNow -lt $deadline)
+    if ($nativeBar -eq [IntPtr]::Zero -or [OverlayEvidence]::GetDpiForWindow($nativeBar) -ne 96) {throw 'Native taskbar DPI restore did not complete'}
+    $settings.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close();$settings=$null
+    Stop-Spike $p;$p=$null
+    $p=Start-Spike 'all-after-dpi' 'all-win-n';Wait-Overlay $true|Out-Null;Capture-Overlay 'dpi-restored'
     $context.status='hosted_checks_passed_visual_review_and_desktop_variants_pending'
 } catch {
     $context.status='harness_failed';$context.failure=$_.Exception.Message;Capture 'failure';throw

@@ -1,4 +1,4 @@
-use super::may_show;
+use super::{BandAction, band_action, may_show};
 use clock_core::PhysicalRect;
 use std::{
     sync::mpsc::{Receiver, SyncSender},
@@ -253,17 +253,52 @@ pub fn run(
                     let _ = observations.try_send(state.clone());
                     last_observation = state;
                 }
+                let root_topmost =
+                    GetWindowLongPtrW(window.taskbar, GWL_EXSTYLE) & WS_EX_TOPMOST.0 as isize != 0;
+                let own_topmost =
+                    GetWindowLongPtrW(window.hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST.0 as isize != 0;
+                let band = band_action(show, root_topmost, own_topmost);
+                if band != BandAction::Preserve {
+                    // Hide before band changes: temporary promotion is never
+                    // exposed above unrelated topmost windows. Only our HWND
+                    // changes, and hidden/fullscreen coverage is demoted.
+                    let _ = ShowWindow(window.hwnd, SW_HIDE);
+                    let target = if band == BandAction::PromoteToTaskbar {
+                        HWND_TOPMOST
+                    } else {
+                        HWND_NOTOPMOST
+                    };
+                    if SetWindowPos(
+                        window.hwnd,
+                        Some(target),
+                        0,
+                        0,
+                        0,
+                        0,
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+                    )
+                    .is_err()
+                    {
+                        continue;
+                    }
+                }
                 if !show {
                     let _ = ShowWindow(window.hwnd, SW_HIDE);
                     continue;
                 }
-                // Relative to the actual taskbar's preceding window. Never use
-                // HWND_TOPMOST, parent into Explorer, or change Explorer styles.
+                // Now insert immediately before the taskbar in its actual band.
+                // Do not raise an already adjacent overlay above other apps.
                 let preceding = GetWindow(window.taskbar, GW_HWNDPREV).unwrap_or(HWND_TOP);
-                let insert = if preceding == window.hwnd || preceding.is_invalid() {
+                let adjacent = preceding == window.hwnd;
+                let insert = if preceding.is_invalid() || adjacent {
                     HWND_TOP
                 } else {
                     preceding
+                };
+                let preserve_order = if adjacent {
+                    SWP_NOZORDER
+                } else {
+                    SET_WINDOW_POS_FLAGS(0)
                 };
                 let r = window.slot.clock;
                 let positioned = SetWindowPos(
@@ -273,7 +308,7 @@ pub fn run(
                     r.top(),
                     r.width(),
                     r.height(),
-                    SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                    SWP_NOACTIVATE | SWP_SHOWWINDOW | preserve_order,
                 );
                 if let Err(error) = positioned {
                     let _ =
@@ -318,6 +353,7 @@ unsafe extern "system" fn window_proc(hwnd: HWND, message: u32, wp: WPARAM, lp: 
                 let mut point = POINT::default();
                 let mut rect = RECT::default();
                 if pressed
+                    && IsWindowVisible(hwnd).as_bool()
                     && GetCursorPos(&mut point).is_ok()
                     && GetWindowRect(hwnd, &mut rect).is_ok()
                     && point.x >= rect.left
