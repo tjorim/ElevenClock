@@ -9,6 +9,9 @@ license-file.workspace = true
 [features]
 default = []
 overlay-spike = []
+# Development experiments only: lets the R02 *unverified* UIA candidate supply a
+# clock rectangle. Never enabled in release builds (see taskbar::gate).
+unverified-overlays = []
 
 [dependencies]
 chrono.workspace = true
@@ -24,3 +27,7 @@ windows-numerics = "0.2.0"
 [dev-dependencies]
 tempfile = "3.23"
 
+# A custom main lets this target double as its own stand-in helper process.
+[[test]]
+name = "discovery_worker"
+harness = false
