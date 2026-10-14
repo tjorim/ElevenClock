@@ -9,6 +9,8 @@ on:
 permissions:
   contents: read
 jobs:
+  # Everything that does not need a Windows machine runs here, once. The Windows-only
+  # code is type-checked and linted through the MSVC target; nothing in it is executed.
   core:
     runs-on: ubuntu-latest
     steps:
@@ -16,12 +18,17 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+          targets: x86_64-pc-windows-msvc
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
       - run: cargo fmt --manifest-path rust/Cargo.toml --all --check
-      - run: cargo clippy --manifest-path rust/Cargo.toml -p clock-core --all-targets --locked -- -D warnings
+      - run: cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets --locked -- -D warnings
+      - run: cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets --target x86_64-pc-windows-msvc --locked -- -D warnings
       - run: cargo test --manifest-path rust/Cargo.toml -p clock-core --locked
       - run: cargo test --manifest-path rust/Cargo.toml -p clock-core --doc --locked
-      - run: cargo clippy --manifest-path rust/Cargo.toml -p clock-windows --all-targets --locked -- -D warnings
-      - run: cargo test --manifest-path rust/Cargo.toml -p clock-windows --all-targets --locked
+  # Only what needs Windows: executing the Windows-only tests, the release build with its
+  # native resources, and the desktop smoke checks.
   windows:
     runs-on: windows-latest
     timeout-minutes: 15
@@ -29,13 +36,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
           targets: x86_64-pc-windows-msvc
-      - run: cargo fmt --manifest-path rust/Cargo.toml --all --check
-      - run: cargo check --manifest-path rust/Cargo.toml --workspace --all-targets --locked
-      - run: cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets --locked -- -D warnings
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
       - run: cargo test --manifest-path rust/Cargo.toml --workspace --all-targets --locked
-      - run: cargo test --manifest-path rust/Cargo.toml --workspace --doc --locked
       - run: cargo build --manifest-path rust/Cargo.toml -p clock-app --release --target x86_64-pc-windows-msvc --locked
       - name: Check GUI subsystem and linked native resources
         shell: pwsh

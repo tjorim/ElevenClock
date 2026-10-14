@@ -16,6 +16,11 @@ rustfmt and Clippy. Use `fmt --all` from the repository root so cargo-fmt finds
 this virtual workspace's targets. Release builds require a native Windows host so
 resources cannot be silently omitted during cross-compilation. Linux cross-target
 checks are type checks only.
+CI layout (`rust-ci.yml`): the Linux `core` job runs fmt, Clippy for the host and for
+`x86_64-pc-windows-msvc` (the Windows-only code is type-checked and linted, not
+executed) and the portable `clock-core` tests. The `windows` job only runs what needs
+Windows: the full test suite including Windows-only tests, the release build with its
+native resources, and the desktop smoke checks. Both jobs use a cargo cache.
 Windows development requires the MSVC toolchain and
 Windows SDK resource compiler; users do not need these developer tools.
 
