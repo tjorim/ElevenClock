@@ -1,7 +1,14 @@
 use super::{BandAction, band_action, may_show};
-use clock_core::PhysicalRect;
+use crate::{
+    render::{ClockSurface, PaintOutcome, PaintRequest, RenderError, Renderer, WorstCase},
+    theme::{AppearanceTracker, Palette, Rgb, is_appearance_message, resolve, system_appearance},
+};
+use clock_core::{ClockText, PhysicalRect, Theme};
 use std::{
-    sync::mpsc::{Receiver, SyncSender},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        mpsc::{Receiver, SyncSender},
+    },
     time::{Duration, Instant},
 };
 use windows::{
@@ -47,6 +54,8 @@ impl Drop for WindowClass {
     }
 }
 struct Window {
+    // Declared first: the surface releases its Direct2D target before the HWND dies.
+    surface: ClockSurface,
     hwnd: HWND,
     taskbar: HWND,
     slot: ExperimentSlot,
@@ -57,6 +66,32 @@ impl Drop for Window {
             let _ = DestroyWindow(self.hwnd);
         }
     }
+}
+
+/// Bumped by the window procedure (UI thread only) and observed by the loop, so
+/// the callback stores no references to loop state.
+static REPAINT_EPOCH: AtomicU64 = AtomicU64::new(0);
+static APPEARANCE_EPOCH: AtomicU64 = AtomicU64::new(0);
+
+/// R03's evidence script verifies coverage by exact black corner pixels, so the
+/// harness paints fixed black/white unless `ELEVENCLOCK_R07_THEME` selects a
+/// preference (`system`, `light` or `dark`) to exercise live theme/high contrast.
+const HARNESS_TEXT: &str = "2642.2";
+const HARNESS_FONT_PT: u8 = 9;
+fn harness_theme() -> Option<Theme> {
+    match std::env::var("ELEVENCLOCK_R07_THEME").ok()?.as_str() {
+        "system" => Some(Theme::System),
+        "light" => Some(Theme::Light),
+        "dark" => Some(Theme::Dark),
+        _ => None,
+    }
+}
+fn render_error(error: RenderError) -> windows::core::Error {
+    let code = match error {
+        RenderError::Native { code, .. } => code,
+        _ => 0x80004005u32 as i32,
+    };
+    windows::core::Error::new(windows::core::HRESULT(code), error.to_string())
 }
 
 fn bounds(hwnd: HWND) -> Option<PhysicalRect> {
@@ -178,6 +213,15 @@ pub fn run(
             instance: module.into(),
             name: class.lpszClassName,
         };
+        let mut renderer = Renderer::new().map_err(render_error)?;
+        let theme = harness_theme();
+        let mut appearance = AppearanceTracker::new(system_appearance());
+        let mut appearance_epoch = APPEARANCE_EPOCH.load(Ordering::Relaxed);
+        let mut repaint_epoch = REPAINT_EPOCH.load(Ordering::Relaxed);
+        let harness_text = ClockText {
+            lines: vec![HARNESS_TEXT.into()],
+        };
+        let harness_worst_case = WorstCase::from_lines([[HARNESS_TEXT.to_string()]]);
         let started = Instant::now();
         let mut lease = Instant::now();
         let mut windows: Vec<Window> = Vec::new();
@@ -239,6 +283,7 @@ pub fn run(
                             None,
                         )?;
                         windows.push(Window {
+                            surface: renderer.create_surface(hwnd),
                             hwnd,
                             taskbar: bar,
                             slot,
@@ -246,6 +291,28 @@ pub fn run(
                     }
                 }
             }
+            // Theme/high-contrast/font changes apply in this process, no restart.
+            let epoch = APPEARANCE_EPOCH.load(Ordering::Relaxed);
+            if epoch != appearance_epoch {
+                appearance_epoch = epoch;
+                let font_changed = renderer.refresh_system_font();
+                if appearance.observe(system_appearance()).is_some() || font_changed {
+                    for window in &mut windows {
+                        window.surface.mark_dirty();
+                    }
+                }
+            }
+            let epoch = REPAINT_EPOCH.load(Ordering::Relaxed);
+            if epoch != repaint_epoch {
+                repaint_epoch = epoch;
+                for window in &mut windows {
+                    window.surface.mark_dirty();
+                }
+            }
+            let palette = match theme {
+                Some(preference) => resolve(preference, appearance.current()),
+                None => Palette::fixed(Rgb::new(0, 0, 0), Rgb::new(255, 255, 255)),
+            };
             let fg = GetForegroundWindow();
             let fg_bounds = bounds(fg);
             let mut fg_class = [0u16; 128];
@@ -255,7 +322,7 @@ pub fn run(
                 fg_class.as_str(),
                 "Progman" | "WorkerW" | "Shell_TrayWnd" | "Shell_SecondaryTrayWnd"
             );
-            for window in &windows {
+            for window in &mut windows {
                 let current = (shell || fg_bounds.is_some())
                     && !wait_for_update
                     && lease.elapsed() < Duration::from_secs(8)
@@ -321,6 +388,28 @@ pub fn run(
                     let _ = ShowWindow(window.hwnd, SW_HIDE);
                     continue;
                 }
+                // Measure and paint before exposing the window. Overflow or a
+                // renderer failure removes coverage so the native clock is visible.
+                let request = PaintRequest {
+                    text: &harness_text,
+                    worst_case: &harness_worst_case,
+                    dpi: window.slot.dpi,
+                    font_pt: HARNESS_FONT_PT,
+                    palette,
+                };
+                match window.surface.paint(&renderer, &request) {
+                    Ok(PaintOutcome::Painted | PaintOutcome::Unchanged) => {}
+                    Ok(PaintOutcome::Overflow(overflow)) => {
+                        let _ = ShowWindow(window.hwnd, SW_HIDE);
+                        let _ = observations.try_send(format!("Text overflow: {overflow:?}"));
+                        continue;
+                    }
+                    Err(error) => {
+                        let _ = ShowWindow(window.hwnd, SW_HIDE);
+                        let _ = observations.try_send(format!("Render failed: {error}"));
+                        continue;
+                    }
+                }
                 // Now insert immediately before the taskbar in its actual band.
                 // Do not raise an already adjacent overlay above other apps.
                 let preceding = match relative_predecessor(window.taskbar, root_topmost) {
@@ -359,10 +448,6 @@ pub fn run(
                 } else if !IsWindowVisible(window.hwnd).as_bool() {
                     let _ = observations
                         .try_send("SetWindowPos succeeded but window is not visible".into());
-                } else {
-                    // Paint on the owning thread before exposing an unpainted
-                    // surface to the capture harness or the next message tick.
-                    let _ = UpdateWindow(window.hwnd);
                 }
             }
             if lease.elapsed() >= Duration::from_secs(8) {
@@ -377,6 +462,9 @@ pub fn run(
 }
 
 unsafe extern "system" fn window_proc(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
+    if is_appearance_message(message, lp) {
+        APPEARANCE_EPOCH.fetch_add(1, Ordering::Relaxed);
+    }
     unsafe {
         match message {
             WM_MOUSEACTIVATE => LRESULT(MA_NOACTIVATE as isize),
@@ -419,45 +507,16 @@ unsafe extern "system" fn window_proc(hwnd: HWND, message: u32, wp: WPARAM, lp: 
                 LRESULT(0)
             }
             WM_DPICHANGED | WM_DISPLAYCHANGE | WM_SETTINGCHANGE => {
+                REPAINT_EPOCH.fetch_add(1, Ordering::Relaxed);
                 let _ = ShowWindow(hwnd, SW_HIDE);
                 LRESULT(0)
             }
+            WM_ERASEBKGND => LRESULT(1),
             WM_PAINT => {
-                let mut ps = PAINTSTRUCT::default();
-                let dc = BeginPaint(hwnd, &mut ps);
-                let mut r = RECT::default();
-                let _ = GetClientRect(hwnd, &mut r);
-                let _ = FillRect(dc, &r, HBRUSH(GetStockObject(BLACK_BRUSH).0));
-                let _ = SetBkMode(dc, TRANSPARENT);
-                let _ = SetTextColor(dc, COLORREF(0xffffff));
-                let height = -((12 * GetDpiForWindow(hwnd) / 96) as i32);
-                let font = CreateFontW(
-                    height,
-                    0,
-                    0,
-                    0,
-                    400,
-                    0,
-                    0,
-                    0,
-                    DEFAULT_CHARSET,
-                    OUT_DEFAULT_PRECIS,
-                    CLIP_DEFAULT_PRECIS,
-                    DEFAULT_QUALITY,
-                    DEFAULT_PITCH.0 as u32,
-                    w!("Segoe UI"),
-                );
-                let old = SelectObject(dc, HGDIOBJ(font.0));
-                let mut text = "2642.2".encode_utf16().collect::<Vec<_>>();
-                let _ = DrawTextW(
-                    dc,
-                    &mut text,
-                    &mut r,
-                    DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX,
-                );
-                SelectObject(dc, old);
-                let _ = DeleteObject(HGDIOBJ(font.0));
-                let _ = EndPaint(hwnd, &ps);
+                // Drawing happens in the UI loop, which owns the surface; the
+                // callback only records that the pixels were invalidated.
+                REPAINT_EPOCH.fetch_add(1, Ordering::Relaxed);
+                let _ = ValidateRect(Some(hwnd), None);
                 LRESULT(0)
             }
             _ => DefWindowProcW(hwnd, message, wp, lp),
