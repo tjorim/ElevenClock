@@ -71,12 +71,39 @@ New-Item -ItemType Directory -Force $OutputDirectory | Out-Null
 $output = (Resolve-Path $OutputDirectory).Path
 $reg = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
 $r02=Get-Content 'native-evidence/r02/context.json' -Raw|ConvertFrom-Json
-$context = [ordered]@{nativeArchitecture=$r02.nativeArchitecture;os=$r02.os;displays=$r02.displays;source=(& git rev-parse HEAD).Trim(); build=$reg.CurrentBuildNumber; ubr=$reg.UBR; probeTarget=$ProbeTarget; executableSha256=(Get-FileHash $exe).Hash; results=[ordered]@{}; limitations=@('No production selector or P1 GO', 'Stock native x64 and mixed-DPI repetitions remain in #21', 'Screenshots require inspection; API success alone does not prove calendar visibility')}
+$context = [ordered]@{nativeArchitecture=$r02.nativeArchitecture;os=$r02.os;displays=$r02.displays;source=(& git rev-parse HEAD).Trim(); build=$reg.CurrentBuildNumber; ubr=$reg.UBR; probeTarget=$ProbeTarget; executableSha256=(Get-FileHash $exe).Hash; results=[ordered]@{coverageCaptures=@()}; limitations=@('No production selector or P1 GO', 'Stock native x64 and mixed-DPI repetitions remain in #21', 'Screenshots require inspection; API success alone does not prove calendar visibility')}
 function Save-Context { $context | ConvertTo-Json -Depth 30 | Set-Content -Encoding utf8 (Join-Path $output 'context.json') }
 function Capture([string]$name) {
     $r=[Windows.Forms.SystemInformation]::VirtualScreen
     $b=New-Object Drawing.Bitmap($r.Width,$r.Height);$g=[Drawing.Graphics]::FromImage($b)
     try { $g.CopyFromScreen($r.Left,$r.Top,0,0,$b.Size);$b.Save((Join-Path $output "$name.png"),[Drawing.Imaging.ImageFormat]::Png) } finally {$g.Dispose();$b.Dispose()}
+}
+function Capture-Overlay([string]$name) {
+    $deadline=[DateTime]::UtcNow.AddSeconds(20)
+    do {
+        [Windows.Forms.Application]::DoEvents();$h=Overlay
+        $r=New-Object OverlayEvidence+Rect
+        if ($h -eq [IntPtr]::Zero -or ![OverlayEvidence]::IsWindowVisible($h) -or ![OverlayEvidence]::GetWindowRect($h,[ref]$r)) {Start-Sleep -Milliseconds 25;continue}
+        $x=[int](($r.Left+$r.Right)/2);$y=[int](($r.Top+$r.Bottom)/2)
+        if (![OverlayEvidence]::HitsOverlay($x,$y,[uint32]$p.Id)) {Start-Sleep -Milliseconds 25;continue}
+        $v=[Windows.Forms.SystemInformation]::VirtualScreen
+        $b=New-Object Drawing.Bitmap($v.Width,$v.Height);$g=[Drawing.Graphics]::FromImage($b)
+        $painted=$true
+        try {
+            $g.CopyFromScreen($v.Left,$v.Top,0,0,$b.Size)
+            foreach ($xy in @(@($r.Left+1,$r.Top+1),@($r.Right-2,$r.Top+1),@($r.Left+1,$r.Bottom-2),@($r.Right-2,$r.Bottom-2))) {
+                $color=$b.GetPixel($xy[0]-$v.Left,$xy[1]-$v.Top)
+                if ($color.R -ne 0 -or $color.G -ne 0 -or $color.B -ne 0) {$painted=$false;break}
+            }
+            if ($painted) {
+                $b.Save((Join-Path $output "$name.png"),[Drawing.Imaging.ImageFormat]::Png)
+                $context.results.coverageCaptures+= [ordered]@{name=$name;rect=@($r.Left,$r.Top,$r.Right,$r.Bottom);nativeHitOwnedByPrototype=$true;fourOpaqueCorners=$true}
+                return
+            }
+        } finally {$g.Dispose();$b.Dispose()}
+        Start-Sleep -Milliseconds 25
+    } while ([DateTime]::UtcNow -lt $deadline)
+    Capture "$name-not-covered";throw "Visible opaque coverage not observed for $name"
 }
 function Overlay { [OverlayEvidence]::FindOverlay() }
 function Wait-Overlay([bool]$visible, [int]$seconds=20) {
@@ -161,7 +188,7 @@ try {
     if (($ex -band 0x08000080) -ne 0x08000080 -or ($ex -band 0x40000)) {throw 'Unexpected activation/Alt-Tab styles'}
     if ([OverlayEvidence]::GetForegroundWindow() -ne $fixture.Handle) {throw 'Overlay display changed foreground'}
     $context.results.nonactivation=[ordered]@{passed=$true; extendedStyles=$ex; foregroundStayedOnFixture=$true}
-    Capture 'primary-visible';Save-Context
+    Capture-Overlay 'primary-visible';Save-Context
     # Actual fullscreen window on the same monitor, no fake WM_* messages.
     $fixture.TopMost=$true;$fixture.FormBorderStyle='None';$fixture.Bounds=[Windows.Forms.Screen]::PrimaryScreen.Bounds
     [OverlayEvidence]::SetForegroundWindow($fixture.Handle)|Out-Null
@@ -195,7 +222,7 @@ try {
     $context.results.keyboardCalendar=[ordered]@{actions=$keyboardActions;oneAction=$true;noStuckKeys=$true;separateClickFromUia=$true;visualAcceptance='Pending screenshot inspection'}
     Stop-Spike $p;$p=$null
     [OverlayEvidence]::Click(150,115)
-    $p=Start-Spike 'all' 'all-win-n';$h=Wait-Overlay $true;Capture 'all-visible'
+    $p=Start-Spike 'all' 'all-win-n';$h=Wait-Overlay $true;Capture-Overlay 'all-visible'
     $context.results.allDisplays=[ordered]@{availableDisplays=[Windows.Forms.Screen]::AllScreens.Count; claimedMixedDpi=$false}
     # Actual auto-hide state on an ephemeral hosted desktop, restored in finally.
     if ($env:GITHUB_ACTIONS -ne 'true') {throw 'Auto-hide/restart tests require the explicitly ephemeral hosted runner'}
@@ -204,7 +231,7 @@ try {
     Wait-Overlay $false 5|Out-Null;Capture 'autohide-hidden'
     $screen=[Windows.Forms.Screen]::PrimaryScreen.Bounds
     [OverlayEvidence]::Move($point[0],$screen.Bottom-1)
-    Wait-Overlay $true 20|Out-Null;Capture 'autohide-shown'
+    Wait-Overlay $true 20|Out-Null;Capture-Overlay 'autohide-shown'
     $context.results.autoHide=[ordered]@{hidden=$true;shown=$true}
     [OverlayEvidence]::AutoHide($false)|Out-Null
     # Use the actual Settings selector for a single-display DPI transition.
@@ -234,8 +261,15 @@ try {
     $deadline=[DateTime]::UtcNow.AddSeconds(20)
     do {$h=Wait-Overlay $true 20;$afterDpi=[OverlayEvidence]::GetDpiForWindow($h);if ($afterDpi -eq 120) {break};Start-Sleep -Milliseconds 50} while ([DateTime]::UtcNow -lt $deadline)
     if ($beforeDpi -ne 96 -or $afterDpi -ne 120) {throw "DPI transition not observed: $beforeDpi -> $afterDpi"}
-    Capture 'dpi-125';$context.results.dpiChange=[ordered]@{before=$beforeDpi;after=$afterDpi;actualSettingsSelection=$true;mixedDpi=$false}
+    Capture-Overlay 'dpi-125';$context.results.dpiChange=[ordered]@{before=$beforeDpi;after=$afterDpi;actualSettingsSelection=$true;mixedDpi=$false}
     Set-Scale $originalScale;$originalScale=$null
+    $deadline=[DateTime]::UtcNow.AddSeconds(20)
+    do {
+        $nativeBar=[OverlayEvidence]::FindWindowW('Shell_TrayWnd',$null)
+        if ($nativeBar -ne [IntPtr]::Zero -and [OverlayEvidence]::GetDpiForWindow($nativeBar) -eq 96) {break}
+        Start-Sleep -Milliseconds 100
+    } while ([DateTime]::UtcNow -lt $deadline)
+    if ($nativeBar -eq [IntPtr]::Zero -or [OverlayEvidence]::GetDpiForWindow($nativeBar) -ne 96) {throw 'Native taskbar DPI restore did not complete'}
     $settings.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close();$settings=$null
     Stop-Spike $p;$p=$null
     $p=Start-Spike 'all-after-dpi' 'all-win-n';Wait-Overlay $true|Out-Null
@@ -265,7 +299,7 @@ try {
     Wait-Overlay $false 3|Out-Null;Capture 'explorer-loss'
     Start-Sleep -Seconds 1
     if ([OverlayEvidence]::FindWindowW('Shell_TrayWnd',$null) -eq [IntPtr]::Zero) {Start-Process explorer.exe|Out-Null}
-    Wait-Overlay $true 30|Out-Null;Capture 'explorer-recovered'
+    Wait-Overlay $true 30|Out-Null;Capture-Overlay 'explorer-recovered'
     $context.results.explorerRestart=[ordered]@{oldPids=@($old.Id);newPids=@((Get-Process explorer|Where-Object {$_.SessionId -eq $session}).Id);lossHides=$true;recovered=$true}
     Stop-Spike $p;$p=$null
     # Controlled unsupported discovery while Explorer remains unchanged. This

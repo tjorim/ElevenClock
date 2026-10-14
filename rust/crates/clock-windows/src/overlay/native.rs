@@ -33,6 +33,18 @@ pub enum Update {
     Failed,
     InteractionComplete,
 }
+struct WindowClass {
+    instance: HINSTANCE,
+    name: windows::core::PCWSTR,
+}
+impl Drop for WindowClass {
+    fn drop(&mut self) {
+        // All owned windows are declared after this guard and drop first.
+        unsafe {
+            let _ = UnregisterClassW(self.name, Some(self.instance));
+        }
+    }
+}
 struct Window {
     hwnd: HWND,
     taskbar: HWND,
@@ -135,6 +147,10 @@ pub fn run(
         if RegisterClassW(&class) == 0 {
             return Err(windows::core::Error::from_win32());
         }
+        let _class_owner = WindowClass {
+            instance: module.into(),
+            name: class.lpszClassName,
+        };
         let started = Instant::now();
         let mut lease = Instant::now();
         let mut windows: Vec<Window> = Vec::new();
@@ -266,6 +282,10 @@ pub fn run(
                 } else if !IsWindowVisible(window.hwnd).as_bool() {
                     let _ = observations
                         .try_send("SetWindowPos succeeded but window is not visible".into());
+                } else {
+                    // Paint on the owning thread before exposing an unpainted
+                    // surface to the capture harness or the next message tick.
+                    let _ = UpdateWindow(window.hwnd);
                 }
             }
             if lease.elapsed() >= Duration::from_secs(8) {
@@ -275,7 +295,6 @@ pub fn run(
         }
         // windows drop before class registration is released.
         windows.clear();
-        UnregisterClassW(class.lpszClassName, Some(module.into()))?;
     }
     Ok(())
 }
