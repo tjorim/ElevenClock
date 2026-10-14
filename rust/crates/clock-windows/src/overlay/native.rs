@@ -27,6 +27,7 @@ pub struct ExperimentSlot {
 pub enum Update {
     Slots(Vec<ExperimentSlot>),
     Failed,
+    InteractionComplete,
 }
 struct Window {
     hwnd: HWND,
@@ -116,7 +117,7 @@ pub fn run(
                 if message.message == WM_QUIT {
                     return Ok(());
                 }
-                if message.message == WM_APP + 3 {
+                if message.message == WM_APP + 3 && !wait_for_update {
                     let slot = windows
                         .iter()
                         .find(|w| w.hwnd == message.hwnd)
@@ -136,9 +137,14 @@ pub fn run(
             }
             while let Ok(update) = updates.try_recv() {
                 windows.clear();
-                wait_for_update = false;
+                if matches!(update, Update::InteractionComplete) {
+                    wait_for_update = false;
+                }
                 lease = Instant::now();
                 if let Update::Slots(slots) = update {
+                    if wait_for_update {
+                        continue;
+                    }
                     for slot in slots {
                         let bar = taskbar(&slot)?;
                         let r = slot.clock;

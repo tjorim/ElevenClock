@@ -151,6 +151,9 @@ mod experiment {
                     let slot = decode(&request["slot"])?;
                     Ok(json!({"action": prototype_interaction::invoke(&slot, request["fallback"].as_bool().unwrap_or(false))?}))
                 } else {
+                    if std::env::var_os("ELEVENCLOCK_R03_REJECT_DISCOVERY").is_some() {
+                        return Err("Injected unsupported-discovery result; no geometry accepted".into());
+                    }
                     Ok(json!({"slots": prototype_interaction::discover(sequence, request["all"].as_bool().unwrap_or(false))?.iter().map(encode).collect::<Vec<_>>()}))
                 }
             })().unwrap_or_else(|error| json!({"failed":error.to_string()}));
@@ -216,6 +219,9 @@ mod experiment {
                             }
                         }
                         reports.push(report);
+                        if click.is_some() && tx.send(Update::InteractionComplete).is_err() {
+                            break;
+                        }
                     }
                     Err(error) => {
                         reports.push(json!({"sequence":sequence,"fatal":error.to_string()}));

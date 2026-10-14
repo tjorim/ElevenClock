@@ -88,7 +88,10 @@ This does not block development of this R03 spike. See
 [R02 evidence](discovery.md), [discovery ADR](../adr/0001-taskbar-discovery.md) and
 [shared desktop variants #21](https://github.com/tjorim/ElevenClock/issues/21).
 Do not count ARM64 x64 emulation as native x64, count the same OS build twice,
-or treat a single display as mixed DPI. Unsupported geometry removes coverage;
+or treat a single display as mixed DPI. Controlled unsupported-discovery rejection is injected only in the development
+helper via `ELEVENCLOCK_R03_REJECT_DISCOVERY`; the harness restores its prior
+process value. This proves fail-closed removal while Explorer stays unchanged,
+not an actual blocked provider. Unsupported geometry removes coverage;
 forced termination leaves the unmodified native clock in Explorer.
 
 ## Developer checks

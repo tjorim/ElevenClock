@@ -72,7 +72,7 @@ function Clock-Point($h) {
     if (![OverlayEvidence]::GetWindowRect($h,[ref]$r)) {throw 'Missing overlay rectangle'}
     return @([int](($r.Left+$r.Right)/2),[int](($r.Top+$r.Bottom)/2))
 }
-$p=$null;$fixture=$null;$oldState=[OverlayEvidence]::TaskbarState()
+$p=$null;$fixture=$null;$oldState=[OverlayEvidence]::TaskbarState();$oldReject=$env:ELEVENCLOCK_R03_REJECT_DISCOVERY
 try {
     Capture 'native-baseline'
     $fixture=New-Object Windows.Forms.Form
@@ -126,14 +126,17 @@ try {
     $root=[Windows.Automation.AutomationElement]::FromHandle([OverlayEvidence]::FindWindowW('Shell_TrayWnd',$null))
     $nodes=$root.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.Condition]::TrueCondition)
     $neighbors=@($nodes|Where-Object {$_.Current.ClassName -in @('SystemTray.OmniButtonRight','SystemTray.ShowDesktopButton')})
-    if ($neighbors.Count -ne 2) {throw 'Incomplete neighboring controls'}
+    if (!($neighbors|Where-Object {$_.Current.ClassName -eq 'SystemTray.OmniButtonRight'}) -or !($neighbors|Where-Object {$_.Current.ClassName -eq 'SystemTray.ShowDesktopButton'})) {throw 'Incomplete neighboring controls'}
     $p=Start-Spike 'neighbors' 'primary-win-n';Wait-Overlay $true|Out-Null
     $context.results.neighbors=@()
+    $neighborIndex=0
     foreach ($node in $neighbors) {
+        $neighborIndex++
         $r=$node.Current.BoundingRectangle;$x=[int]($r.X+$r.Width/2);$y=[int]($r.Y+$r.Height/2)
         $hit=[Windows.Automation.AutomationElement]::FromPoint((New-Object Windows.Point($x,$y)))
+        if ($hit.Current.ProcessId -eq $p.Id) {throw 'Overlay obstructs neighboring control'}
         $context.results.neighbors+= [ordered]@{class=$node.Current.ClassName;hitClass=$hit.Current.ClassName;hitProcess=$hit.Current.ProcessId;point=@($x,$y)}
-        [OverlayEvidence]::Click($x,$y);Start-Sleep -Milliseconds 750;Capture $node.Current.ClassName
+        [OverlayEvidence]::Click($x,$y);Start-Sleep -Milliseconds 750;Capture "neighbor-$neighborIndex"
         [OverlayEvidence]::Click(200,200)
     }
     # Restart only Explorer in this runner session while the spike is alive.
@@ -145,12 +148,15 @@ try {
     Wait-Overlay $true 30|Out-Null;Capture 'explorer-recovered'
     $context.results.explorerRestart=[ordered]@{oldPids=@($old.Id);newPids=@((Get-Process explorer|Where-Object {$_.SessionId -eq $session}).Id);lossHides=$true;recovered=$true}
     Stop-Spike $p;$p=$null
-    # Unsupported discovery: no real clock subtree while Explorer is absent.
-    $shell=@(Get-Process explorer|Where-Object {$_.SessionId -eq $session});$shell|Stop-Process -Force
+    # Controlled unsupported discovery while Explorer remains unchanged. This
+    # explicitly injected rejection tests removal, not a real provider failure.
+    $env:ELEVENCLOCK_R03_REJECT_DISCOVERY='1'
     $p=Start-Spike 'unsupported' 'primary';Start-Sleep -Seconds 3
     if ((Overlay) -ne [IntPtr]::Zero) {throw 'Unsupported discovery created an overlay'}
-    $context.results.unsupported=[ordered]@{noOverlay=$true;nativeExplorerMutation=$false}
-    Stop-Spike $p;$p=$null;Start-Process explorer.exe|Out-Null
+    $context.results.unsupported=[ordered]@{noOverlay=$true;nativeExplorerMutation=$false;injectedRejection=$true}
+    Capture 'unsupported-native'
+    Stop-Spike $p;$p=$null
+    Remove-Item Env:ELEVENCLOCK_R03_REJECT_DISCOVERY
     $context.status='hosted_checks_passed_visual_review_and_desktop_variants_pending'
 } catch {
     $context.status='harness_failed';$context.failure=$_.Exception.Message;Capture 'failure';throw
@@ -158,5 +164,6 @@ try {
     if ($p) {Stop-Spike $p}
     [OverlayEvidence]::AutoHide(($oldState -band 1) -ne 0)|Out-Null
     if ($fixture) {$fixture.Close();$fixture.Dispose()}
+    [Environment]::SetEnvironmentVariable('ELEVENCLOCK_R03_REJECT_DISCOVERY',$oldReject,'Process')
     Save-Context
 }
