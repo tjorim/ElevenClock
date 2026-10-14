@@ -162,6 +162,9 @@ pub enum Event {
     ExplorerLost,
     SessionLocked,
     SessionUnlocked,
+    /// The user paused or resumed clock replacement from the clock/tray menu.
+    /// Session-only: a fresh `State` is never paused.
+    SetPaused(bool),
     Quit,
 }
 /// UI-thread effects. No effect carries native resources across a worker channel.

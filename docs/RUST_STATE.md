@@ -15,6 +15,7 @@ ordering within each reconciliation phase.
 | VisibilityChanged | Update one current-generation taskbar; unknown destroys, hidden hides, visible reconciles eligibility. |
 | FullscreenChanged | Update one current-generation taskbar; fullscreen hides, leaving fullscreen reconciles eligibility. |
 | SessionLocked | Hide existing visible overlays, create none. |
+| SetPaused(bool) | R09: user paused/resumed replacement from the clock/tray menu. Paused hides every overlay (`Hidden(Paused)`), creates none and keeps windows; resume repaints once per visible clock. Session-only, unaffected by Explorer loss. |
 | SessionUnlocked | Invalidate old visibility and time; request discovery. Runtime supplies a fresh Tick/TimeChanged as well as discovery before showing. |
 | Tick / TimeChanged | Replace wall snapshot for all clocks, render once, paint changed text only; replace the one-shot timer even for repeated snapshots. |
 | ThemeChanged { revision } | A distinct resolved appearance revision dirties overlays; repeated revisions do nothing. Hidden overlays defer painting. |
@@ -24,7 +25,7 @@ ordering within each reconciliation phase.
 
 Visibility precedence is Unavailable (missing/invalid bounds, zero DPI, unknown
 visibility, missing/unrenderable time), then Hidden(SessionLocked),
-Hidden(Paused) for unselected monitors, Hidden(TaskbarHidden),
+Hidden(Paused) for unselected monitors or a user pause, Hidden(TaskbarHidden),
 Hidden(Fullscreen), then Visible. Proven clock-only bounds are supplied by R02;
 the reducer also checks taskbar/monitor containment defensively. New hidden
 entries have no window. Existing hidden windows are retained until removal,

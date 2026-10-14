@@ -5,17 +5,27 @@
 //! styles and never uses an unconditional global topmost: z-order mirrors the
 //! visible taskbar's own band, immediately above it (R03 strategy, unchanged).
 use crate::{
+    accessibility::{ClockAccessible, is_root_object, return_object},
+    interaction::{Interaction, PressTracker, ScreenPoint, post_interaction},
     overlay::{BandAction, band_action},
     render::{ClockSurface, PaintOutcome, PaintRequest, RenderError, Renderer},
 };
 use clock_core::PhysicalRect;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::{
+    cell::{Cell, RefCell},
+    collections::HashMap,
+    sync::atomic::{AtomicU64, Ordering},
+};
 use windows::{
     Win32::{
-        Foundation::{HWND, LPARAM, LRESULT, WPARAM},
+        Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM},
         Graphics::Gdi::ValidateRect,
         System::LibraryLoader::GetModuleHandleW,
-        UI::WindowsAndMessaging::*,
+        UI::{
+            Accessibility::IRawElementProviderSimple,
+            Input::KeyboardAndMouse::{ReleaseCapture, SetCapture},
+            WindowsAndMessaging::*,
+        },
     },
     core::{Result, w},
 };
@@ -25,6 +35,19 @@ use windows::{
 /// references to loop state.
 pub static REPAINT_EPOCH: AtomicU64 = AtomicU64::new(0);
 const CLASS_NAME: windows::core::PCWSTR = w!("ElevenClock.Overlay");
+
+thread_local! {
+    /// The button press in progress. Mouse capture makes at most one possible.
+    static PRESS: Cell<PressTracker> = const { Cell::new(PressTracker::new()) };
+    /// UIA providers by window id, for `WM_GETOBJECT`. The window procedure runs
+    /// on the UI thread that created every overlay, so no lock is needed.
+    static PROVIDERS: RefCell<HashMap<u64, IRawElementProviderSimple>> =
+        RefCell::new(HashMap::new());
+}
+
+pub fn window_id(hwnd: HWND) -> u64 {
+    hwnd.0 as usize as u64
+}
 
 /// Registers the window class for the life of the runtime.
 pub struct OverlayClass(windows::Win32::Foundation::HINSTANCE);
@@ -61,10 +84,21 @@ pub struct Overlay {
     taskbar: HWND,
     bounds: PhysicalRect,
     pub last_text: Option<clock_core::ClockText>,
+    accessible: ClockAccessible,
     shown: bool,
 }
 impl Drop for Overlay {
     fn drop(&mut self) {
+        let id = window_id(self.hwnd);
+        PROVIDERS.with(|providers| providers.borrow_mut().remove(&id));
+        PRESS.with(|press| {
+            let mut tracker = press.get();
+            tracker.cancel();
+            press.set(tracker);
+        });
+        // Detach from UI Automation first, so a client that still holds the
+        // element gets "not available" rather than a dangling window.
+        self.accessible.disconnect();
         // SAFETY: destroying a window created and owned by this thread.
         unsafe {
             let _ = DestroyWindow(self.hwnd);
@@ -122,14 +156,32 @@ impl Overlay {
                 None,
             )?
         };
+        let accessible = ClockAccessible::new(hwnd);
+        PROVIDERS.with(|providers| {
+            providers
+                .borrow_mut()
+                .insert(window_id(hwnd), accessible.provider())
+        });
         Ok(Self {
             surface: renderer.create_surface(hwnd),
             hwnd,
             taskbar,
             bounds,
             last_text: None,
+            accessible,
             shown: false,
         })
+    }
+
+    pub fn window_id(&self) -> u64 {
+        window_id(self.hwnd)
+    }
+
+    /// Remember what is displayed, for repaints and for the accessible name. No
+    /// UIA event is raised: see `accessibility` for why.
+    pub fn remember_text(&mut self, text: &clock_core::ClockText) {
+        self.accessible.set_text(&text.lines);
+        self.last_text = Some(text.clone());
     }
 
     pub fn set_bounds(&mut self, bounds: PhysicalRect) -> Result<()> {
@@ -261,6 +313,61 @@ unsafe extern "system" fn window_proc(hwnd: HWND, message: u32, wp: WPARAM, lp: 
         match message {
             WM_MOUSEACTIVATE => LRESULT(MA_NOACTIVATE as isize),
             WM_ERASEBKGND => LRESULT(1),
+            WM_GETOBJECT if is_root_object(lp) => {
+                let provider = PROVIDERS.with(|p| p.borrow().get(&window_id(hwnd)).cloned());
+                match provider {
+                    Some(provider) => return_object(&provider, hwnd, wp, lp),
+                    None => DefWindowProcW(hwnd, message, wp, lp),
+                }
+            }
+            // A click is a press and a release on this window. Capture pairs them
+            // even if the pointer leaves; nothing is forwarded to the native clock.
+            WM_LBUTTONDOWN => {
+                PRESS.with(|press| {
+                    let mut tracker = press.get();
+                    tracker.down(window_id(hwnd));
+                    press.set(tracker);
+                });
+                let _ = SetCapture(hwnd);
+                LRESULT(0)
+            }
+            WM_LBUTTONUP => {
+                let inside = point_in_client(hwnd, lp);
+                let clicked = PRESS.with(|press| {
+                    let mut tracker = press.get();
+                    let clicked = tracker.up(window_id(hwnd), inside);
+                    press.set(tracker);
+                    clicked
+                });
+                let _ = ReleaseCapture();
+                if clicked {
+                    post_interaction(Interaction::Activate {
+                        window: window_id(hwnd),
+                    });
+                }
+                LRESULT(0)
+            }
+            WM_CAPTURECHANGED | WM_CANCELMODE => {
+                PRESS.with(|press| {
+                    let mut tracker = press.get();
+                    tracker.cancel();
+                    press.set(tracker);
+                });
+                if message == WM_CANCELMODE {
+                    let _ = ReleaseCapture();
+                }
+                LRESULT(0)
+            }
+            // Generated by DefWindowProc after a right click, and by touch
+            // press-and-hold. The overlay cannot take keyboard focus, so (-1,-1)
+            // never arrives from the keyboard; the cursor position is a fallback.
+            WM_CONTEXTMENU => {
+                let x = i32::from(lp.0 as u16 as i16);
+                let y = i32::from((lp.0 >> 16) as u16 as i16);
+                let anchor = (lp.0 as i32 != -1).then_some(ScreenPoint { x, y });
+                post_interaction(Interaction::Menu { anchor });
+                LRESULT(0)
+            }
             WM_PAINT | WM_DPICHANGED | WM_DISPLAYCHANGE => {
                 // Drawing happens in the loop, which owns the surface; the
                 // callback only records that the pixels were invalidated.
@@ -273,4 +380,18 @@ unsafe extern "system" fn window_proc(hwnd: HWND, message: u32, wp: WPARAM, lp: 
             _ => DefWindowProcW(hwnd, message, wp, lp),
         }
     }
+}
+
+/// Whether a mouse message position (client coordinates, signed words) is inside
+/// the window. Capture delivers releases from outside, with negative values.
+fn point_in_client(hwnd: HWND, lparam: LPARAM) -> bool {
+    let x = i32::from(lparam.0 as u16 as i16);
+    let y = i32::from((lparam.0 >> 16) as u16 as i16);
+    let mut client = RECT::default();
+    // SAFETY: live output buffer; a destroyed window fails and reads as outside.
+    unsafe { GetClientRect(hwnd, &mut client) }.is_ok()
+        && x >= client.left
+        && x < client.right
+        && y >= client.top
+        && y < client.bottom
 }

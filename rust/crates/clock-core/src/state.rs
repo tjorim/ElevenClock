@@ -26,6 +26,7 @@ pub struct State {
     wall: Option<DateTime<FixedOffset>>,
     theme_revision: u64,
     locked: bool,
+    paused: bool,
     discovering: bool,
     quitting: bool,
     shell_lost: bool,
@@ -39,6 +40,7 @@ impl State {
             wall: None,
             theme_revision: 0,
             locked: false,
+            paused: false,
             discovering: false,
             quitting: false,
             shell_lost: false,
@@ -47,6 +49,10 @@ impl State {
     /// Committed preferences used to apply appearance effects on the UI thread.
     pub fn preferences(&self) -> &ValidatedPreferences {
         &self.preferences
+    }
+    /// True while the user has paused clock replacement; every overlay is hidden.
+    pub fn is_paused(&self) -> bool {
+        self.paused
     }
     pub fn is_quitting(&self) -> bool {
         self.quitting
@@ -87,7 +93,9 @@ impl State {
                 OverlayState::Unavailable
             } else if self.locked {
                 OverlayState::Hidden(HiddenReason::SessionLocked)
-            } else if self.preferences.monitors() == Monitors::Primary && !snapshot.primary {
+            } else if self.paused
+                || (self.preferences.monitors() == Monitors::Primary && !snapshot.primary)
+            {
                 OverlayState::Hidden(HiddenReason::Paused)
             } else if snapshot.visibility == TaskbarVisibility::Hidden {
                 OverlayState::Hidden(HiddenReason::TaskbarHidden)
@@ -228,6 +236,7 @@ pub fn reduce(mut state: State, event: Event) -> (State, Vec<Effect>) {
             }
         }
         Event::SessionLocked => state.locked = true,
+        Event::SetPaused(paused) => state.paused = paused,
         Event::SessionUnlocked => {
             if state.locked {
                 state.locked = false;

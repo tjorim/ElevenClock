@@ -9,7 +9,7 @@
 //! (`events::enqueue`); the loop turns them into `Runtime` inputs after the
 //! message returns, so callbacks stay short and cannot re-enter runtime state.
 use super::{
-    Input, Observation, PaintContext, PaintResult, Platform, Runtime, ShellIdentity,
+    Input, Observation, PaintContext, PaintResult, Platform, Runtime, ShellIdentity, UserAction,
     overlay_window::{Overlay, OverlayClass, REPAINT_EPOCH},
     shell::covers_monitor,
 };
@@ -17,6 +17,7 @@ use crate::{
     clock_time,
     events::{self, Notifications, WM_WAKE},
     instance::{HOST_CLASS, InstanceGuard, LaunchMode, WM_SHOW_SETTINGS},
+    interaction::{self, CalendarOutcome, Interaction, MenuCommand, ScreenPoint, WM_INTERACTION},
     preferences_store::{PreferenceSession, PreferencesStore},
     render::{PaintOutcome, PaintRequest, RenderError, Renderer, WorstCase},
     settings::{PlatformError, SettingsWindow},
@@ -25,6 +26,7 @@ use crate::{
         worker::{DEADLINE, DiscoveryWorker, TEARDOWN_LIMIT, same_executable},
     },
     theme::{self, SystemAppearance},
+    tray::{Tray, WM_TRAYICON, interaction_for_message},
 };
 use chrono::{DateTime, FixedOffset};
 use clock_core::{
@@ -43,7 +45,7 @@ use windows::{
         System::LibraryLoader::GetModuleHandleW,
         UI::{HiDpi::GetDpiForWindow, WindowsAndMessaging::*},
     },
-    core::HSTRING,
+    core::{HSTRING, PCWSTR},
 };
 
 const WM_DISCOVERY: u32 = WM_APP + 3;
@@ -59,7 +61,8 @@ thread_local! {
     static PANICKED: Cell<bool> = const { Cell::new(false) };
 }
 
-/// Ask the loop to quit (Settings "Exit", `WM_CLOSE` on the host, tray later).
+/// Ask the loop to quit (Settings "Exit", `WM_CLOSE` on the host; the clock/tray
+/// menu's Exit goes through the runtime and ends the same way).
 /// Quitting removes every overlay; the native clock was never modified.
 pub(crate) fn request_exit() {
     EXIT.set(true);
@@ -121,6 +124,7 @@ pub struct NativePlatform {
     overlays: HashMap<TaskbarKey, Overlay>,
     info: HashMap<TaskbarKey, TaskbarInfo>,
     notifications: Option<Notifications>,
+    tray: Option<Tray>,
     worker: DiscoveryWorker,
     renderer: Renderer,
     _class: OverlayClass,
@@ -144,6 +148,15 @@ impl NativePlatform {
         };
         (valid && is_taskbar_class(hwnd) && self.shell.is_some_and(|s| s.pid == pid))
             .then_some(hwnd)
+    }
+
+    /// The overlay a click or UIA Invoke named, if it still exists. Window ids are
+    /// compared by value: a destroyed overlay's id simply matches nothing.
+    fn key_for_window(&self, window: u64) -> Option<TaskbarKey> {
+        self.overlays
+            .iter()
+            .find(|(_, overlay)| overlay.window_id() == window)
+            .map(|(key, _)| *key)
     }
 
     fn remember(&mut self, context: &PaintContext<'_>) {
@@ -295,7 +308,7 @@ impl Platform for NativePlatform {
         };
         let result = match overlay.paint(&self.renderer, &request) {
             Ok(PaintOutcome::Painted | PaintOutcome::Unchanged) => {
-                overlay.last_text = Some(context.text.clone());
+                overlay.remember_text(context.text);
                 // Expose only after correct pixels exist; re-anchor if needed.
                 if !overlay.is_shown() || !overlay.is_anchored() {
                     match overlay.show_anchored() {
@@ -323,6 +336,27 @@ impl Platform for NativePlatform {
             overlay.hide();
         }
     }
+    fn open_calendar(&mut self, _key: TaskbarKey) -> CalendarOutcome {
+        // One keystroke batch on the UI thread, no COM, no retry (R03 evidence).
+        interaction::send_win_n()
+    }
+    fn show_menu(&mut self, anchor: Option<ScreenPoint>, paused: bool) -> Option<MenuCommand> {
+        interaction::show_menu(self.host, anchor, paused)
+    }
+    fn open_settings(&mut self) {
+        // Handled by the loop after the current input, which owns the window.
+        SHOW_SETTINGS.set(true);
+    }
+    fn restore_tray(&mut self) {
+        if let Some(tray) = &mut self.tray {
+            tray.restore();
+        }
+    }
+    fn paused_changed(&mut self, paused: bool) {
+        if let Some(tray) = &mut self.tray {
+            tray.set_paused(paused);
+        }
+    }
     fn maintain(&mut self) {
         for overlay in self.overlays.values_mut() {
             if overlay.is_shown() && !overlay.is_anchored() && overlay.show_anchored().is_err() {
@@ -343,6 +377,7 @@ impl Platform for NativePlatform {
             let _ = KillTimer(Some(self.host), TIMER_POLL);
         }
         self.overlays.clear();
+        self.tray = None;
         self.notifications = None;
         self.worker.shutdown(TEARDOWN_LIMIT * 2);
     }
@@ -381,7 +416,15 @@ fn guard(hwnd: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
             SHOW_SETTINGS.set(true);
             LRESULT(0)
         }
-        WM_WAKE => LRESULT(0),
+        WM_WAKE | WM_INTERACTION => LRESULT(0),
+        // Notification-area icon (version 4 callback): mouse selection, keyboard
+        // selection and the context-menu key all queue the same fixed menu.
+        WM_TRAYICON => {
+            if let Some(menu) = interaction_for_message(wparam.0, lparam.0) {
+                interaction::post_interaction(menu);
+            }
+            LRESULT(0)
+        }
         WM_QUERYENDSESSION => LRESULT(1),
         // A polite external close (taskkill without /f) is an Exit request.
         WM_CLOSE => {
@@ -473,6 +516,30 @@ impl Drop for HostWindow {
     }
 }
 
+/// The application icon at notification-area size; shared, so nothing to free.
+fn tray_icon() -> HICON {
+    // SAFETY: resource 102 is the app icon compiled into this executable (the same
+    // id Settings uses); LR_SHARED icons are owned by the system. Failure falls
+    // back to the stock application icon, which is also shared.
+    unsafe {
+        let loaded = GetModuleHandleW(None).ok().and_then(|module| {
+            LoadImageW(
+                Some(module.into()),
+                PCWSTR(102_usize as *const u16),
+                IMAGE_ICON,
+                GetSystemMetrics(SM_CXSMICON),
+                GetSystemMetrics(SM_CYSMICON),
+                LR_SHARED,
+            )
+            .ok()
+        });
+        match loaded {
+            Some(handle) => HICON(handle.0),
+            None => LoadIconW(None, IDI_APPLICATION).unwrap_or_default(),
+        }
+    }
+}
+
 fn start_error(error: windows::core::Error) -> PlatformError {
     PlatformError::new("ElevenClock could not start its clock", error)
 }
@@ -509,12 +576,15 @@ pub fn run<S: PreferencesStore>(
         }),
     )
     .map_err(|e| start_error(e.into()))?;
+    interaction::set_host(host.hwnd);
+    let tray = Tray::new(host.hwnd, tray_icon());
     let platform = NativePlatform {
         host: host.hwnd,
         started: Instant::now(),
         overlays: HashMap::new(),
         info: HashMap::new(),
         notifications: Some(notifications),
+        tray: Some(tray),
         worker,
         renderer,
         _class: class,
@@ -555,6 +625,7 @@ pub fn run<S: PreferencesStore>(
     runtime.handle(Input::Quit);
     settings.close();
     drop(runtime);
+    interaction::clear_host();
     drop(host);
     result
 }
@@ -591,9 +662,52 @@ fn pump(
     for signal in events::drain() {
         runtime.handle(Input::Signal(signal));
     }
+    // Clicks, Invoke requests and menu requests queued by window procedures and
+    // the UIA provider. They run here, never inside a callback: the menu is modal
+    // and the calendar action sends input.
+    for interaction in interaction::take_interactions() {
+        match interaction {
+            Interaction::Activate { window } => {
+                if let Some(key) = runtime.platform().key_for_window(window) {
+                    runtime.handle(Input::Action(UserAction::Activate(key)));
+                }
+            }
+            Interaction::Menu { anchor } => {
+                runtime.handle(Input::Action(UserAction::ShowMenu(anchor)));
+            }
+        }
+    }
+    if runtime.is_finished() {
+        return Ok(());
+    }
     runtime.platform_mut().repaint_invalidated();
     if SHOW_SETTINGS.take() {
         settings.show_or_focus()?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{events::WM_WAKE, instance::WM_SHOW_SETTINGS};
+
+    /// Every private message the host window understands must be distinct, or one
+    /// feature would silently be handled as another.
+    #[test]
+    fn host_window_messages_are_distinct_application_messages() {
+        let all = [
+            WM_WAKE,
+            WM_SHOW_SETTINGS,
+            WM_DISCOVERY,
+            WM_INTERACTION,
+            WM_TRAYICON,
+        ];
+        for (i, a) in all.iter().enumerate() {
+            assert!(*a >= WM_APP, "{a:#x}");
+            for b in &all[i + 1..] {
+                assert_ne!(a, b);
+            }
+        }
+    }
 }
