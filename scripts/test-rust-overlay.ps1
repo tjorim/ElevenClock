@@ -13,6 +13,17 @@ public static class OverlayEvidence {
     [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left,Top,Right,Bottom; }
     [StructLayout(LayoutKind.Sequential)] public struct Appbar { public uint Size; public IntPtr Window; public uint Message,Edge; public Rect Rect; public IntPtr Param; }
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr FindWindowW(string cls,string title);
+    public delegate bool EnumProc(IntPtr window,IntPtr param);
+    [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc callback,IntPtr param);
+    [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetClassNameW(IntPtr window,System.Text.StringBuilder text,int size);
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window,out uint process);
+    [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern IntPtr FindWindowExW(IntPtr parent,IntPtr after,string cls,string title);
+    public static IntPtr FindOverlay() {
+        var found=IntPtr.Zero;
+        EnumWindows((window,param)=> {var text=new System.Text.StringBuilder(256);GetClassNameW(window,text,256);if(text.ToString()=="ElevenClock.R03.Overlay") {found=window;return false;}return true;},IntPtr.Zero);
+        if(found!=IntPtr.Zero) return found;
+        return FindWindowExW(IntPtr.Zero,IntPtr.Zero,"ElevenClock.R03.Overlay",null);
+    }
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
@@ -48,7 +59,7 @@ function Capture([string]$name) {
     $b=New-Object Drawing.Bitmap($r.Width,$r.Height);$g=[Drawing.Graphics]::FromImage($b)
     try { $g.CopyFromScreen($r.Left,$r.Top,0,0,$b.Size);$b.Save((Join-Path $output "$name.png"),[Drawing.Imaging.ImageFormat]::Png) } finally {$g.Dispose();$b.Dispose()}
 }
-function Overlay { [OverlayEvidence]::FindWindowW('ElevenClock.R03.Overlay',$null) }
+function Overlay { [OverlayEvidence]::FindOverlay() }
 function Wait-Overlay([bool]$visible, [int]$seconds=20) {
     $end=[DateTime]::UtcNow.AddSeconds($seconds)
     do { [Windows.Forms.Application]::DoEvents();$h=Overlay;if ($h -ne [IntPtr]::Zero -and [OverlayEvidence]::IsWindowVisible($h) -eq $visible) { return $h };Start-Sleep -Milliseconds 25 } while ([DateTime]::UtcNow -lt $end)
