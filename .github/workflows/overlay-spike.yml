@@ -41,5 +41,6 @@ jobs:
         if: always()
         with:
           name: r03-desktop-${{ matrix.runner }}-${{ matrix.target }}
+          retention-days: 14
           path: native-evidence/
           if-no-files-found: error

@@ -78,6 +78,7 @@ jobs:
         if: always() && matrix.toolchain == 'stable'
         with:
           name: prototype-${{ matrix.toolchain }}
+          retention-days: 14
           path: |
             rust/target/x86_64-pc-windows-msvc/release/clock-app.exe
             LICENSE
@@ -99,8 +100,10 @@ jobs:
           python3 scripts/test-rust-license-check.py
           cargo metadata --manifest-path rust/Cargo.toml --locked --format-version 1 > dependency-metadata.json
           python3 scripts/rust-license-check.py dependency-metadata.json > dependency-notices.txt
+      # The checks above gate every PR; the notice bundle is a release record, so it
+      # is only kept for pushes to main/rust-rewrite, not for each PR run.
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && github.event_name != 'pull_request'
         with:
           name: dependency-notices
           path: |
