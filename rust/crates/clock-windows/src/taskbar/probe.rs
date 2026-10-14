@@ -68,6 +68,41 @@ unsafe extern "system" fn taskbars(hwnd: HWND, param: LPARAM) -> BOOL {
     BOOL(1)
 }
 
+fn taskbar_handles() -> windows::core::Result<Vec<HWND>> {
+    let mut handles = Vec::<HWND>::new();
+    // SAFETY: synchronous callback/vector ownership; class strings are static.
+    // Direct lookup supplements EnumWindows, which can omit modern shell roots
+    // in hosted Windows 11/emulation environments. Neither path guesses bounds.
+    unsafe {
+        EnumWindows(
+            Some(taskbars),
+            LPARAM((&mut handles as *mut Vec<HWND>) as isize),
+        )?;
+        for name in [w!("Shell_TrayWnd"), w!("Shell_SecondaryTrayWnd")] {
+            let mut after = None;
+            for count in 0..=128 {
+                let Ok(hwnd) = FindWindowExW(None, after, name, None) else {
+                    break;
+                };
+                if count == 128 {
+                    return Err(windows::core::Error::new(
+                        windows::core::HRESULT(0x80004005u32 as i32),
+                        "Native taskbar enumeration limit reached",
+                    ));
+                }
+                if !handles.contains(&hwnd) {
+                    handles.push(hwnd);
+                }
+                after = Some(hwnd);
+            }
+        }
+    }
+    // HWNDs are internal only; ordinal IDs remain generation-scoped. Changes
+    // in unrelated window z-order must not invalidate an otherwise stable set.
+    handles.sort_by_key(|hwnd| hwnd.0 as usize);
+    Ok(handles)
+}
+
 unsafe extern "system" fn children(hwnd: HWND, param: LPARAM) -> BOOL {
     // SAFETY: EnumChildWindows synchronously invokes us with this live Vec.
     let records = unsafe { &mut *(param.0 as *mut Vec<NativeChild>) };
@@ -176,14 +211,7 @@ pub fn os_build() -> windows::core::Result<(String, u32)> {
 /// Returns value records only. Any shell replacement during a taskbar probe
 /// invalidates the complete result. IDs are local ordinals, never HWND values.
 pub fn collect(generation: ShellGeneration) -> windows::core::Result<Vec<TaskbarObservation>> {
-    let mut handles = Vec::<HWND>::new();
-    // SAFETY: callback borrows the vector only for this synchronous enumeration.
-    unsafe {
-        EnumWindows(
-            Some(taskbars),
-            LPARAM((&mut handles as *mut Vec<HWND>) as isize),
-        )?;
-    }
+    let handles = taskbar_handles()?;
     let initial: Vec<_> = handles
         .iter()
         .map(|hwnd| native_epoch(*hwnd))
@@ -259,14 +287,7 @@ pub fn collect(generation: ShellGeneration) -> windows::core::Result<Vec<Taskbar
         observation.native_inventory_incomplete = observation.native_children.len() >= 2048
             || observation.native_children.iter().any(|c| c.rect.is_none());
     }
-    let mut final_handles = Vec::<HWND>::new();
-    // SAFETY: same synchronous callback/vector ownership as the first enumeration.
-    unsafe {
-        EnumWindows(
-            Some(taskbars),
-            LPARAM((&mut final_handles as *mut Vec<HWND>) as isize),
-        )?;
-    }
+    let final_handles = taskbar_handles()?;
     let final_state: Vec<_> = final_handles
         .iter()
         .map(|hwnd| native_epoch(*hwnd))

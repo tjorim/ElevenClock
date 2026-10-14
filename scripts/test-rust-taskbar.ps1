@@ -2,6 +2,7 @@
 param(
     [string]$Executable = 'rust/target/x86_64-pc-windows-msvc/debug/examples/taskbar_probe.exe',
     [string]$OutputDirectory = 'native-evidence/r02',
+    [string]$ProbeTarget = 'x86_64-pc-windows-msvc',
     [switch]$RestartExplorer,
     [switch]$PrepareHostedDesktop
 )
@@ -51,8 +52,8 @@ $context = [ordered]@{
     build = $registry.CurrentBuildNumber
     ubr = $registry.UBR
     nativeArchitecture = $systemInfo.Architecture # 9=x64; 12=ARM64
-    probeTarget = 'x86_64-pc-windows-msvc'
-    x64Emulated = $systemInfo.Architecture -eq 12
+    probeTarget = $ProbeTarget
+    x64Emulated = $systemInfo.Architecture -eq 12 -and $ProbeTarget -eq 'x86_64-pc-windows-msvc'
     image = $env:ImageOS
     imageVersion = $env:ImageVersion
     executableSha256 = (Get-FileHash $exe -Algorithm SHA256).Hash
