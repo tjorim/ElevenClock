@@ -5,3 +5,7 @@ mod settings;
 pub mod taskbar;
 #[cfg(windows)]
 pub use settings::{PlatformError, run_settings};
+
+pub mod overlay;
+#[cfg(windows)]
+pub mod prototype_interaction;

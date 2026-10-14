@@ -1,0 +1,41 @@
+name: R03 hosted overlay evidence
+on:
+  pull_request:
+    paths: ['rust/**', 'scripts/test-rust-overlay.ps1', '.github/workflows/overlay-spike.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2025
+            target: x86_64-pc-windows-msvc
+          - runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+          - runner: windows-11-arm
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          components: clippy, rustfmt
+      - run: cargo +stable clippy --manifest-path rust/Cargo.toml --workspace --all-targets --locked -- -D warnings
+      - run: cargo +stable build --manifest-path rust/Cargo.toml -p clock-windows --example taskbar_probe -p clock-overlay-spike --target ${{ matrix.target }} --locked
+      - name: Prepare and verify actual hosted desktop through R02
+        shell: pwsh
+        run: ./scripts/test-rust-taskbar.ps1 -PrepareHostedDesktop -ProbeTarget '${{ matrix.target }}' -Executable 'rust/target/${{ matrix.target }}/debug/examples/taskbar_probe.exe'
+      - name: Overlay, hit targets, calendar, visibility and recovery
+        shell: pwsh
+        run: ./scripts/test-rust-overlay.ps1 -ProbeTarget '${{ matrix.target }}' -Executable 'rust/target/${{ matrix.target }}/debug/clock-overlay-spike.exe'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: r03-desktop-${{ matrix.runner }}-${{ matrix.target }}
+          path: native-evidence/
+          if-no-files-found: error

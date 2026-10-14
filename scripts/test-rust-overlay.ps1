@@ -1,0 +1,162 @@
+# R03 development-only evidence on an ephemeral Windows desktop. Not installed.
+param(
+    [string]$Executable = 'rust/target/x86_64-pc-windows-msvc/debug/clock-overlay-spike.exe',
+    [string]$OutputDirectory = 'native-evidence/r03',
+    [string]$ProbeTarget = 'x86_64-pc-windows-msvc'
+)
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Drawing, System.Windows.Forms, UIAutomationClient, UIAutomationTypes
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class OverlayEvidence {
+    [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left,Top,Right,Bottom; }
+    [StructLayout(LayoutKind.Sequential)] public struct Appbar { public uint Size; public IntPtr Window; public uint Message,Edge; public Rect Rect; public IntPtr Param; }
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr FindWindowW(string cls,string title);
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
+    [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
+    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window,out Rect rect);
+    [DllImport("user32.dll")] public static extern int GetWindowLongW(IntPtr window,int index);
+    [DllImport("user32.dll")] public static extern bool SetCursorPos(int x,int y);
+    [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int key);
+    [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+    [DllImport("shell32.dll")] public static extern UIntPtr SHAppBarMessage(uint message,ref Appbar data);
+    [StructLayout(LayoutKind.Sequential)] public struct Mouse { public int X,Y; public uint Data,Flags,Time; public IntPtr Extra; }
+    [StructLayout(LayoutKind.Explicit,Size=40)] public struct Input { [FieldOffset(0)]public uint Type; [FieldOffset(8)]public Mouse Mouse; }
+    [DllImport("user32.dll")] static extern uint SendInput(uint count,Input[] inputs,int size);
+    public static void Click(int x,int y) {
+        if (!SetCursorPos(x,y)) throw new InvalidOperationException("Cursor failed");
+        var down=new Input { Mouse=new Mouse { Flags=2 } }; var up=new Input { Mouse=new Mouse { Flags=4 } };
+        if(SendInput(2,new[]{down,up},Marshal.SizeOf(typeof(Input)))!=2) throw new InvalidOperationException("Harness click failed");
+    }
+    public static uint AutoHide(bool enabled) { var d=new Appbar { Size=(uint)Marshal.SizeOf(typeof(Appbar)),Param=new IntPtr(enabled?1:0) }; return SHAppBarMessage(10,ref d).ToUInt32(); }
+    public static uint TaskbarState() { var d=new Appbar { Size=(uint)Marshal.SizeOf(typeof(Appbar)) };return SHAppBarMessage(4,ref d).ToUInt32(); }
+}
+'@
+[OverlayEvidence]::SetThreadDpiAwarenessContext([IntPtr](-4)) | Out-Null
+$exe = (Resolve-Path $Executable).Path
+New-Item -ItemType Directory -Force $OutputDirectory | Out-Null
+$output = (Resolve-Path $OutputDirectory).Path
+$reg = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+$context = [ordered]@{source=(& git rev-parse HEAD).Trim(); build=$reg.CurrentBuildNumber; ubr=$reg.UBR; probeTarget=$ProbeTarget; executableSha256=(Get-FileHash $exe).Hash; results=[ordered]@{}; limitations=@('No production selector or P1 GO', 'Stock native x64 and mixed-DPI repetitions remain in #21', 'Screenshots require inspection; API success alone does not prove calendar visibility')}
+function Save-Context { $context | ConvertTo-Json -Depth 30 | Set-Content -Encoding utf8 (Join-Path $output 'context.json') }
+function Capture([string]$name) {
+    $r=[Windows.Forms.SystemInformation]::VirtualScreen
+    $b=New-Object Drawing.Bitmap($r.Width,$r.Height);$g=[Drawing.Graphics]::FromImage($b)
+    try { $g.CopyFromScreen($r.Left,$r.Top,0,0,$b.Size);$b.Save((Join-Path $output "$name.png"),[Drawing.Imaging.ImageFormat]::Png) } finally {$g.Dispose();$b.Dispose()}
+}
+function Overlay { [OverlayEvidence]::FindWindowW('ElevenClock.R03.Overlay',$null) }
+function Wait-Overlay([bool]$visible, [int]$seconds=20) {
+    $end=[DateTime]::UtcNow.AddSeconds($seconds)
+    do { [Windows.Forms.Application]::DoEvents();$h=Overlay;if ($h -ne [IntPtr]::Zero -and [OverlayEvidence]::IsWindowVisible($h) -eq $visible) { return $h };Start-Sleep -Milliseconds 25 } while ([DateTime]::UtcNow -lt $end)
+    if (!$visible -and (Overlay) -eq [IntPtr]::Zero) { return [IntPtr]::Zero }
+    Capture 'wait-failed'; throw "Overlay visible=$visible not observed"
+}
+function Start-Spike([string]$name,[string]$selection) {
+    $report=Join-Path $output "$name.json"
+    Start-Process $exe -ArgumentList @($report,'180',$selection) -PassThru
+}
+function Stop-Spike($p) {
+    if ($p -and !$p.HasExited) { $p.Kill();if (!$p.WaitForExit(3000)) {throw 'Prototype did not terminate'} }
+    $deadline=[DateTime]::UtcNow.AddSeconds(3)
+    do {
+        $left=@(Get-CimInstance Win32_Process -Filter "Name = 'clock-overlay-spike.exe'" | Where-Object {$_.ExecutablePath -eq $exe})
+        if (!$left.Count) {break};Start-Sleep -Milliseconds 50
+    } while ([DateTime]::UtcNow -lt $deadline)
+    if ($left.Count) {throw 'Helper survived prototype termination'}
+    if ((Overlay) -ne [IntPtr]::Zero) {throw 'Overlay survived termination'}
+}
+function Clock-Point($h) {
+    $r=New-Object OverlayEvidence+Rect
+    if (![OverlayEvidence]::GetWindowRect($h,[ref]$r)) {throw 'Missing overlay rectangle'}
+    return @([int](($r.Left+$r.Right)/2),[int](($r.Top+$r.Bottom)/2))
+}
+$p=$null;$fixture=$null;$oldState=[OverlayEvidence]::TaskbarState()
+try {
+    Capture 'native-baseline'
+    $fixture=New-Object Windows.Forms.Form
+    $fixture.Text='R03 foreground fixture';$fixture.StartPosition='Manual';$fixture.Bounds=New-Object Drawing.Rectangle(100,100,480,320)
+    $fixture.Show();[Windows.Forms.Application]::DoEvents();[OverlayEvidence]::SetForegroundWindow($fixture.Handle)|Out-Null
+    $p=Start-Spike 'primary' 'primary-win-n'
+    $h=Wait-Overlay $true
+    $point=Clock-Point $h
+    $ex=[OverlayEvidence]::GetWindowLongW($h,-20)
+    if (($ex -band 0x08000080) -ne 0x08000080 -or ($ex -band 0x40000)) {throw 'Unexpected activation/Alt-Tab styles'}
+    if ([OverlayEvidence]::GetForegroundWindow() -ne $fixture.Handle) {throw 'Overlay display changed foreground'}
+    $context.results.nonactivation=[ordered]@{passed=$true; extendedStyles=$ex; foregroundStayedOnFixture=$true}
+    Capture 'primary-visible';Save-Context
+    # Actual fullscreen window on the same monitor, no fake WM_* messages.
+    $fixture.FormBorderStyle='None';$fixture.Bounds=[Windows.Forms.Screen]::PrimaryScreen.Bounds
+    [OverlayEvidence]::SetForegroundWindow($fixture.Handle)|Out-Null
+    Wait-Overlay $false 3|Out-Null;Capture 'fullscreen-hidden'
+    $context.results.fullscreenHidden=$true
+    $fixture.FormBorderStyle='Sizable';$fixture.Bounds=New-Object Drawing.Rectangle(100,100,480,320)
+    Wait-Overlay $true|Out-Null
+    # One physical click made by the test harness, not relayed by the overlay.
+    [OverlayEvidence]::Click($point[0],$point[1]);Start-Sleep -Seconds 2
+    Capture 'calendar-after-click'
+    $report=Get-Content (Join-Path $output 'primary.json') -Raw|ConvertFrom-Json
+    $actions=@($report.reports.result.action|Where-Object {$_})
+    if ($actions.Count -ne 1) {throw "Expected exactly one calendar action, observed $($actions.Count)"}
+    foreach ($key in @(0x5b,0x5c,0x4e)) {if ([OverlayEvidence]::GetAsyncKeyState($key) -lt 0) {throw 'Injected shortcut left a key down'}}
+    $context.results.calendar=[ordered]@{actions=$actions; oneAction=$true; noStuckKeys=$true; visualAcceptance='Pending screenshot inspection'}
+    Stop-Spike $p;$p=$null;Capture 'forced-termination-native'
+    $native=[Windows.Automation.AutomationElement]::FromPoint((New-Object Windows.Point($point[0],$point[1])))
+    $context.results.forcedTermination=[ordered]@{noRemainingProcesses=$true;nativeHitClass=$native.Current.ClassName;nativeHitProcess=$native.Current.ProcessId}
+    if ($native.Current.ProcessId -eq $PID) {throw 'Native clock not restored'}
+    # Close the flyout by clicking our ordinary fixture before more discovery.
+    [OverlayEvidence]::Click(200,200)
+    $p=Start-Spike 'all' 'all-win-n';$h=Wait-Overlay $true;Capture 'all-visible'
+    $context.results.allDisplays=[ordered]@{availableDisplays=[Windows.Forms.Screen]::AllScreens.Count; claimedMixedDpi=$false}
+    # Actual auto-hide state on an ephemeral hosted desktop, restored in finally.
+    if ($env:GITHUB_ACTIONS -ne 'true') {throw 'Auto-hide/restart tests require the explicitly ephemeral hosted runner'}
+    [OverlayEvidence]::AutoHide($true)|Out-Null
+    [OverlayEvidence]::SetCursorPos(400,300)|Out-Null
+    Wait-Overlay $false 5|Out-Null;Capture 'autohide-hidden'
+    $screen=[Windows.Forms.Screen]::PrimaryScreen.Bounds
+    [OverlayEvidence]::SetCursorPos($point[0],$screen.Bottom-1)|Out-Null
+    Wait-Overlay $true 20|Out-Null;Capture 'autohide-shown'
+    $context.results.autoHide=[ordered]@{hidden=$true;shown=$true}
+    [OverlayEvidence]::AutoHide($false)|Out-Null
+    # Neighbor controls remain physically outside the opaque slot. Record fresh
+    # UIA point targets and actual click screenshots, leaving visual semantics
+    # for inspection instead of claiming them from API return codes.
+    Stop-Spike $p;$p=$null
+    $root=[Windows.Automation.AutomationElement]::FromHandle([OverlayEvidence]::FindWindowW('Shell_TrayWnd',$null))
+    $nodes=$root.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.Condition]::TrueCondition)
+    $neighbors=@($nodes|Where-Object {$_.Current.ClassName -in @('SystemTray.OmniButtonRight','SystemTray.ShowDesktopButton')})
+    if ($neighbors.Count -ne 2) {throw 'Incomplete neighboring controls'}
+    $p=Start-Spike 'neighbors' 'primary-win-n';Wait-Overlay $true|Out-Null
+    $context.results.neighbors=@()
+    foreach ($node in $neighbors) {
+        $r=$node.Current.BoundingRectangle;$x=[int]($r.X+$r.Width/2);$y=[int]($r.Y+$r.Height/2)
+        $hit=[Windows.Automation.AutomationElement]::FromPoint((New-Object Windows.Point($x,$y)))
+        $context.results.neighbors+= [ordered]@{class=$node.Current.ClassName;hitClass=$hit.Current.ClassName;hitProcess=$hit.Current.ProcessId;point=@($x,$y)}
+        [OverlayEvidence]::Click($x,$y);Start-Sleep -Milliseconds 750;Capture $node.Current.ClassName
+        [OverlayEvidence]::Click(200,200)
+    }
+    # Restart only Explorer in this runner session while the spike is alive.
+    $session=(Get-Process -Id $PID).SessionId
+    $old=@(Get-Process explorer|Where-Object {$_.SessionId -eq $session});$old|Stop-Process -Force
+    Wait-Overlay $false 3|Out-Null;Capture 'explorer-loss'
+    Start-Sleep -Seconds 1
+    if ([OverlayEvidence]::FindWindowW('Shell_TrayWnd',$null) -eq [IntPtr]::Zero) {Start-Process explorer.exe|Out-Null}
+    Wait-Overlay $true 30|Out-Null;Capture 'explorer-recovered'
+    $context.results.explorerRestart=[ordered]@{oldPids=@($old.Id);newPids=@((Get-Process explorer|Where-Object {$_.SessionId -eq $session}).Id);lossHides=$true;recovered=$true}
+    Stop-Spike $p;$p=$null
+    # Unsupported discovery: no real clock subtree while Explorer is absent.
+    $shell=@(Get-Process explorer|Where-Object {$_.SessionId -eq $session});$shell|Stop-Process -Force
+    $p=Start-Spike 'unsupported' 'primary';Start-Sleep -Seconds 3
+    if ((Overlay) -ne [IntPtr]::Zero) {throw 'Unsupported discovery created an overlay'}
+    $context.results.unsupported=[ordered]@{noOverlay=$true;nativeExplorerMutation=$false}
+    Stop-Spike $p;$p=$null;Start-Process explorer.exe|Out-Null
+    $context.status='hosted_checks_passed_visual_review_and_desktop_variants_pending'
+} catch {
+    $context.status='harness_failed';$context.failure=$_.Exception.Message;Capture 'failure';throw
+} finally {
+    if ($p) {Stop-Spike $p}
+    [OverlayEvidence]::AutoHide(($oldState -band 1) -ne 0)|Out-Null
+    if ($fixture) {$fixture.Close();$fixture.Dispose()}
+    Save-Context
+}
