@@ -31,3 +31,8 @@ tempfile = "3.23"
 [[test]]
 name = "discovery_worker"
 harness = false
+
+# Same pattern: one executable plays runner, provider and UI Automation clients.
+[[test]]
+name = "uia_lifetime"
+harness = false

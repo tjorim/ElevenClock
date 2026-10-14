@@ -94,7 +94,7 @@ unsafe fn related(
 
 /// All COM interfaces are created, used and released on this helper's main
 /// thread. The parent owns cancellation by terminating the process, not COM.
-pub(crate) fn inventory(hwnd: HWND) -> Inventory {
+pub fn inventory(hwnd: HWND) -> Inventory {
     let start = Instant::now();
     let mut report = Inventory::default();
     // SAFETY: this helper thread has no UI message loop or existing apartment.

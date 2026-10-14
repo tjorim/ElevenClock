@@ -35,6 +35,15 @@ jobs:
       - name: Lifecycle, second launch, close-to-background, Exit and Explorer restarts
         shell: pwsh
         run: ./scripts/test-rust-lifecycle.ps1 -Executable 'rust/target/${{ matrix.target }}/debug/clock-app.exe' -OutputDirectory 'native-evidence/lifecycle'
+      # Real UI Automation calls against a controlled provider (hung, killed mid-call,
+      # retained elements) and, with ELEVENCLOCK_UIA_EXPLORER, against real Explorer
+      # killed while a taskbar call is outstanding. Evidence JSON is uploaded.
+      - name: UIA lifetime evidence (controlled provider and real Explorer restart)
+        shell: pwsh
+        env:
+          ELEVENCLOCK_UIA_EXPLORER: '1'
+          ELEVENCLOCK_EVIDENCE_DIR: native-evidence/uia
+        run: cargo +stable test --manifest-path rust/Cargo.toml -p clock-windows --test uia_lifetime --target ${{ matrix.target }} --locked
       # Development-only build that lets the unverified R02 candidate create an
       # overlay. Informational: P1 is NO-GO, so this is evidence, not acceptance.
       - name: Overlay observation with the unverified-overlays development build
