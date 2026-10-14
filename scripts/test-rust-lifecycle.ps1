@@ -93,13 +93,13 @@ try {
     # 1. Quiet (login-style) start: the clock runs without opening Settings.
     $app = Start-Process $exe -ArgumentList '--startup' -PassThru
     $deadline = [DateTime]::UtcNow.AddSeconds(15)
-    while ([Lifecycle]::FindWindowW('ElevenClock.Runtime.Host', $null) -eq [IntPtr]::Zero -and !$app.HasExited -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 200 }
+    while ([Lifecycle]::FindWindowW('ElevenClock.Runtime.Host', [NullString]::Value) -eq [IntPtr]::Zero -and !$app.HasExited -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 200 }
     Start-Sleep -Seconds 2
     $app.Refresh()
     $results.steps.startupWindows = @([Lifecycle]::Describe([uint32]$app.Id))
     if ($app.HasExited) { throw "Quiet startup exited with code $($app.ExitCode)" }
     if ($app.MainWindowHandle -ne 0) { throw 'Quiet startup must not open Settings' }
-    if ([Lifecycle]::FindWindowW('ElevenClock.Runtime.Host', $null) -eq [IntPtr]::Zero) { throw "Runtime host window missing; windows: $($results.steps.startupWindows -join '; ')" }
+    if ([Lifecycle]::FindWindowW('ElevenClock.Runtime.Host', [NullString]::Value) -eq [IntPtr]::Zero) { throw "Runtime host window missing; windows: $($results.steps.startupWindows -join '; ')" }
     $results.steps.quietStart = 'Process running, no Settings window, host window present'
 
     # 2. Idle: at most the app plus one discovery helper at any time.
@@ -135,12 +135,12 @@ try {
         $old | Stop-Process -Force
         Start-Sleep -Milliseconds 500
         if ($ObserveOverlays) { $lost = Overlay-Count $app }
-        if ([Lifecycle]::FindWindowW('Shell_TrayWnd', $null) -eq [IntPtr]::Zero) {
+        if ([Lifecycle]::FindWindowW('Shell_TrayWnd', [NullString]::Value) -eq [IntPtr]::Zero) {
             # Windows normally restarts the shell itself; start it if it did not.
             Start-Sleep -Seconds 3
-            if ([Lifecycle]::FindWindowW('Shell_TrayWnd', $null) -eq [IntPtr]::Zero) { Start-Process explorer.exe | Out-Null }
+            if ([Lifecycle]::FindWindowW('Shell_TrayWnd', [NullString]::Value) -eq [IntPtr]::Zero) { Start-Process explorer.exe | Out-Null }
         }
-        Wait-Until { [Lifecycle]::FindWindowW('Shell_TrayWnd', $null) -ne [IntPtr]::Zero } 45 'Explorer taskbar to return'
+        Wait-Until { [Lifecycle]::FindWindowW('Shell_TrayWnd', [NullString]::Value) -ne [IntPtr]::Zero } 45 'Explorer taskbar to return'
         $maxDuring = Max-Processes $app 10
         $app.Refresh()
         if ($app.HasExited) { throw "Application exited during Explorer restart $i" }
@@ -168,7 +168,7 @@ try {
     if ($app.ExitCode -ne 0) { throw "Exit code $($app.ExitCode)" }
     Wait-Until { (Others).Count -eq 0 } 10 'all helper processes to be gone'
     $results.steps.exit = 'Exit code 0; no clock-app process remained'
-    if ([Lifecycle]::FindWindowW('Shell_TrayWnd', $null) -eq [IntPtr]::Zero) { throw 'Explorer taskbar missing after Exit' }
+    if ([Lifecycle]::FindWindowW('Shell_TrayWnd', [NullString]::Value) -eq [IntPtr]::Zero) { throw 'Explorer taskbar missing after Exit' }
 } finally {
     if ($app -and !$app.HasExited) { $app.Kill() }
     Others | ForEach-Object { try { $_.Kill() } catch { } }
