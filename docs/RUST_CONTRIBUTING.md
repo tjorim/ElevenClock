@@ -64,8 +64,11 @@ must be excluded. Unknown visibility/geometry must not produce overlays.
 
 R04 implements parsing/rendering and enforces ClockText's documented bounds;
 R05 owns the validated preference type and internal store. No placeholder schema
-or serializer freezes that later decision. R06 owns reducer state and receives
-committed validated preferences separately when PreferencesApplied is delivered.
+or serializer freezes that later decision. R06 owns reducer state;
+PreferencesApplied carries R05 committed validated preferences. ThemeChanged
+carries a resolved appearance revision;
+FullscreenChanged carries a generation-scoped taskbar key and boolean. See
+[R06 effect contract](RUST_STATE.md) for integration and timer semantics.
 Time events use one DateTime<FixedOffset> snapshot per update; it is not a stored
 timezone rule. Discovery responses and all overlay effects carry ShellGeneration;
 R06 must discard stale responses and destroy old-generation overlays on loss.

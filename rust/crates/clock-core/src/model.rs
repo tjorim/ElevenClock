@@ -136,8 +136,8 @@ pub enum OverlayState {
 }
 
 /// Value-only inputs; each time event carries one OS-local snapshot for all clocks.
-/// PreferencesApplied is a signal: R06's reducer receives the committed validated
-/// preferences alongside state, after R05 defines that type (no duplicate schema).
+/// PreferencesApplied carries R05's committed validated preferences. Theme revisions
+/// identify resolved platform appearance changes, including high contrast.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event {
     TopologyChanged,
@@ -151,8 +151,14 @@ pub enum Event {
     },
     Tick(DateTime<FixedOffset>),
     TimeChanged(DateTime<FixedOffset>),
-    ThemeChanged,
-    PreferencesApplied,
+    FullscreenChanged {
+        key: TaskbarKey,
+        fullscreen: bool,
+    },
+    ThemeChanged {
+        revision: u64,
+    },
+    PreferencesApplied(crate::ValidatedPreferences),
     ExplorerLost,
     SessionLocked,
     SessionUnlocked,

@@ -111,6 +111,13 @@ impl TryFrom<&str> for Theme {
     }
 }
 
+impl PartialEq for ValidatedPreferences {
+    fn eq(&self, other: &Self) -> bool {
+        self.draft == other.draft
+    }
+}
+impl Eq for ValidatedPreferences {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
