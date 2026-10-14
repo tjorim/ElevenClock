@@ -182,6 +182,7 @@ pub fn discover(generation: u64, all: bool) -> Result<Vec<ExperimentSlot>> {
 /// UIA is attempted once. An Invoke error is ambiguous and MUST NOT trigger a
 /// second action. Only absence of the pattern permits deliberate Win+N testing.
 pub fn invoke(slot: &ExperimentSlot, fallback: bool, keyboard_only: bool) -> Result<&'static str> {
+    crate::overlay::check_slot(slot)?;
     unsafe {
         CoInitializeEx(None, COINIT_MULTITHREADED).ok()?;
     }
@@ -198,6 +199,7 @@ pub fn invoke(slot: &ExperimentSlot, fallback: bool, keyboard_only: bool) -> Res
             slot,
         )?
     };
+    crate::overlay::check_slot(slot)?;
     if keyboard_only {
         // A separately selected experiment, never a retry after UIA success or
         // failure. Identity is still independently checked before input.

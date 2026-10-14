@@ -88,6 +88,29 @@ fn taskbar(slot: &ExperimentSlot) -> Result<HWND> {
     Err(windows::core::Error::from_win32())
 }
 
+/// Revalidate the native epoch immediately before an interaction, including
+/// creation time so PID reuse cannot authorize an old click.
+pub(crate) fn check_slot(slot: &ExperimentSlot) -> Result<()> {
+    let hwnd = taskbar(slot)?;
+    let mut info = MONITORINFO {
+        cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+        ..Default::default()
+    };
+    unsafe {
+        if GetDpiForWindow(hwnd) != slot.dpi
+            || !IsWindowVisible(hwnd).as_bool()
+            || !GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONULL), &mut info).as_bool()
+            || crate::taskbar::probe::physical_rect(info.rcMonitor) != Some(slot.monitor)
+        {
+            return Err(windows::core::Error::new(
+                windows::core::HRESULT(0x80004005u32 as i32),
+                "Native interaction epoch changed",
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// All windows/resources live on this UI thread. Worker channels contain only
 /// value geometry and click indices. No blocking discovery or UIA in callbacks.
 pub fn run(

@@ -42,7 +42,14 @@ public static class OverlayEvidence {
         var down=new Input { Mouse=new Mouse { Flags=2 } }; var up=new Input { Mouse=new Mouse { Flags=4 } };
         if(SendInput(2,new[]{down,up},Marshal.SizeOf(typeof(Input)))!=2) throw new InvalidOperationException("Harness click failed");
     }
-    public static uint AutoHide(bool enabled) { var d=new Appbar { Size=(uint)Marshal.SizeOf(typeof(Appbar)),Param=new IntPtr(enabled?1:0) }; return SHAppBarMessage(10,ref d).ToUInt32(); }
+    [DllImport("user32.dll")] static extern int GetSystemMetrics(int index);
+    public static void Move(int x,int y) {
+        int left=GetSystemMetrics(76),top=GetSystemMetrics(77),width=GetSystemMetrics(78),height=GetSystemMetrics(79);
+        var move=new Input { Mouse=new Mouse { X=(int)((long)(x-left)*65535/(width-1)),Y=(int)((long)(y-top)*65535/(height-1)),Flags=0xc001 } };
+        if(SendInput(1,new[]{move},Marshal.SizeOf(typeof(Input)))!=1) throw new InvalidOperationException("Harness movement failed");
+    }
+    public static uint State(uint state) { var d=new Appbar { Size=(uint)Marshal.SizeOf(typeof(Appbar)),Param=new IntPtr(state) };return SHAppBarMessage(10,ref d).ToUInt32(); }
+    public static uint AutoHide(bool enabled) {return State((TaskbarState()&~1u)|(enabled?1u:0u));}
     public static uint TaskbarState() { var d=new Appbar { Size=(uint)Marshal.SizeOf(typeof(Appbar)) };return SHAppBarMessage(4,ref d).ToUInt32(); }
 }
 '@
@@ -65,6 +72,17 @@ function Wait-Overlay([bool]$visible, [int]$seconds=20) {
     do { [Windows.Forms.Application]::DoEvents();$h=Overlay;if ($h -ne [IntPtr]::Zero -and [OverlayEvidence]::IsWindowVisible($h) -eq $visible) { return $h };Start-Sleep -Milliseconds 25 } while ([DateTime]::UtcNow -lt $end)
     if (!$visible -and (Overlay) -eq [IntPtr]::Zero) { return [IntPtr]::Zero }
     Capture 'wait-failed'; throw "Overlay visible=$visible not observed"
+}
+function Wait-Action([string]$name) {
+    $deadline=[DateTime]::UtcNow.AddSeconds(12)
+    do {
+        $report=$null
+        try {$report=Get-Content (Join-Path $output "$name.json") -Raw|ConvertFrom-Json} catch { }
+        if (@($report.reports.result.action|Where-Object {$_}).Count) {return $report}
+        if ($report.status -eq 'fatal_supervision_failure') {throw 'Prototype supervision failed'}
+        [Windows.Forms.Application]::DoEvents();Start-Sleep -Milliseconds 50
+    } while ([DateTime]::UtcNow -lt $deadline)
+    throw "No action result within bound for $name; no input retried"
 }
 function Set-Scale([string]$label) {
     $settings=[Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Children, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,'Settings'))
@@ -117,16 +135,15 @@ try {
     $context.results.nonactivation=[ordered]@{passed=$true; extendedStyles=$ex; foregroundStayedOnFixture=$true}
     Capture 'primary-visible';Save-Context
     # Actual fullscreen window on the same monitor, no fake WM_* messages.
-    $fixture.FormBorderStyle='None';$fixture.Bounds=[Windows.Forms.Screen]::PrimaryScreen.Bounds
+    $fixture.TopMost=$true;$fixture.FormBorderStyle='None';$fixture.Bounds=[Windows.Forms.Screen]::PrimaryScreen.Bounds
     [OverlayEvidence]::SetForegroundWindow($fixture.Handle)|Out-Null
     Wait-Overlay $false 3|Out-Null;Capture 'fullscreen-hidden'
     $context.results.fullscreenHidden=$true
-    $fixture.FormBorderStyle='Sizable';$fixture.Bounds=New-Object Drawing.Rectangle(100,100,480,320)
+    $fixture.TopMost=$false;$fixture.FormBorderStyle='Sizable';$fixture.Bounds=New-Object Drawing.Rectangle(100,100,480,320)
     Wait-Overlay $true|Out-Null
     # One physical click made by the test harness, not relayed by the overlay.
-    [OverlayEvidence]::Click($point[0],$point[1]);Start-Sleep -Seconds 2
-    Capture 'calendar-after-click'
-    $report=Get-Content (Join-Path $output 'primary.json') -Raw|ConvertFrom-Json
+    [OverlayEvidence]::Click($point[0],$point[1]);$report=Wait-Action 'primary';Start-Sleep -Seconds 1
+    Capture 'calendar-after-click' 
     $actions=@($report.reports.result.action|Where-Object {$_})
     if ($actions.Count -ne 1) {throw "Expected exactly one calendar action, observed $($actions.Count)"}
     foreach ($key in @(0x5b,0x5c,0x4e)) {if ([OverlayEvidence]::GetAsyncKeyState($key) -lt 0) {throw 'Injected shortcut left a key down'}}
@@ -142,9 +159,8 @@ try {
     [OverlayEvidence]::Click(150,115)
     $p=Start-Spike 'keyboard-calendar' 'primary-keyboard';$h=Wait-Overlay $true
     $keyboardPoint=Clock-Point $h
-    [OverlayEvidence]::Click($keyboardPoint[0],$keyboardPoint[1]);Start-Sleep -Seconds 2
-    Capture 'calendar-keyboard'
-    $keyboardReport=Get-Content (Join-Path $output 'keyboard-calendar.json') -Raw|ConvertFrom-Json
+    [OverlayEvidence]::Click($keyboardPoint[0],$keyboardPoint[1]);$keyboardReport=Wait-Action 'keyboard-calendar';Start-Sleep -Seconds 1
+    Capture 'calendar-keyboard' 
     $keyboardActions=@($keyboardReport.reports.result.action|Where-Object {$_})
     if ($keyboardActions.Count -ne 1 -or $keyboardActions[0] -ne 'win_n_once') {throw 'Separate deliberate keyboard click did not produce exactly one Win+N'}
     foreach ($key in @(0x5b,0x5c,0x4e)) {if ([OverlayEvidence]::GetAsyncKeyState($key) -lt 0) {throw 'Keyboard strategy left a key down'}}
@@ -156,10 +172,10 @@ try {
     # Actual auto-hide state on an ephemeral hosted desktop, restored in finally.
     if ($env:GITHUB_ACTIONS -ne 'true') {throw 'Auto-hide/restart tests require the explicitly ephemeral hosted runner'}
     [OverlayEvidence]::AutoHide($true)|Out-Null
-    [OverlayEvidence]::SetCursorPos(400,300)|Out-Null
+    [OverlayEvidence]::Move(400,300)
     Wait-Overlay $false 5|Out-Null;Capture 'autohide-hidden'
     $screen=[Windows.Forms.Screen]::PrimaryScreen.Bounds
-    [OverlayEvidence]::SetCursorPos($point[0],$screen.Bottom-1)|Out-Null
+    [OverlayEvidence]::Move($point[0],$screen.Bottom-1)
     Wait-Overlay $true 20|Out-Null;Capture 'autohide-shown'
     $context.results.autoHide=[ordered]@{hidden=$true;shown=$true}
     [OverlayEvidence]::AutoHide($false)|Out-Null
@@ -240,7 +256,7 @@ try {
     if ($p) {Stop-Spike $p}
     if ($originalScale) {Set-Scale $originalScale}
     if ($settings) {$settings.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close()}
-    [OverlayEvidence]::AutoHide(($oldState -band 1) -ne 0)|Out-Null
+    [OverlayEvidence]::State($oldState)|Out-Null
     if ($fixture) {$fixture.Close();$fixture.Dispose()}
     [Environment]::SetEnvironmentVariable('ELEVENCLOCK_R03_REJECT_DISCOVERY',$oldReject,'Process')
     Save-Context

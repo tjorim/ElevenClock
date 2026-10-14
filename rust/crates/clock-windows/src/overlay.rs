@@ -19,9 +19,9 @@ pub fn may_show(
         && (foreground_is_shell || !foreground.is_some_and(|r| r.contains(monitor)))
 }
 
-#[cfg(windows)]
+#[cfg(all(windows, feature = "overlay-spike"))]
 mod native;
-#[cfg(windows)]
+#[cfg(all(windows, feature = "overlay-spike"))]
 pub use native::{ExperimentSlot, Update, run};
 
 #[cfg(test)]
@@ -50,3 +50,6 @@ mod tests {
         assert!(may_show(true, true, bar, bar, monitor, Some(other), false));
     }
 }
+
+#[cfg(all(windows, feature = "overlay-spike"))]
+pub(crate) use native::check_slot;

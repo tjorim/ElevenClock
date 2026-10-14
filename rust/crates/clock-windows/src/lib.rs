@@ -7,5 +7,5 @@ pub mod taskbar;
 pub use settings::{PlatformError, run_settings};
 
 pub mod overlay;
-#[cfg(windows)]
+#[cfg(all(windows, feature = "overlay-spike"))]
 pub mod prototype_interaction;

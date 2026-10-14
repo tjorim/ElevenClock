@@ -6,6 +6,10 @@ rust-version.workspace = true
 publish.workspace = true
 license-file.workspace = true
 
+[features]
+default = []
+overlay-spike = []
+
 [dependencies]
 clock-core.workspace = true
 
