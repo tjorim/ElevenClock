@@ -1,0 +1,1 @@
+{"architecture":"aarch64","build":"26200","native_observations":[],"reports":[{"result":{"slots":[{"clock":[910,720,74,48],"dpi":96,"monitor":[0,0,1024,768],"primary":true,"shell_pid":7540,"shell_started":134364346998035641,"taskbar":[0,720,1024,48]}]},"sequence":1}],"status":"experimental_not_production_go","ubr":9457}

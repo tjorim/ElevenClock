@@ -1,101 +1,202 @@
 # R03 non-activating overlay spike
 
-Status: implementation and hosted harness under verification. **No P1 GO**.
-R02's production selector remains disabled. This separate development executable
-is never linked into clock-app or shipped/installed as a user tool.
+**P1 decision: NO-GO for P3/production.** The development prototype and hosted
+harness are implemented, and initial opaque coverage/native access are demonstrated.
+The required Explorer-restart coverage recovery fails on the recorded desktops.
+This is an actual R03 hosted result, separate from R02's unavailable native-x64
+and mixed-DPI variants in [#21](https://github.com/tjorim/ElevenClock/issues/21).
+No supported production selector, clock rectangle or app overlay is enabled.
 
-## Entry and integration
+## Exact hosted evidence
 
-On an ephemeral Windows development desktop:
+[R03 run 38525901613](https://github.com/tjorim/ElevenClock/actions/runs/38525901613)
+executed feature commit `59049385bf0e735dc7e884eb3c7e073bac529e72`; checkout/merge
+revision **`b10847f66a3d4260d970d59341dd56a97942b145`**. Each profile's retained
+context records the actual source, executable SHA-256, build/UBR, native CPU and
+probe target. Unmodified JSON and representative original PNGs are retained in
+[R03-hosted](R03-hosted/). Artifact archives contain every original capture and
+R02 desktop-preparation output; images have not been synthesized or edited.
+
+| Actual OS | Native CPU / prototype | Exact build + UBR | Context and complete archive |
+| --- | --- | --- | --- |
+| Windows Server 2025 Datacenter | x64 / native x64 | **26100.33438** | [Context](R03-hosted/server-x64/context.json), [archive](https://github.com/tjorim/ElevenClock/actions/runs/38525901613/artifacts/11875971463) |
+| Windows 11 Enterprise | ARM64 / native ARM64 | **26200.9457** | [Context](R03-hosted/windows11-arm-native/context.json), [archive](https://github.com/tjorim/ElevenClock/actions/runs/38525901613/artifacts/11875204553) |
+| Windows 11 Enterprise | ARM64 / emulated x64 | **26200.9457** | [Context](R03-hosted/windows11-arm-x64-emulated/context.json), [archive](https://github.com/tjorim/ElevenClock/actions/runs/38525901613/artifacts/11876365625) |
+
+All images had one **1024×768 display**. Actual scale changed through Windows
+Settings from **96 to 120 DPI (100% to 125%)**. Both Windows 11 profiles restored
+96 DPI and opaque coverage; Server lost discovery after scale restoration.
+The two Windows 11 jobs are one OS build/architecture with different binaries,
+not two Windows 11 builds or a native Windows 11 x64 OS. Hosted development images,
+watermarks, startup brokers and paging-file dialogs are not stock desktop evidence.
+
+## Acceptance and measured limitations
+
+| Check | Recorded result |
+| --- | --- |
+| Initial primary/all-display clock coverage | Pass on available single display in all three profiles; native pointer hit belongs to prototype and four opaque corners verified before saving frame |
+| Adjacent controls | Clock slot `[910,720,984,768]` does not intersect neighboring button rectangles; independent Rust UIA center hits and actual quick-settings/bell/Show Desktop clicks recorded |
+| Nonactivation | Pass: fixture retained foreground on display; WS_EX_TOOLWINDOW/NOACTIVATE present, WS_EX_APPWINDOW absent |
+| Alt-Tab | Documented toolwindow exclusion verified through actual styles; no Alt-Tab switcher screenshot captured |
+| Fullscreen | Pass: actual topmost borderless foreground fixture covered the monitor; overlay hidden |
+| Auto-hide | Pass: actual supported auto-hide setting/readback, physical pointer movement, hidden capture and opaque shown capture; not simulated messages |
+| UIA Invoke | **Unusable in these captures:** one successful API call, no visible notifications/calendar flyout; not accepted as calendar success |
+| Deliberate Win+N | Pass: a separately selected keyboard experiment/one physical click opened native notifications/calendar UI; exactly one action and released Win/N keys recorded |
+| Forced termination | Pass: no prototype/helper/overlay remained; native clock visible and native hit returned to Explorer |
+| Unsupported discovery | Pass: an initial live opaque lease followed by injected rejection removed coverage; native clock remained; explicitly synthetic rejection, not a blocked COM provider |
+| Explorer loss | Pass: old-generation coverage removed on actual Explorer termination |
+| Explorer recovery | **Fail in all profiles:** new shell identity/discovery observed, but actual opaque visible coverage did not recover; positive IsWindowVisible/SetWindowPos is insufficient |
+| 100% → 125% DPI | Pass with actual Settings selection and 120-DPI opaque capture in all profiles |
+| 125% → original DPI | Pass on both Windows 11 profiles; **Server fails rediscovery** (`Overlay visible=True not observed`); no guessed rectangle accepted |
+| Two stock Windows 11 native-x64 builds, two mixed-DPI displays/negative topology | Unchecked; established R02 hosted-runner limitation, owned by #21 |
+
+The automated R03 workflow is **red intentionally on measured failed criteria**;
+no failure was reclassified as successful compatibility. Server additionally stops
+at the DPI restore failure. The report records all demonstrated cases rather than
+claiming a universal Windows compatibility result. UIA errors/stalls and retained
+provider-object validation remain R09/#9 work; process teardown does not prove
+COM cancellation.
+
+![Native ARM opaque clock-only coverage](R03-hosted/windows11-arm-native/primary-visible.png)
+
+![Separate deliberate Win+N native UI](R03-hosted/windows11-arm-native/calendar-keyboard.png)
+
+[UIA no-flyout capture](R03-hosted/windows11-arm-native/calendar-after-click.png),
+[fullscreen](R03-hosted/windows11-arm-native/fullscreen-hidden.png),
+[auto-hide hidden](R03-hosted/windows11-arm-native/autohide-hidden.png),
+[auto-hide shown](R03-hosted/windows11-arm-native/autohide-shown.png),
+[125% opaque coverage](R03-hosted/windows11-arm-native/dpi-125.png),
+[96-DPI restored](R03-hosted/windows11-arm-native/dpi-restored.png),
+[forced termination](R03-hosted/windows11-arm-native/forced-termination-native.png),
+[unsupported removal](R03-hosted/windows11-arm-native/unsupported-native.png),
+[quick-settings click](R03-hosted/windows11-arm-native/neighbor-1.png),
+[bell click](R03-hosted/windows11-arm-native/neighbor-2.png),
+[Show Desktop](R03-hosted/windows11-arm-native/neighbor-3.png),
+[Explorer loss](R03-hosted/windows11-arm-native/explorer-loss.png),
+and [failed recovery](R03-hosted/windows11-arm-native/explorer-recovery-failure.png)
+are original captures. Screenshot inspection confirms initial coverage, native
+keyboard UI and native fallback. Quick-settings capture shows its loading panel;
+complete settings-panel functionality is not asserted from that single frame.
+
+## Prototype entry and changed interfaces
+
+The separate `clock-overlay-spike` development binary is excluded from the
+installed `clock-app` and from app release artifacts. Native overlay/interaction
+code requires the opt-in `clock-windows/overlay-spike` feature, enabled only by
+this development package; core models and R02's production gate are unchanged.
+
+On an ephemeral Windows MSVC/SDK development desktop:
 
 ```powershell
 cargo +1.90.0 build --manifest-path rust/Cargo.toml -p clock-overlay-spike --target x86_64-pc-windows-msvc --locked
-rust/target/x86_64-pc-windows-msvc/debug/clock-overlay-spike.exe evidence.json 180 primary-win-n
+rust/target/x86_64-pc-windows-msvc/debug/clock-overlay-spike.exe evidence.json 180 primary-keyboard
 ```
 
-Use `all` / `all-win-n` for all discovered displays. `primary` / `all` disable
-keyboard fallback so unavailable UIA Invoke leaves native access exposed.
-Only these developer artifacts accept arguments. No end-user settings or terminal
-flow is introduced. The prototype duration is bounded to 300 seconds.
+Use `all-keyboard` for all discovered displays. `primary`/`all` test UIA only;
+`primary-win-n`/`all-win-n` permit fallback only for an absent pattern.
+`primary-keyboard`/`all-keyboard` select a separate deliberate keyboard strategy,
+never retrying a successful/ambiguous UIA invoke on the same click.
+`primary-reject` is a developer fault fixture: first successful discovery followed
+by rejection. Duration is bounded to 1..300 seconds. These arguments/evidence files
+are not an installed command suite, user preferences or normal support flow.
 
-The R02 isolated discovery inventories provide candidate identity, exact build,
-DPI, monitor/taskbar geometry and shell PID plus process creation time. An R03
-helper independently resolves points on a four-pixel grid plus final edges to
-the native clock button, and neighboring button centers to their native targets.
-These are experimental desktop observations, not R02's supported-selector gate.
-The helper fails closed on incomplete UIA inventories, ambiguous candidates,
-missing bell/Show Desktop, overlap, changed shell or failed hit samples.
-Sampling does not prove every possible neighboring hit target; visual and
-interaction evidence remain required on every claimed configuration.
+Public experimental interfaces add `ExperimentSlot`, `Update`, `overlay::run`,
+portable visibility/band decisions and helper-only `prototype_interaction`.
+Slots contain owned physical geometry/DPI/shell epoch values, never HWNDs or COM
+objects. The new package carries its own GUI-subsystem/per-monitor DPI-v2,
+asInvoker/uiAccess=false manifest; R02's example manifest behavior is unaffected.
 
-A separate GUI-subsystem development binary carries an embedded asInvoker,
-per-monitor DPI-v2 manifest. Its UI thread owns all HWND/GDI resources. Blocking
-COM work runs only in one helper, assigned to a kill-on-close job before a stdin
-handshake permits native work. Only bounded JSON/value records cross the worker
-boundary. The R02 supervisor is reused; five-second deadline, observed helper
-exit, and fatal teardown failure precede any replacement. No HWND/COM interface
-crosses a thread/process channel.
+## Measured integration strategy
 
-Coverage is an opaque black rectangle with `2642.2`, clipped to the candidate,
-using WS_POPUP and WS_EX_TOOLWINDOW/NOACTIVATE. WM_MOUSEACTIVATE returns
-MA_NOACTIVATE. Z-order is experimental: insert relative to the actual taskbar's
-preceding window, without an unconditional HWND_TOPMOST setting or Explorer
-parent/style mutation. It can occupy the taskbar's topmost band while shown;
-25-ms native checks hide it when taskbar geometry/DPI/identity changes, when the
-taskbar is hidden/sliding, or when a foreground window covers that monitor.
-This polling is a measured prototype candidate, not a production lifecycle.
+R02 isolated discovery supplies candidate identity, physical geometry, DPI and
+shell PID plus creation time. R03 additionally resolves a four-pixel interior grid
+plus final edges independently to the native clock button, and sibling button
+centers to their native controls. Missing/ambiguous clock IDs, incomplete UIA,
+missing bell/Show Desktop, overlap, failed hit samples or changed native epoch
+reject the experiment. These samples do not establish every possible neighboring
+hit target or R02's supported-selector contract on untested configurations.
 
-Coverage is removed before every discovery and click. This intentionally makes
-refresh gaps visible in the spike; R08 must implement reviewed asynchronous
-lifecycle/invalidations before production integration. An eight-second lease
-expires coverage if no result arrives. Native checks do not establish that UIA
-clock contents/layout stayed unchanged between samples.
+The calling UI thread owns HWND/GDI/class resources. The opaque black WS_POPUP
+surface draws `2642.2` only inside the measured clock button. Toolwindow/noactivate
+styles and MA_NOACTIVATE prevent overlay focus. A scalar press flag plus mouse
+capture pairs press/release; cancellation or release outside the slot does not
+invoke. The harness confirms a stable actual native pointer target before one
+physical click, not repeated input to get a passing result.
 
-On one click, the overlay hides before a fresh underlying native point query.
-UIA Invoke is attempted once. Only S_OK + absent Invoke pattern permits the
-explicit `*-win-n` experiment; provider errors or ambiguous Invoke failures never
-cause a second action. Win+N is one SendInput batch, refuses held user modifiers,
-and releases accepted injected key-downs after a partial batch. No click relay,
-recursive overlay invocation, retry loop or Explorer mutation occurs.
+Z-order mirrors the visible taskbar's documented topmost classification. A hidden
+surface enters that classification if needed, then inserts relative to the nearest
+predecessor with the same classification; an already adjacent surface preserves
+order. Hidden/fullscreen coverage is hidden and demoted. Only the prototype's
+HWND changes. There is no Explorer parenting/style/clock-disable operation and
+no unconditional global topmost policy. This strategy **has not passed recovery**;
+its metadata and API success are not substitutes for visible coverage.
 
-## Hosted evidence
+A 25-ms native poll checks taskbar bounds, DPI, PID/creation time and foreground
+monitor coverage. Unknown foreground, sliding/hidden taskbar, fullscreen, stale
+identity or expired eight-second lease hides coverage. Before each blocking
+probe the UI destroys coverage and acknowledges removal to the worker. One helper
+is attached to a kill-on-close one-process job before its stdin handshake permits
+native/COM work. COM interfaces stay on that helper's MTA thread. Five-second
+supervision plus bounded observed teardown precedes replacement; fatal teardown,
+malformed/stale/oversized envelopes or missing UI acknowledgement stops supervision.
+R02's supervisor implementation and real process tests are reused.
 
-The `R03 hosted overlay evidence` workflow prepares the real desktop using R02
-and builds native Server x64, native Windows 11 ARM64 and emulated x64 probes.
-Its harness captures primary/all coverage, foreground/style checks, fullscreen,
-calendar action count/key states, forced termination, auto-hide shown/hidden,
-neighbor clicks, Explorer loss/recovery and unsupported discovery. It restores
-auto-hide and closes its foreground fixture in finally. Exact source SHA,
-binary SHA-256, build/UBR, architecture target, contexts and screenshots are
-retained even on failure. Visual calendar/neighbor acceptance requires inspecting
-captures; API success is not enough.
+Coverage is also removed before each interaction. A fresh native point/epoch check
+cannot invoke the overlay. UIA Invoke is attempted once. The raw ABI preserves
+S_OK + null as unavailable; provider errors or ambiguous invoke failure do not
+permit another action. Win+N is one four-event SendInput batch, refuses held user
+modifiers/N and attempts release of accepted key-downs on partial insertion.
+No mouse click is replayed. GUI callbacks never perform blocking UIA discovery.
 
-| Gate | Evidence/result |
-| --- | --- |
-| Hosted attempt | Pending workflow execution |
-| Complete clock coverage / neighbors | Unchecked pending screenshot and interaction review |
-| Nonactivation / Alt-Tab exclusion | Unchecked pending actual hosted run |
-| Fullscreen / auto-hide | Unchecked pending actual hosted run |
-| Native calendar one-shot action | Unchecked pending actual hosted run and visual review |
-| Forced termination / unsupported discovery | Unchecked pending actual hosted run |
-| Explorer restart | Unchecked pending actual hosted run |
-| Two stock Windows 11 native-x64 builds / mixed DPI | #21; established R02 hosted-runner limitation |
+The spike deliberately has refresh gaps while rechecking independent native hits;
+this is not a finished renderer/lifecycle or a production performance claim.
+The source and process behavior preserve native access when the experiment exits,
+is terminated or refuses discovery. Controlled rejection is synthetic; actual
+provider cancellation/staleness is not claimed.
 
-## P1 decision
+## P1 handoff and remaining work
 
-**NO-GO for P3/production**, pending R03 evidence and R02's complete support gate.
-This does not block development of this R03 spike. See
-[R02 evidence](discovery.md), [discovery ADR](../adr/0001-taskbar-discovery.md) and
-[shared desktop variants #21](https://github.com/tjorim/ElevenClock/issues/21).
-Do not count ARM64 x64 emulation as native x64, count the same OS build twice,
-or treat a single display as mixed DPI. Controlled unsupported-discovery rejection is injected only in the development
-helper via `ELEVENCLOCK_R03_REJECT_DISCOVERY`; the harness restores its prior
-process value. This proves fail-closed removal while Explorer stays unchanged,
-not an actual blocked provider. Unsupported geometry removes coverage;
-forced termination leaves the unmodified native clock in Explorer.
+[R02 evidence](discovery.md), [its ADR](../adr/0001-taskbar-discovery.md), R03's
+recorded failed recovery, and [#21](https://github.com/tjorim/ElevenClock/issues/21)
+together require **NO-GO for P3/production**. Closing R02's probe milestone #3 does
+not approve production rectangles. R03 development was permitted before that GO.
 
-## Developer checks
+The demonstrated scope is initial primary/all-on-one-display coverage on the
+exact hosted images and the deliberate keyboard strategy. Explorer restart
+coverage remains **#4 work**, and Server DPI restore failure is recorded here;
+neither is moved to #21 as an unavailable desktop condition. UIA Invoke has no
+accepted functional support claim on these captures.
 
-Results will be recorded after local and hosted verification. Relevant R01
-formatting, workspace tests/doctests and warnings-denied Clippy apply to the new
-spike as well. Cross-target Linux checks are type checks, not Windows evidence.
+Before P3, diagnose recovery placement using native styles/z-order/actual hit
+and frame evidence, amend the strategy or support scope, and rerun the hosted
+matrix with complete opaque recovery. Preserve nonactivation, neighbor access,
+fullscreen/hidden-taskbar removal and native fallback. Combine that R03 evidence
+with R02's stock-x64/mixed-DPI/selector gate; do not enable production selectors
+or trade native access for apparent coverage. The current PR remains a draft
+and #4 is not closed as fully accepted.
+
+## Exact developer verification
+
+On the tested code, local **Rust 1.90.0 and stable 1.99.0** both passed:
+
+```sh
+cargo +<toolchain> fmt --manifest-path rust/Cargo.toml --all --check
+cargo +<toolchain> test --manifest-path rust/Cargo.toml --workspace --all-targets --locked
+cargo +<toolchain> test --manifest-path rust/Cargo.toml --workspace --doc --locked
+cargo +<toolchain> clippy --manifest-path rust/Cargo.toml --workspace --all-targets --locked -- -D warnings
+cargo +<toolchain> clippy --manifest-path rust/Cargo.toml --workspace --all-targets --target x86_64-pc-windows-msvc --locked -- -D warnings
+```
+
+Each all-target run passed **15 unit tests** and one core doctest separately;
+two ignored subprocess fixtures are deliberately invoked by supervisor tests.
+The new portable tests cover negative-coordinate visibility, fullscreen, changed
+geometry/lease and promotion/demotion constraints. Cross-target Linux checks are
+type/lint checks only.
+
+[Rust foundation run 38525901610](https://github.com/tjorim/ElevenClock/actions/runs/38525901610)
+checks native Windows MSRV/stable builds, formatting, warnings-denied Clippy,
+unit/doctests, app release/resources/Settings tests, advisories and license notices.
+[R02 run 38525901616](https://github.com/tjorim/ElevenClock/actions/runs/38525901616)
+passed. R03's real native/emulated builds pass; its final GUI evidence run fails
+on the measured criteria above. No mock, cross-compilation or earlier weaker
+IsWindowVisible-only success is used to approve P1.
