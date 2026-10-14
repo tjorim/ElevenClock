@@ -1,0 +1,31 @@
+name: R02 hosted desktop evidence
+on:
+  pull_request:
+    paths: ['rust/crates/clock-windows/**', 'scripts/test-rust-taskbar.ps1', '.github/workflows/taskbar-probe.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [windows-2025, windows-11-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - name: Build the x64 development probe
+        run: cargo +stable build --manifest-path rust/Cargo.toml -p clock-windows --example taskbar_probe --target x86_64-pc-windows-msvc --locked
+      - name: Actual shell discovery, screenshots, restart and helper lifetime
+        shell: pwsh
+        run: ./scripts/test-rust-taskbar.ps1 -RestartExplorer
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: r02-desktop-${{ matrix.runner }}
+          path: native-evidence/r02/
+          if-no-files-found: error

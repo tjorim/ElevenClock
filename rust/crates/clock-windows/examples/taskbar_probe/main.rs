@@ -127,6 +127,15 @@ mod windows_probe {
             if &handshake != b"r02-go" {
                 return Err("Invalid helper handshake".into());
             }
+            // Developer-only fault injection: prove Windows process teardown
+            // with a confirmed blocked helper. This is not a simulated UIA result.
+            if std::env::var_os("ELEVENCLOCK_R02_SIMULATE_STALL").is_some() {
+                if let Some(path) = std::env::var_os("ELEVENCLOCK_R02_STALL_READY") {
+                    fs::write(path, std::process::id().to_string())?;
+                }
+                std::thread::sleep(Duration::from_secs(60));
+                return Err("Stall fixture unexpectedly reached its end".into());
+            }
             let report = match helper(generation) {
                 Ok(report) => report,
                 Err(error) => {
