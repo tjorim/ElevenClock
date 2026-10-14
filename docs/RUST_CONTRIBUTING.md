@@ -103,3 +103,12 @@ helper and must never run in application callbacks. The GUI app has no helper
 integration yet. See [R02 evidence](windows-evidence/discovery.md) for developer
 probe commands and the unchecked Windows gate, and the
 [discovery ADR](adr/0001-taskbar-discovery.md) before any downstream use.
+
+When the local workspace is Linux, use the
+[hosted desktop workflow](../.github/workflows/taskbar-probe.yml) for actual
+Win32/COM verification. It runs the same probe on Windows Server x64 and Windows
+11 ARM64 with native ARM64 and emulated x64 binaries, retaining screenshots,
+structured output, Explorer-restart observations and helper-lifetime results.
+Do not treat ARM64/x64 emulation as a native Windows 11 x64 OS, count two binaries
+on one OS build as two builds, or replace mixed-DPI evidence with a single display.
+The evidence record lists the exact verified environments and remaining gates.

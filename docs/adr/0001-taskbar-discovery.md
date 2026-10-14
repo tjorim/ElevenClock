@@ -67,8 +67,10 @@ spawning replacements, and interpreting a timeout as COM cancellation.
 
 **Go/no-go: NO-GO for R02's supported discovery contract and downstream overlay
 use.** The probe and portable validation can be reviewed now. Two stock Windows
-11 x64 builds, mixed-DPI displays, successful selector/exclusion evidence,
-Explorer-restart results and Windows job teardown remain mandatory. See the
+11 x64 builds, mixed-DPI displays and complete selector/hit-target evidence remain
+unverified. Hosted Explorer failure/recovery and injected-stall job teardown are
+recorded; specific in-flight UIA stale-object and actual stalled-provider behavior
+remain unverified. See the
 [evidence record and reproduction procedure](../windows-evidence/discovery.md).
 
 Hosted follow-up: the three jobs in run 38508357876 pass on native Server x64,
