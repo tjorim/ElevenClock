@@ -154,8 +154,6 @@ fn long_format_reports_width_overflow_instead_of_truncating() {
 #[test]
 fn future_month_names_overflow_even_when_today_fits() {
     let renderer = Renderer::new().unwrap();
-    // September 30 renders "September"; shrink the region until only the shorter
-    // names fit, then require the verdict to come from the worst case.
     let prefs = Preferences {
         format: "%B".into(),
         ..Preferences::default()
@@ -166,26 +164,40 @@ fn future_month_names_overflow_even_when_today_fits() {
         .unwrap()
         .with_ymd_and_hms(2026, 5, 4, 9, 0, 0)
         .unwrap();
-    let may = Case {
-        text: prefs.format().render(may).unwrap(),
+    let text = prefs.format().render(may).unwrap();
+    let today_only = Case {
+        text: text.clone(),
+        worst_case: WorstCase::from_lines([text.lines.clone()]),
+    };
+    let all_months = Case {
+        text,
         worst_case: WorstCase::for_format(prefs.format()),
     };
-    let host = Host::new(70, 48);
-    let mut surface = renderer.create_surface(host.0);
-    let today_only = Case {
-        text: may.text.clone(),
-        worst_case: WorstCase::from_lines([may.text.lines.clone()]),
-    };
-    assert_eq!(
-        surface
+    // Find (independent of the installed font) the narrowest region in which
+    // "May" paints, then require the all-months verdict to refuse it.
+    let mut found = false;
+    for width in 20..200 {
+        let host = Host::new(width, 48);
+        let mut surface = renderer.create_surface(host.0);
+        if surface
             .paint(&renderer, &request(&today_only, 96, 9))
-            .unwrap(),
-        PaintOutcome::Painted
-    );
-    assert!(matches!(
-        surface.paint(&renderer, &request(&may, 96, 9)).unwrap(),
-        PaintOutcome::Overflow(_)
-    ));
+            .unwrap()
+            == PaintOutcome::Painted
+        {
+            assert!(
+                matches!(
+                    surface
+                        .paint(&renderer, &request(&all_months, 96, 9))
+                        .unwrap(),
+                    PaintOutcome::Overflow(_)
+                ),
+                "{width}px fits May but the worst case must not"
+            );
+            found = true;
+            break;
+        }
+    }
+    assert!(found, "no region up to 200 px fit \"May\"");
 }
 #[test]
 fn two_large_lines_overflow_the_height() {
@@ -246,6 +258,16 @@ fn cycle(renderer: &Renderer, surface: &mut ClockSurface, case: &Case) {
         PaintOutcome::Painted
     );
 }
+fn churn(renderer: &Renderer, surface: &mut ClockSurface, case: &Case, host: &Host, n: usize) {
+    for _ in 0..n {
+        cycle(renderer, surface, case);
+        let mut transient = renderer.create_surface(host.0);
+        assert_eq!(
+            transient.paint(renderer, &request(case, 96, 9)).unwrap(),
+            PaintOutcome::Painted
+        );
+    }
+}
 #[test]
 fn device_loss_recreation_and_surface_churn_do_not_leak_handles() {
     let renderer = Renderer::new().unwrap();
@@ -254,24 +276,16 @@ fn device_loss_recreation_and_surface_churn_do_not_leak_handles() {
     let host = Host::new(width, height);
     let mut surface = renderer.create_surface(host.0);
     // Warm one-time driver, font and shared-section allocations.
-    for _ in 0..10 {
-        cycle(&renderer, &mut surface, &case);
-    }
+    churn(&renderer, &mut surface, &case, &host, 20);
+    // Lazy pools may still grow once; a leak grows with every cycle. Compare two
+    // equal steady-state phases so a leak of even one object per cycle (150+)
+    // exceeds the tolerance while one-time growth does not.
+    churn(&renderer, &mut surface, &case, &host, 150);
     let before = counts();
-    for _ in 0..200 {
-        cycle(&renderer, &mut surface, &case);
-    }
-    for _ in 0..100 {
-        let transient = renderer.create_surface(host.0);
-        let mut transient = transient;
-        assert_eq!(
-            transient.paint(&renderer, &request(&case, 96, 9)).unwrap(),
-            PaintOutcome::Painted
-        );
-    }
+    churn(&renderer, &mut surface, &case, &host, 150);
     let after = counts();
     assert!(
-        after.0 <= before.0 + 8 && after.1 <= before.1 + 2 && after.2 <= before.2 + 2,
+        after.0 <= before.0 + 16 && after.1 <= before.1 + 8 && after.2 <= before.2 + 8,
         "handles/GDI/USER grew: {before:?} -> {after:?}"
     );
 }
