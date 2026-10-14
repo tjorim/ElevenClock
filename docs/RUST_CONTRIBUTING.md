@@ -138,4 +138,6 @@ actual hosted results and the P1 no-go are in
 [overlay evidence](windows-evidence/overlay-spike.md). The hosted workflow uses
 real native/UIA hits, screenshots, input and shell/display transitions; positive
 window flags alone do not prove opaque coverage or calendar access. R03 recovery
-failures remain #4 work; only unavailable stock-x64/mixed-DPI variants belong in #21.
+failures and the calendar strategy are tracked in #23; #4 closes the prototype
+and evidence milestone. Only unavailable stock-x64/mixed-DPI variants belong in
+#21. P1 remains NO-GO and P3 stays blocked pending both follow-ups.

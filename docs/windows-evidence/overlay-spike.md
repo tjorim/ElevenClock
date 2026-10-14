@@ -165,17 +165,21 @@ not approve production rectangles. R03 development was permitted before that GO.
 
 The demonstrated scope is initial primary/all-on-one-display coverage on the
 exact hosted images and the deliberate keyboard strategy. Explorer restart
-coverage remains **#4 work**, and Server DPI restore failure is recorded here;
-neither is moved to #21 as an unavailable desktop condition. UIA Invoke has no
-accepted functional support claim on these captures.
+coverage and Server DPI restore failure are tracked in
+[#23](https://github.com/tjorim/ElevenClock/issues/23), together with establishing
+a supported calendar strategy. These measured findings are separate from #21
+unavailable desktop conditions. UIA Invoke has no accepted functional support
+claim on these captures.
 
 Before P3, diagnose recovery placement using native styles/z-order/actual hit
 and frame evidence, amend the strategy or support scope, and rerun the hosted
 matrix with complete opaque recovery. Preserve nonactivation, neighbor access,
 fullscreen/hidden-taskbar removal and native fallback. Combine that R03 evidence
 with R02's stock-x64/mixed-DPI/selector gate; do not enable production selectors
-or trade native access for apparent coverage. The current PR remains a draft
-and #4 is not closed as fully accepted.
+or trade native access for apparent coverage. PR #22 completes the prototype and
+evidence milestone in #4; closing that issue does not claim its original full
+interactive acceptance passed. #23 owns the remaining measured feasibility work,
+and P1 stays NO-GO until that follow-up and #21 provide an evidence-backed GO.
 
 ## Exact developer verification
 
