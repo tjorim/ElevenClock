@@ -127,3 +127,17 @@ attempts or an established platform limitation, required desktop conditions,
 reproduction commands, expected evidence and the specific feature/release gate.
 Group tasks by source issue. Recheck capabilities/access and move a variant back
 to hosted CI when feasible; do not defer the entire issue or block unrelated work.
+
+## R03 overlay development
+
+`clock-overlay-spike` is a separate development GUI binary, never an installed
+app artifact. It opts into `clock-windows/overlay-spike`; a normal `-p clock-app`
+release build does not enable experimental overlay/interaction FFI. Core models
+and the R02 production-selector gate remain unchanged. Build/run parameters,
+actual hosted results and the P1 no-go are in
+[overlay evidence](windows-evidence/overlay-spike.md). The hosted workflow uses
+real native/UIA hits, screenshots, input and shell/display transitions; positive
+window flags alone do not prove opaque coverage or calendar access. R03 recovery
+failures and the calendar strategy are tracked in #23; #4 closes the prototype
+and evidence milestone. Only unavailable stock-x64/mixed-DPI variants belong in
+#21. P1 remains NO-GO and P3 stays blocked pending both follow-ups.

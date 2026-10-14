@@ -1,0 +1,187 @@
+{
+  "nativeArchitecture": 12,
+  "os": "Microsoft Windows 11 Enterprise",
+  "displays": [
+    {
+      "device": "\\\\.\\DISPLAY1",
+      "primary": true,
+      "left": 0,
+      "top": 0,
+      "width": 1024,
+      "height": 768
+    }
+  ],
+  "source": "b10847f66a3d4260d970d59341dd56a97942b145",
+  "build": "26200",
+  "ubr": 9457,
+  "probeTarget": "aarch64-pc-windows-msvc",
+  "executableSha256": "02BA73F0D5A2C95551DF884354A29A484E8F0B0CE423FCCDB91C9B7177BAE7C4",
+  "results": {
+    "coverageCaptures": [
+      {
+        "name": "primary-visible",
+        "rect": [
+          910,
+          720,
+          984,
+          768
+        ],
+        "nativeHitOwnedByPrototype": true,
+        "fourOpaqueCorners": true
+      },
+      {
+        "name": "all-visible",
+        "rect": [
+          910,
+          720,
+          984,
+          768
+        ],
+        "nativeHitOwnedByPrototype": true,
+        "fourOpaqueCorners": true
+      },
+      {
+        "name": "autohide-shown",
+        "rect": [
+          910,
+          720,
+          984,
+          768
+        ],
+        "nativeHitOwnedByPrototype": true,
+        "fourOpaqueCorners": true
+      },
+      {
+        "name": "before-unsupported",
+        "rect": [
+          910,
+          720,
+          984,
+          768
+        ],
+        "nativeHitOwnedByPrototype": true,
+        "fourOpaqueCorners": true
+      },
+      {
+        "name": "dpi-125",
+        "rect": [
+          881,
+          708,
+          973,
+          768
+        ],
+        "nativeHitOwnedByPrototype": true,
+        "fourOpaqueCorners": true
+      },
+      {
+        "name": "dpi-restored",
+        "rect": [
+          910,
+          720,
+          984,
+          768
+        ],
+        "nativeHitOwnedByPrototype": true,
+        "fourOpaqueCorners": true
+      }
+    ],
+    "failedCriteria": [
+      "Explorer restart visible coverage"
+    ],
+    "nonactivation": {
+      "passed": true,
+      "extendedStyles": 134217864,
+      "foregroundStayedOnFixture": true
+    },
+    "fullscreenHidden": true,
+    "calendar": {
+      "actions": [
+        "uia_invoke_once"
+      ],
+      "oneAction": true,
+      "noStuckKeys": true,
+      "visualAcceptance": "Pending screenshot inspection"
+    },
+    "forcedTermination": {
+      "noRemainingProcesses": true,
+      "nativeHitClass": "Shell_TrayWnd",
+      "nativeHitProcess": 7540
+    },
+    "keyboardCalendar": {
+      "actions": [
+        "win_n_once"
+      ],
+      "oneAction": true,
+      "noStuckKeys": true,
+      "separateClickFromUia": true,
+      "visualAcceptance": "Pending screenshot inspection"
+    },
+    "allDisplays": {
+      "availableDisplays": 1,
+      "claimedMixedDpi": false
+    },
+    "autoHide": {
+      "hidden": true,
+      "shown": true
+    },
+    "unsupported": {
+      "noOverlay": true,
+      "removalAfterLiveCoverage": true,
+      "nativeExplorerMutation": false,
+      "injectedRejection": true
+    },
+    "neighbors": [
+      {
+        "class": "SystemTray.OmniButtonRight",
+        "hitClass": "Shell_TrayWnd",
+        "hitProcess": 7540,
+        "point": [
+          896,
+          744
+        ]
+      },
+      {
+        "class": "SystemTray.OmniButtonRight",
+        "hitClass": "Shell_TrayWnd",
+        "hitProcess": 7540,
+        "point": [
+          998,
+          744
+        ]
+      },
+      {
+        "class": "SystemTray.ShowDesktopButton",
+        "hitClass": "Shell_TrayWnd",
+        "hitProcess": 7540,
+        "point": [
+          1018,
+          744
+        ]
+      }
+    ],
+    "explorerRestart": {
+      "oldPids": [
+        7540
+      ],
+      "newPids": [
+        4884
+      ],
+      "lossHides": true,
+      "recovered": false,
+      "failure": "Visible opaque coverage not observed for explorer-recovered"
+    },
+    "dpiChange": {
+      "before": 96,
+      "after": 120,
+      "actualSettingsSelection": true,
+      "mixedDpi": false
+    }
+  },
+  "limitations": [
+    "No production selector or P1 GO",
+    "Stock native x64 and mixed-DPI repetitions remain in #21",
+    "Screenshots require inspection; API success alone does not prove calendar visibility"
+  ],
+  "status": "measured_no_go",
+  "failure": "R03 NO-GO: Explorer restart visible coverage"
+}

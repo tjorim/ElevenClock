@@ -1,0 +1,176 @@
+{
+  "nativeArchitecture": 9,
+  "os": "Microsoft Windows Server 2025 Datacenter",
+  "displays": [
+    {
+      "device": "\\\\.\\DISPLAY1",
+      "primary": true,
+      "left": 0,
+      "top": 0,
+      "width": 1024,
+      "height": 768
+    }
+  ],
+  "source": "b10847f66a3d4260d970d59341dd56a97942b145",
+  "build": "26100",
+  "ubr": 33438,
+  "probeTarget": "x86_64-pc-windows-msvc",
+  "executableSha256": "AC37149A3C3D05D2B0AB53E53EF10A8899ECCED82889077240F2230F2D5D693E",
+  "results": {
+    "coverageCaptures": [
+      {
+        "name": "primary-visible",
+        "rect": [
+          910,
+          720,
+          984,
+          768
+        ],
+        "nativeHitOwnedByPrototype": true,
+        "fourOpaqueCorners": true
+      },
+      {
+        "name": "all-visible",
+        "rect": [
+          910,
+          720,
+          984,
+          768
+        ],
+        "nativeHitOwnedByPrototype": true,
+        "fourOpaqueCorners": true
+      },
+      {
+        "name": "autohide-shown",
+        "rect": [
+          910,
+          720,
+          984,
+          768
+        ],
+        "nativeHitOwnedByPrototype": true,
+        "fourOpaqueCorners": true
+      },
+      {
+        "name": "before-unsupported",
+        "rect": [
+          910,
+          720,
+          984,
+          768
+        ],
+        "nativeHitOwnedByPrototype": true,
+        "fourOpaqueCorners": true
+      },
+      {
+        "name": "dpi-125",
+        "rect": [
+          881,
+          708,
+          973,
+          768
+        ],
+        "nativeHitOwnedByPrototype": true,
+        "fourOpaqueCorners": true
+      }
+    ],
+    "failedCriteria": [
+      "Explorer restart visible coverage"
+    ],
+    "nonactivation": {
+      "passed": true,
+      "extendedStyles": 134217864,
+      "foregroundStayedOnFixture": true
+    },
+    "fullscreenHidden": true,
+    "calendar": {
+      "actions": [
+        "uia_invoke_once"
+      ],
+      "oneAction": true,
+      "noStuckKeys": true,
+      "visualAcceptance": "Pending screenshot inspection"
+    },
+    "forcedTermination": {
+      "noRemainingProcesses": true,
+      "nativeHitClass": "Shell_TrayWnd",
+      "nativeHitProcess": 5724
+    },
+    "keyboardCalendar": {
+      "actions": [
+        "win_n_once"
+      ],
+      "oneAction": true,
+      "noStuckKeys": true,
+      "separateClickFromUia": true,
+      "visualAcceptance": "Pending screenshot inspection"
+    },
+    "allDisplays": {
+      "availableDisplays": 1,
+      "claimedMixedDpi": false
+    },
+    "autoHide": {
+      "hidden": true,
+      "shown": true
+    },
+    "unsupported": {
+      "noOverlay": true,
+      "removalAfterLiveCoverage": true,
+      "nativeExplorerMutation": false,
+      "injectedRejection": true
+    },
+    "neighbors": [
+      {
+        "class": "SystemTray.OmniButtonRight",
+        "hitClass": "Shell_TrayWnd",
+        "hitProcess": 5724,
+        "point": [
+          896,
+          744
+        ]
+      },
+      {
+        "class": "SystemTray.OmniButtonRight",
+        "hitClass": "Shell_TrayWnd",
+        "hitProcess": 5724,
+        "point": [
+          998,
+          744
+        ]
+      },
+      {
+        "class": "SystemTray.ShowDesktopButton",
+        "hitClass": "Shell_TrayWnd",
+        "hitProcess": 5724,
+        "point": [
+          1018,
+          744
+        ]
+      }
+    ],
+    "explorerRestart": {
+      "oldPids": [
+        5724
+      ],
+      "newPids": [
+        3208
+      ],
+      "lossHides": true,
+      "recovered": false,
+      "failure": "Visible opaque coverage not observed for explorer-recovered"
+    },
+    "dpiChange": {
+      "before": 96,
+      "after": 120,
+      "actualSettingsSelection": true,
+      "mixedDpi": false
+    }
+  },
+  "limitations": [
+    "No production selector or P1 GO",
+    "Stock native x64 and mixed-DPI repetitions remain in #21",
+    "Screenshots require inspection; API success alone does not prove calendar visibility"
+  ],
+  "status": "harness_failed",
+  "failure": "Overlay visible=True not observed"
+}

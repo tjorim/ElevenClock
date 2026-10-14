@@ -50,6 +50,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "clock-overlay-spike"
+version = "0.1.0"
+dependencies = [
+ "clock-core",
+ "clock-windows",
+ "embed-resource",
+ "serde_json",
+ "windows",
+]
+
+[[package]]
 name = "clock-windows"
 version = "0.1.0"
 dependencies = [
