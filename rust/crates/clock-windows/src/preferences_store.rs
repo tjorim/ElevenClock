@@ -26,7 +26,7 @@ impl fmt::Display for StoreError {
         match self {
             Self::Io(_) => f.write_str("Preferences could not be read or saved. Your previous settings are preserved. Try again."),
             Self::DamagedData => f.write_str("Saved preferences are damaged. Defaults are in use. Settings can preserve the damaged data and save a new selection."),
-            Self::InvalidPreferences(e) => write!(f, "Saved preferences are invalid: {e}"),
+            Self::InvalidPreferences(e) => write!(f, "Preferences are invalid: {e}"),
             Self::UnsupportedVersion(_) => f.write_str("Saved preferences use an unsupported version. Defaults are in use; saving is disabled. Use a compatible app version."),
             Self::RecoveryRequired => f.write_str("Confirm recovery in Settings before replacing damaged preferences."),
         }

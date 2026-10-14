@@ -79,6 +79,19 @@ Local Linux/MSRV 1.90.0 checks (2026-10-14):
 - `python3 scripts/test-rust-license-check.py`: nine passed.
 - `cargo +1.90.0 metadata --manifest-path rust/Cargo.toml --locked --format-version 1` followed by `python3 scripts/rust-license-check.py`: passed with complete original-notice inventory.
 
-- [ ] Actual Windows MSRV and stable workspace tests (CI link/result pending).
+- [x] Actual Windows MSRV and stable workspace tests: both passed in [run 38549658168](https://github.com/tjorim/ElevenClock/actions/runs/38549658168).
 - [ ] Windows persistence review before merge.
 - [ ] Interactive Settings/onboarding journey after R10 integration.
+
+Hosted native evidence, 2026-10-14, source commit
+`181533467587dfb1c7fd8fc52f26a4e88698bdf7`:
+
+- Windows Server 2025 x64, OS 10.0.26100, hosted image `20260925.250.1`.
+- [MSRV 1.90.0 job](https://github.com/tjorim/ElevenClock/actions/runs/38549658168/job/115804233090) and [stable job](https://github.com/tjorim/ElevenClock/actions/runs/38549658168/job/115804233032): workspace formatting, check, warnings-denied Clippy, tests/doc tests and native release build all passed. Existing native dialog/focus checks passed; stable's high-contrast/scaling harness passed.
+- Each Windows library suite passed all 19 tests, including all 12 preference-store tests: real first create/replacement, Known Folders, locked/denied replacement, pre-replacement failure, preservation/recovery, invalid values, incompatible versions, reset and first-run persistence. These are actual filesystem API results, not a desktop preference UI claim.
+- Both Linux toolchain jobs and the advisory/original-license inventory job passed.
+- The separate R03 overlay workflow failed its `Wait-Overlay` visibility check on Windows Server. The overlay prototype does not consume the new preference API; prior R03/R04 runs also fail this workflow. No shell/prototype code was changed by R05. Its existing P1 gate remains separate and unresolved (see #23); this failure is not counted as passing evidence.
+
+R10 must validate selected-monitor text/layout before calling Apply. The final
+follow-up changes only the validation-error wording (also used for unsaved
+Settings drafts) and this evidence record; persistence logic is unchanged.
