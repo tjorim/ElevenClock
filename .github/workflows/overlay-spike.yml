@@ -3,6 +3,9 @@ on:
   pull_request:
     paths: ['rust/**', 'scripts/test-rust-overlay.ps1', '.github/workflows/overlay-spike.yml']
   workflow_dispatch:
+concurrency:
+  group: r03-overlay-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:

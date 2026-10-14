@@ -91,7 +91,7 @@ function Capture-Overlay([string]$name) {
         $painted=$true
         try {
             $g.CopyFromScreen($v.Left,$v.Top,0,0,$b.Size)
-            foreach ($xy in @(@($r.Left+1,$r.Top+1),@($r.Right-2,$r.Top+1),@($r.Left+1,$r.Bottom-2),@($r.Right-2,$r.Bottom-2))) {
+            foreach ($xy in @(@(($r.Left+1),($r.Top+1)),@(($r.Right-2),($r.Top+1)),@(($r.Left+1),($r.Bottom-2)),@(($r.Right-2),($r.Bottom-2)))) {
                 $color=$b.GetPixel($xy[0]-$v.Left,$xy[1]-$v.Top)
                 if ($color.R -ne 0 -or $color.G -ne 0 -or $color.B -ne 0) {$painted=$false;break}
             }
