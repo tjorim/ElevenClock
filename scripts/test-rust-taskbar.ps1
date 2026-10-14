@@ -23,6 +23,18 @@ public static class TaskbarEvidenceNative {
     [DllImport("kernel32.dll")] public static extern void GetNativeSystemInfo(out SystemInfo info);
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr FindWindowW(string cls, string title);
     [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
+    [StructLayout(LayoutKind.Sequential)]
+    public struct Keyboard { public ushort Key, Scan; public uint Flags, Time; public IntPtr Extra; }
+    [StructLayout(LayoutKind.Explicit, Size=40)]
+    public struct Input { [FieldOffset(0)] public uint Type; [FieldOffset(8)] public Keyboard Keyboard; }
+    [DllImport("user32.dll")] public static extern uint SendInput(uint count, Input[] inputs, int size);
+    public static void Enter() {
+        var down = new Input { Type=1, Keyboard=new Keyboard { Key=0x0d } };
+        var up = new Input { Type=1, Keyboard=new Keyboard { Key=0x0d, Flags=2 } };
+        if (SendInput(2, new [] {down, up}, Marshal.SizeOf(typeof(Input))) != 2) throw new InvalidOperationException("Setup input failed");
+    }
 }
 '@
 [TaskbarEvidenceNative]::SetThreadDpiAwarenessContext([IntPtr](-4)) | Out-Null
@@ -148,6 +160,22 @@ try {
         $context.results.desktopPreparation = @($brokers | ForEach-Object { [ordered]@{name=$_.ProcessName; pid=$_.Id; action='terminated ephemeral startup broker'} })
         $brokers | Stop-Process -Force
         Start-Sleep -Seconds 2
+        # Current images can use a separate privacy/OOBE host. Only advance a
+        # known setup process in this ephemeral session, via the default native
+        # Enter gesture. This prepares the OS profile, never selects a clock.
+        $context.results.setupGestures = @()
+        Get-Process | Where-Object { $_.SessionId -eq $session } | Select-Object ProcessName, Id |
+            ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $output 'startup-processes.json')
+        foreach ($iteration in 1..6) {
+            [uint32]$ownerId = 0
+            [TaskbarEvidenceNative]::GetWindowThreadProcessId([TaskbarEvidenceNative]::GetForegroundWindow(), [ref]$ownerId) | Out-Null
+            $owner = Get-Process -Id $ownerId -ErrorAction SilentlyContinue
+            $context.results.setupGestures += [ordered]@{iteration=$iteration; foregroundOwner=$owner.ProcessName; pid=$ownerId}
+            if (!$owner -or $owner.SessionId -ne $session -or $owner.ProcessName -notmatch 'OOBE|Privacy|WWAHost|CloudExperience') { break }
+            [TaskbarEvidenceNative]::Enter()
+            Start-Sleep -Milliseconds 750
+            Capture-Desktop "startup-advance-$iteration" $null
+        }
         Save-Context
     }
     $shell = [TaskbarEvidenceNative]::FindWindowW('Shell_TrayWnd', $null)
