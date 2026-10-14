@@ -13,9 +13,11 @@ No supported production selector, clock rectangle or app overlay is enabled.
 executed feature commit `59049385bf0e735dc7e884eb3c7e073bac529e72`; checkout/merge
 revision **`b10847f66a3d4260d970d59341dd56a97942b145`**. Each profile's retained
 context records the actual source, executable SHA-256, build/UBR, native CPU and
-probe target. Unmodified JSON and representative original PNGs are retained in
+probe target. JSON values and representative original PNGs are retained in
 [R03-hosted](R03-hosted/). Artifact archives contain every original capture and
-R02 desktop-preparation output; images have not been synthesized or edited.
+R02 desktop-preparation output. Git normalizes context JSON line endings; values
+are unchanged and archives retain original bytes. Images have not been synthesized
+or edited.
 
 | Actual OS | Native CPU / prototype | Exact build + UBR | Context and complete archive |
 | --- | --- | --- | --- |
