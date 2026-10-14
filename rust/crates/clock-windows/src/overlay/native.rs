@@ -93,6 +93,7 @@ fn taskbar(slot: &ExperimentSlot) -> Result<HWND> {
 pub fn run(
     updates: Receiver<Update>,
     clicks: SyncSender<ExperimentSlot>,
+    observations: SyncSender<String>,
     duration: Duration,
 ) -> Result<()> {
     unsafe {
@@ -112,6 +113,7 @@ pub fn run(
         let mut windows: Vec<Window> = Vec::new();
         let mut message = MSG::default();
         let mut wait_for_update = false;
+        let mut last_observation = String::new();
         while started.elapsed() < duration {
             while PeekMessageW(&mut message, None, 0, 0, PM_REMOVE).as_bool() {
                 if message.message == WM_QUIT {
@@ -196,6 +198,18 @@ pub fn run(
                         shell,
                     )
                 });
+                let state = format!(
+                    "show={show}; current={current}; shell_current={}; taskbar_visible={}; taskbar_dpi={}; expected_dpi={}; foreground={fg_bounds:?}; taskbar={:?}",
+                    shell_current(window.taskbar, &window.slot),
+                    IsWindowVisible(window.taskbar).as_bool(),
+                    GetDpiForWindow(window.taskbar),
+                    window.slot.dpi,
+                    bounds(window.taskbar)
+                );
+                if state != last_observation {
+                    let _ = observations.try_send(state.clone());
+                    last_observation = state;
+                }
                 if !show {
                     let _ = ShowWindow(window.hwnd, SW_HIDE);
                     continue;
@@ -209,7 +223,7 @@ pub fn run(
                     preceding
                 };
                 let r = window.slot.clock;
-                if SetWindowPos(
+                let positioned = SetWindowPos(
                     window.hwnd,
                     Some(insert),
                     r.left(),
@@ -217,10 +231,14 @@ pub fn run(
                     r.width(),
                     r.height(),
                     SWP_NOACTIVATE | SWP_SHOWWINDOW,
-                )
-                .is_err()
-                {
+                );
+                if let Err(error) = positioned {
+                    let _ =
+                        observations.try_send(format!("SetWindowPos failed: {}", error.code().0));
                     let _ = ShowWindow(window.hwnd, SW_HIDE);
+                } else if !IsWindowVisible(window.hwnd).as_bool() {
+                    let _ = observations
+                        .try_send("SetWindowPos succeeded but window is not visible".into());
                 }
             }
             if lease.elapsed() >= Duration::from_secs(8) {

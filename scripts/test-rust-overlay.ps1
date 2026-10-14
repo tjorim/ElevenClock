@@ -17,6 +17,7 @@ public static class OverlayEvidence {
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window,out Rect rect);
+    [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr window);
     [DllImport("user32.dll")] public static extern int GetWindowLongW(IntPtr window,int index);
     [DllImport("user32.dll")] public static extern bool SetCursorPos(int x,int y);
     [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int key);
@@ -39,7 +40,8 @@ $exe = (Resolve-Path $Executable).Path
 New-Item -ItemType Directory -Force $OutputDirectory | Out-Null
 $output = (Resolve-Path $OutputDirectory).Path
 $reg = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
-$context = [ordered]@{source=(& git rev-parse HEAD).Trim(); build=$reg.CurrentBuildNumber; ubr=$reg.UBR; probeTarget=$ProbeTarget; executableSha256=(Get-FileHash $exe).Hash; results=[ordered]@{}; limitations=@('No production selector or P1 GO', 'Stock native x64 and mixed-DPI repetitions remain in #21', 'Screenshots require inspection; API success alone does not prove calendar visibility')}
+$r02=Get-Content 'native-evidence/r02/context.json' -Raw|ConvertFrom-Json
+$context = [ordered]@{nativeArchitecture=$r02.nativeArchitecture;os=$r02.os;displays=$r02.displays;source=(& git rev-parse HEAD).Trim(); build=$reg.CurrentBuildNumber; ubr=$reg.UBR; probeTarget=$ProbeTarget; executableSha256=(Get-FileHash $exe).Hash; results=[ordered]@{}; limitations=@('No production selector or P1 GO', 'Stock native x64 and mixed-DPI repetitions remain in #21', 'Screenshots require inspection; API success alone does not prove calendar visibility')}
 function Save-Context { $context | ConvertTo-Json -Depth 30 | Set-Content -Encoding utf8 (Join-Path $output 'context.json') }
 function Capture([string]$name) {
     $r=[Windows.Forms.SystemInformation]::VirtualScreen
@@ -52,6 +54,19 @@ function Wait-Overlay([bool]$visible, [int]$seconds=20) {
     do { [Windows.Forms.Application]::DoEvents();$h=Overlay;if ($h -ne [IntPtr]::Zero -and [OverlayEvidence]::IsWindowVisible($h) -eq $visible) { return $h };Start-Sleep -Milliseconds 25 } while ([DateTime]::UtcNow -lt $end)
     if (!$visible -and (Overlay) -eq [IntPtr]::Zero) { return [IntPtr]::Zero }
     Capture 'wait-failed'; throw "Overlay visible=$visible not observed"
+}
+function Set-Scale([string]$label) {
+    $settings=[Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Children, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,'Settings'))
+    if (!$settings) {throw 'Display Settings window disappeared'}
+    $scale=$settings.FindFirst([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::AutomationIdProperty,$script:scaleId))
+    [OverlayEvidence]::SetForegroundWindow([IntPtr]$settings.Current.NativeWindowHandle)|Out-Null
+    $scale.SetFocus();$scale.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
+    Start-Sleep -Milliseconds 300
+    $items=[Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::ListItem))
+    $item=$items|Where-Object {$_.Current.Name -eq $label -or $_.Current.Name -like "$label *"}|Select-Object -First 1
+    if (!$item) {throw "Actual display scale $label unavailable"}
+    $item.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    Start-Sleep -Seconds 1
 }
 function Start-Spike([string]$name,[string]$selection) {
     $report=Join-Path $output "$name.json"
@@ -72,7 +87,7 @@ function Clock-Point($h) {
     if (![OverlayEvidence]::GetWindowRect($h,[ref]$r)) {throw 'Missing overlay rectangle'}
     return @([int](($r.Left+$r.Right)/2),[int](($r.Top+$r.Bottom)/2))
 }
-$p=$null;$fixture=$null;$oldState=[OverlayEvidence]::TaskbarState();$oldReject=$env:ELEVENCLOCK_R03_REJECT_DISCOVERY
+$p=$null;$fixture=$null;$originalScale=$null;$settings=$null;$oldState=[OverlayEvidence]::TaskbarState();$oldReject=$env:ELEVENCLOCK_R03_REJECT_DISCOVERY
 try {
     Capture 'native-baseline'
     $fixture=New-Object Windows.Forms.Form
@@ -119,6 +134,38 @@ try {
     Wait-Overlay $true 20|Out-Null;Capture 'autohide-shown'
     $context.results.autoHide=[ordered]@{hidden=$true;shown=$true}
     [OverlayEvidence]::AutoHide($false)|Out-Null
+    # Use the actual Settings selector for a single-display DPI transition.
+    # This is not the missing mixed-DPI topology evidence in #21.
+    Stop-Spike $p;$p=$null
+    Start-Process 'ms-settings:display'
+    $deadline=[DateTime]::UtcNow.AddSeconds(20);$scale=$null
+    do {
+        $settings=[Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Children,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,'Settings'))
+        if ($settings) {
+            $combos=$settings.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::ComboBox))
+            $scale=$combos|Where-Object {$_.Current.Name -match 'Scale|size of text' -or $_.Current.AutomationId -match 'Scale|Dpi'}|Select-Object -First 1
+        }
+        if (!$scale) {Start-Sleep -Milliseconds 250}
+    } while (!$scale -and [DateTime]::UtcNow -lt $deadline)
+    if (!$scale) {throw 'Display Scale selector unavailable'}
+    $selected=$scale.GetCurrentPattern([Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection()
+    if ($selected.Count -ne 1) {throw 'Cannot record initial scale'}
+    $originalScale=$selected[0].Current.Name;$script:scaleId=$scale.Current.AutomationId
+    Set-Scale '100%'
+    [OverlayEvidence]::SetForegroundWindow($fixture.Handle)|Out-Null
+    $p=Start-Spike 'dpi-transition' 'primary-win-n'
+    $h=Wait-Overlay $true
+    $beforeDpi=[OverlayEvidence]::GetDpiForWindow($h)
+    Set-Scale '125%'
+    [OverlayEvidence]::SetForegroundWindow($fixture.Handle)|Out-Null
+    $deadline=[DateTime]::UtcNow.AddSeconds(20)
+    do {$h=Wait-Overlay $true 20;$afterDpi=[OverlayEvidence]::GetDpiForWindow($h);if ($afterDpi -eq 120) {break};Start-Sleep -Milliseconds 50} while ([DateTime]::UtcNow -lt $deadline)
+    if ($beforeDpi -ne 96 -or $afterDpi -ne 120) {throw "DPI transition not observed: $beforeDpi -> $afterDpi"}
+    Capture 'dpi-125';$context.results.dpiChange=[ordered]@{before=$beforeDpi;after=$afterDpi;actualSettingsSelection=$true;mixedDpi=$false}
+    Set-Scale $originalScale;$originalScale=$null
+    $settings.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close();$settings=$null
+    Stop-Spike $p;$p=$null
+    $p=Start-Spike 'all-after-dpi' 'all-win-n';Wait-Overlay $true|Out-Null
     # Neighbor controls remain physically outside the opaque slot. Record fresh
     # UIA point targets and actual click screenshots, leaving visual semantics
     # for inspection instead of claiming them from API return codes.
@@ -162,6 +209,8 @@ try {
     $context.status='harness_failed';$context.failure=$_.Exception.Message;Capture 'failure';throw
 } finally {
     if ($p) {Stop-Spike $p}
+    if ($originalScale) {Set-Scale $originalScale}
+    if ($settings) {$settings.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close()}
     [OverlayEvidence]::AutoHide(($oldState -band 1) -ne 0)|Out-Null
     if ($fixture) {$fixture.Close();$fixture.Dispose()}
     [Environment]::SetEnvironmentVariable('ELEVENCLOCK_R03_REJECT_DISCOVERY',$oldReject,'Process')

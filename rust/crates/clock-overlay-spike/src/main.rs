@@ -179,11 +179,13 @@ mod experiment {
         let all = args[2].starts_with("all");
         let fallback = args[2].ends_with("win-n");
         let (tx, rx) = mpsc::sync_channel(1);
+        let (observation_tx, observation_rx) = mpsc::sync_channel::<String>(128);
         let (click_tx, click_rx) = mpsc::sync_channel::<ExperimentSlot>(1);
         let stop = Arc::new(AtomicBool::new(false));
         let worker_stop = stop.clone();
         let worker = std::thread::spawn(move || {
             let mut reports = Vec::new();
+            let mut observations = Vec::new();
             let mut sequence = 0;
             while !worker_stop.load(Ordering::Relaxed) {
                 sequence += 1;
@@ -234,7 +236,8 @@ mod experiment {
                     }
                 }
                 let (build, ubr) = clock_windows::taskbar::probe::os_build().unwrap_or_default();
-                let evidence = json!({"status":"experimental_not_production_go","build":build,"ubr":ubr,"architecture":std::env::consts::ARCH,"reports":reports});
+                observations.extend(observation_rx.try_iter());
+                let evidence = json!({"status":"experimental_not_production_go","build":build,"ubr":ubr,"architecture":std::env::consts::ARCH,"reports":reports,"native_observations":observations});
                 if fs::write(&path, evidence.to_string()).is_err() {
                     let _ = tx.send(Update::Failed);
                     break;
@@ -248,7 +251,7 @@ mod experiment {
                 }
             }
         });
-        let result = overlay::run(rx, click_tx, Duration::from_secs(duration));
+        let result = overlay::run(rx, click_tx, observation_tx, Duration::from_secs(duration));
         stop.store(true, Ordering::Relaxed);
         let _ = worker.join();
         result?;
