@@ -11,12 +11,15 @@ default = []
 overlay-spike = []
 
 [dependencies]
+chrono.workspace = true
 clock-core.workspace = true
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 [target.'cfg(windows)'.dependencies]
 windows.workspace = true
+# Vector2 for Direct2D drawing; already in the graph through `windows`.
+windows-numerics = "0.2.0"
 
 [dev-dependencies]
 tempfile = "3.23"

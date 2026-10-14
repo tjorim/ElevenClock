@@ -144,3 +144,13 @@ window flags alone do not prove opaque coverage or calendar access. R03 recovery
 failures and the calendar strategy are tracked in #23; #4 closes the prototype
 and evidence milestone. Only unavailable stock-x64/mixed-DPI variants belong in
 #21. P1 remains NO-GO and P3 stays blocked pending both follow-ups.
+
+## R07 rendering development
+
+`clock-windows::render` holds portable layout, DPI and overflow logic that tests on
+Linux, plus the Windows-only DirectWrite/Direct2D `Renderer`/`ClockSurface`; the
+Windows tests in `crates/clock-windows/tests/render_native.rs` need a Windows
+host. `clock-windows::theme` resolves opaque palettes (high contrast first). See
+the [R07 handoff](windows-evidence/R07.md) for the API, resource ownership and the
+unchecked interactive gates. `ELEVENCLOCK_R07_THEME` is a development-only switch
+for the overlay harness, not a user setting.

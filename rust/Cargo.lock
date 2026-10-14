@@ -217,11 +217,13 @@ dependencies = [
 name = "clock-windows"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "clock-core",
  "serde",
  "serde_json",
  "tempfile",
  "windows",
+ "windows-numerics",
 ]
 
 [[package]]
