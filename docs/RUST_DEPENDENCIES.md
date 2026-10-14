@@ -39,3 +39,27 @@ dependency graph. The Windows bindings enable documented COM, UIA, registry,
 process and job APIs; no additional runtime package, command parser or async
 runtime is introduced. Retain the complete inventory/notices for these developer
 artifacts too.
+
+R04 adds development-only **proptest** (locked 1.12.0) for generated formatter
+validation and **Criterion** 0.7.0 (default features disabled) for parse/render
+measurements. Both compile on MSRV 1.90 and stable 1.99. Neither changes the
+normal app/core runtime dependency graph. Their MIT/Apache-2.0 alternatives and
+transitive original notices are retained by the same inventory gate.
+
+The notice checker recognizes only explicit historical dual-license aliases:
+`MIT/Apache-2.0`, `Apache-2.0 / MIT` and `Unlicense/MIT`. They correspond to the
+already reviewed OR choices; arbitrary slash expressions remain rejected.
+For `rustix`/`linux-raw-sys`'s
+`Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` and
+`zerocopy`/`zerocopy-derive`'s `BSD-2-Clause OR Apache-2.0 OR MIT`, this project
+selects the **MIT alternative**. Acceptance of these exact OR expressions does
+not approve standalone BSD-2-Clause, the LLVM exception, new exceptions, or
+arbitrary expressions containing MIT. Unrecognized terms still fail review.
+
+The version-specific [supplemental notice manifest](dependency-notices/README.md)
+restores anes 0.1.6's omitted original license files and recognizes r-efi 6.0.0's
+bundled AUTHORS license/copyright text. Source commits and digests are retained;
+missing, changed, unreadable or empty notices fail the check. These are retained
+original notices, not missing-notice exemptions. The checker uses no network.
+Run `python3 scripts/test-rust-license-check.py` for its positive and rejection
+regressions; the dependency CI job runs them before the inventory.
