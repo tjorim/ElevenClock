@@ -1,0 +1,262 @@
+{
+  "source": "704c5323ba7c8d610ef00b4992c6f9d8ecfa0112",
+  "os": "Microsoft Windows 11 Enterprise",
+  "build": "26200",
+  "ubr": 9457,
+  "nativeArchitecture": 12,
+  "probeTarget": "x86_64-pc-windows-msvc",
+  "x64Emulated": true,
+  "image": "win11-vs2026-arm64",
+  "imageVersion": "20261004.176.1",
+  "executableSha256": "11A42E713451B2ED7F7C79FAB27A3913C19503B32FEBAEABA617A0615F51C153",
+  "capturedUtc": "2026-10-14T03:46:41.4709372Z",
+  "displays": [
+    {
+      "device": "\\\\.\\DISPLAY1",
+      "primary": true,
+      "left": 0,
+      "top": 0,
+      "width": 1024,
+      "height": 768
+    }
+  ],
+  "results": {
+    "desktopPreparation": [],
+    "setupGestures": [
+      {
+        "iteration": 1,
+        "foregroundOwner": "WWAHost",
+        "pid": 4948
+      },
+      {
+        "iteration": 2,
+        "foregroundOwner": "WWAHost",
+        "pid": 4948
+      },
+      {
+        "iteration": 3,
+        "foregroundOwner": "SearchHost",
+        "pid": 8972
+      }
+    ],
+    "desktopReadiness": [
+      {
+        "attempt": 1,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 2,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 3,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 4,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 5,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 6,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 7,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 8,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 9,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 10,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 11,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 12,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 13,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 14,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 15,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 16,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 17,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 18,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 19,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 20,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 21,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 22,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 23,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 24,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 25,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 26,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 27,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 28,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 29,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      },
+      {
+        "attempt": 30,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 0
+      }
+    ]
+  },
+  "limitations": [
+    "Hosted image, not two stock Windows 11 x64 builds",
+    "No mixed-DPI second display unless independently recorded",
+    "No selector is accepted by this experiment"
+  ],
+  "status": "harness_failed",
+  "failure": "No real clock subtree after desktop startup bound; unsupported hosted environment"
+}

@@ -87,3 +87,43 @@ Do not assume these work accessibly without the required desktop evidence.
 Only `clock-app`'s release executable is an app artifact. Tests, examples, probes,
 license inventory scripts and debug binaries are development artifacts and must
 never enter an installer or support flow. R14 owns packaging and final notices.
+
+## R02 discovery development
+
+Portable discovery validation and the process-supervisor tests also run on Linux:
+
+```sh
+cargo +1.90.0 test --manifest-path rust/Cargo.toml -p clock-windows --all-targets --locked
+cargo +1.90.0 clippy --manifest-path rust/Cargo.toml -p clock-windows --all-targets --locked -- -D warnings
+```
+
+The Windows-only FFI remains gated; only portable geometry/queue code is exposed
+on Linux. Native/UIA probing is blocking, development-only work in an isolated
+helper and must never run in application callbacks. The GUI app has no helper
+integration yet. See [R02 evidence](windows-evidence/discovery.md) for developer
+probe commands and the unchecked Windows gate, and the
+[discovery ADR](adr/0001-taskbar-discovery.md) before any downstream use.
+
+When the local workspace is Linux, use the
+[hosted desktop workflow](../.github/workflows/taskbar-probe.yml) for actual
+Win32/COM verification. It runs the same probe on Windows Server x64 and Windows
+11 ARM64 with native ARM64 and emulated x64 binaries, retaining screenshots,
+structured output, Explorer-restart observations and helper-lifetime results.
+Do not treat ARM64/x64 emulation as a native Windows 11 x64 OS, count two binaries
+on one OS build as two builds, or replace mixed-DPI evidence with a single display.
+The evidence record lists the exact verified environments and remaining gates.
+
+## Shared desktop acceptance backlog
+
+Use [#21](https://github.com/tjorim/ElevenClock/issues/21) across rewrite issues
+only for checks that cannot be meaningfully verified on an appropriate hosted
+runner. Try hosted Windows images and feasible harness/workflow changes first.
+Missing local Windows, an interactive UI requirement or an unimplemented harness
+does not justify deferral. Ordinary UI automation, hit testing, screenshots,
+keyboard access and controlled COM/UIA failure tests belong in hosted CI.
+
+Each deferred entry must link its source issue/acceptance criterion, hosted
+attempts or an established platform limitation, required desktop conditions,
+reproduction commands, expected evidence and the specific feature/release gate.
+Group tasks by source issue. Recheck capabilities/access and move a variant back
+to hosted CI when feasible; do not defer the entire issue or block unrelated work.

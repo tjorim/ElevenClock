@@ -1,0 +1,142 @@
+[
+  {
+    "generation": 1,
+    "candidate_index": 47,
+    "class": "SystemTray.OmniButtonLeft",
+    "automation_id": "SystemTrayIcon",
+    "framework": "XAML",
+    "rect": {
+      "bottom": 768,
+      "left": 910,
+      "right": 984,
+      "top": 720
+    },
+    "dpi": 96,
+    "observed_sibling_buttons": [
+      {
+        "index": 35,
+        "class": "SystemTray.NormalButton",
+        "rect": {
+          "bottom": 768,
+          "left": 822,
+          "right": 854,
+          "top": 720
+        }
+      },
+      {
+        "index": 39,
+        "class": "SystemTray.AccentButton",
+        "rect": {
+          "bottom": 768,
+          "left": 854,
+          "right": 882,
+          "top": 720
+        }
+      },
+      {
+        "index": 43,
+        "class": "SystemTray.OmniButtonRight",
+        "rect": {
+          "bottom": 768,
+          "left": 882,
+          "right": 910,
+          "top": 720
+        }
+      },
+      {
+        "index": 50,
+        "class": "SystemTray.OmniButtonRight",
+        "rect": {
+          "bottom": 768,
+          "left": 984,
+          "right": 1012,
+          "top": 720
+        }
+      },
+      {
+        "index": 54,
+        "class": "SystemTray.ShowDesktopButton",
+        "rect": {
+          "bottom": 768,
+          "left": 1012,
+          "right": 1024,
+          "top": 720
+        }
+      }
+    ],
+    "taskbar_and_monitor_containment": true,
+    "overlaps_observed_sibling_rectangles": false,
+    "independently_verified_hit_targets": false,
+    "supported_clock_selector": false
+  },
+  {
+    "generation": 2,
+    "candidate_index": 47,
+    "class": "SystemTray.OmniButtonLeft",
+    "automation_id": "SystemTrayIcon",
+    "framework": "XAML",
+    "rect": {
+      "bottom": 768,
+      "left": 910,
+      "right": 984,
+      "top": 720
+    },
+    "dpi": 96,
+    "observed_sibling_buttons": [
+      {
+        "index": 35,
+        "class": "SystemTray.NormalButton",
+        "rect": {
+          "bottom": 768,
+          "left": 822,
+          "right": 854,
+          "top": 720
+        }
+      },
+      {
+        "index": 39,
+        "class": "SystemTray.AccentButton",
+        "rect": {
+          "bottom": 768,
+          "left": 854,
+          "right": 882,
+          "top": 720
+        }
+      },
+      {
+        "index": 43,
+        "class": "SystemTray.OmniButtonRight",
+        "rect": {
+          "bottom": 768,
+          "left": 882,
+          "right": 910,
+          "top": 720
+        }
+      },
+      {
+        "index": 50,
+        "class": "SystemTray.OmniButtonRight",
+        "rect": {
+          "bottom": 768,
+          "left": 984,
+          "right": 1012,
+          "top": 720
+        }
+      },
+      {
+        "index": 54,
+        "class": "SystemTray.ShowDesktopButton",
+        "rect": {
+          "bottom": 768,
+          "left": 1012,
+          "right": 1024,
+          "top": 720
+        }
+      }
+    ],
+    "taskbar_and_monitor_containment": true,
+    "overlaps_observed_sibling_rectangles": false,
+    "independently_verified_hit_targets": false,
+    "supported_clock_selector": false
+  }
+]

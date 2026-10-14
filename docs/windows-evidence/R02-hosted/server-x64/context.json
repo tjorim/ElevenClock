@@ -1,0 +1,112 @@
+{
+  "source": "d05e9e4a75ecd8fdbf6c30b28fe8e287b97726f6",
+  "os": "Microsoft Windows Server 2025 Datacenter",
+  "build": "26100",
+  "ubr": 33438,
+  "nativeArchitecture": 9,
+  "probeTarget": "x86_64-pc-windows-msvc",
+  "x64Emulated": false,
+  "image": "win25-vs2026",
+  "imageVersion": "20260925.250.1",
+  "executableSha256": "C3300138638576A5D6E988E0367DBC73FB525607D6FE41952DFE6F6AAE6F914C",
+  "capturedUtc": "2026-10-14T03:52:15.4696037Z",
+  "displays": [
+    {
+      "device": "\\\\.\\DISPLAY1",
+      "primary": true,
+      "left": 0,
+      "top": 0,
+      "width": 1024,
+      "height": 768
+    }
+  ],
+  "results": {
+    "desktopPreparation": [
+      {
+        "name": "UserOOBEBroker",
+        "pid": 7892,
+        "action": "terminated ephemeral startup broker"
+      }
+    ],
+    "setupGestures": [
+      {
+        "iteration": 1,
+        "foregroundOwner": "WindowsTerminal",
+        "pid": 5448
+      }
+    ],
+    "desktopReadiness": [
+      {
+        "attempt": 1,
+        "statuses": [
+          "unsupported_no_verified_selector"
+        ],
+        "clockTextNodes": 2
+      }
+    ],
+    "baseline": [
+      {
+        "status": "unsupported_no_verified_selector",
+        "supervisorMicros": 199855,
+        "taskbars": 1
+      },
+      {
+        "status": "unsupported_no_verified_selector",
+        "supervisorMicros": 178957,
+        "taskbars": 1
+      }
+    ],
+    "restart": {
+      "atUtc": "2026-10-14T03:52:19.9763546Z",
+      "outstandingHelperPid": 3112,
+      "oldExplorerPids": [
+        6132
+      ],
+      "overlapClaim": "Helper observed; an exact COM-call overlap is not asserted",
+      "statuses": [
+        "probe_error",
+        "unsupported_no_verified_selector",
+        "unsupported_no_verified_selector",
+        "unsupported_no_verified_selector",
+        "unsupported_no_verified_selector",
+        "unsupported_no_verified_selector"
+      ],
+      "newShellPids": [
+        1076
+      ]
+    },
+    "injectedStalls": [
+      {
+        "supervisorMicros": 5022494,
+        "teardownMicros": 10393,
+        "noRemainingHelpers": true,
+        "synthetic": true
+      },
+      {
+        "supervisorMicros": 5020767,
+        "teardownMicros": 10339,
+        "noRemainingHelpers": true,
+        "synthetic": true
+      },
+      {
+        "supervisorMicros": 5022368,
+        "teardownMicros": 10349,
+        "noRemainingHelpers": true,
+        "synthetic": true
+      }
+    ],
+    "parentLoss": {
+      "helperPid": 9048,
+      "helperExitObserved": true,
+      "noRemainingHelpers": true,
+      "confirmedStalledHelper": true,
+      "synthetic": true
+    }
+  },
+  "limitations": [
+    "Hosted image, not two stock Windows 11 x64 builds",
+    "No mixed-DPI second display unless independently recorded",
+    "No selector is accepted by this experiment"
+  ],
+  "status": "hosted_checks_passed_required_x64_mixed_dpi_gate_still_open"
+}

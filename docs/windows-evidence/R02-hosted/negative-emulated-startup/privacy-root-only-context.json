@@ -1,0 +1,45 @@
+{
+  "source": "42a331ca452c3de969d69cf6f641aaf03ce855c8",
+  "os": "Microsoft Windows 11 Enterprise",
+  "build": "26200",
+  "ubr": 9457,
+  "nativeArchitecture": 12,
+  "probeTarget": "x86_64-pc-windows-msvc",
+  "x64Emulated": true,
+  "image": "win11-vs2026-arm64",
+  "imageVersion": "20261004.176.1",
+  "executableSha256": "2C7436791B4304E42EF6A94EA5A0129F336B47A36F51AA25E0672AE067B33F58",
+  "capturedUtc": "2026-10-14T03:38:15.8010764Z",
+  "displays": [
+    {
+      "device": "\\\\.\\DISPLAY1",
+      "primary": true,
+      "left": 0,
+      "top": 0,
+      "width": 1024,
+      "height": 768
+    }
+  ],
+  "results": {
+    "desktopPreparation": [],
+    "baseline": [
+      {
+        "status": "unsupported_no_verified_selector",
+        "supervisorMicros": 688594,
+        "taskbars": 1
+      },
+      {
+        "status": "unsupported_no_verified_selector",
+        "supervisorMicros": 100050,
+        "taskbars": 1
+      }
+    ]
+  },
+  "limitations": [
+    "Hosted image, not two stock Windows 11 x64 builds",
+    "No mixed-DPI second display unless independently recorded",
+    "No selector is accepted by this experiment"
+  ],
+  "status": "harness_failed",
+  "failure": "No actual clock subtree available; root-only/covered taskbar is unsupported and not successful desktop evidence"
+}
