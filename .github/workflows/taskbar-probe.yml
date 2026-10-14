@@ -22,7 +22,7 @@ jobs:
         run: cargo +stable build --manifest-path rust/Cargo.toml -p clock-windows --example taskbar_probe --target x86_64-pc-windows-msvc --locked
       - name: Actual shell discovery, screenshots, restart and helper lifetime
         shell: pwsh
-        run: ./scripts/test-rust-taskbar.ps1 -RestartExplorer
+        run: ./scripts/test-rust-taskbar.ps1 -RestartExplorer -PrepareHostedDesktop
       - uses: actions/upload-artifact@v4
         if: always()
         with:

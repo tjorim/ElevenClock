@@ -2,7 +2,8 @@
 param(
     [string]$Executable = 'rust/target/x86_64-pc-windows-msvc/debug/examples/taskbar_probe.exe',
     [string]$OutputDirectory = 'native-evidence/r02',
-    [switch]$RestartExplorer
+    [switch]$RestartExplorer,
+    [switch]$PrepareHostedDesktop
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
@@ -136,6 +137,19 @@ $active = $null
 $oldStall = $env:ELEVENCLOCK_R02_SIMULATE_STALL
 $oldMarker = $env:ELEVENCLOCK_R02_STALL_READY
 try {
+    if ($PrepareHostedDesktop) {
+        if ($env:GITHUB_ACTIONS -ne 'true') { throw 'Hosted desktop preparation is restricted to ephemeral GitHub runners' }
+        Capture-Desktop 'startup' $null
+        $session = (Get-Process -Id $PID).SessionId
+        # Some hosted ARM images start with the profile privacy/OOBE broker in
+        # front of Explorer. Close only those brokers in this ephemeral session;
+        # do not claim a root-only UIA inventory is a usable clock capture.
+        $brokers = @(Get-Process -Name UserOOBEBroker, CloudExperienceHostBroker, CloudExperienceHost -ErrorAction SilentlyContinue | Where-Object { $_.SessionId -eq $session })
+        $context.results.desktopPreparation = @($brokers | ForEach-Object { [ordered]@{name=$_.ProcessName; pid=$_.Id; action='terminated ephemeral startup broker'} })
+        $brokers | Stop-Process -Force
+        Start-Sleep -Seconds 2
+        Save-Context
+    }
     $shell = [TaskbarEvidenceNative]::FindWindowW('Shell_TrayWnd', $null)
     if ($shell -eq [IntPtr]::Zero) { throw 'No interactive Explorer taskbar on this hosted desktop' }
     Assert-NoHelpers 'initial state'
@@ -145,6 +159,8 @@ try {
     $inventory = $records | Where-Object { $_.result.taskbars.Count -gt 0 } | Select-Object -First 1
     if (!$inventory) { throw 'No completed native inventory; failure evidence retained' }
     Capture-Desktop 'baseline' $inventory
+    $clockText = @($inventory.result.taskbars.uia.elements | Where-Object { $_.automation_id -in @('TimeInnerTextBlock','DateInnerTextBlock') })
+    if (!$clockText.Count) { throw 'No actual clock subtree available; root-only/covered taskbar is unsupported and not successful desktop evidence' }
     Assert-NoHelpers 'baseline'
     Save-Context
 
