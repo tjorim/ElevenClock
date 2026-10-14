@@ -89,6 +89,7 @@ jobs:
       - name: Retain dependency license inventory and original notices
         if: always()
         run: |
+          python3 scripts/test-rust-license-check.py
           cargo metadata --manifest-path rust/Cargo.toml --locked --format-version 1 > dependency-metadata.json
           python3 scripts/rust-license-check.py dependency-metadata.json > dependency-notices.txt
       - uses: actions/upload-artifact@v4

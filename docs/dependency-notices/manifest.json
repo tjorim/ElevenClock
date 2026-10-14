@@ -1,0 +1,40 @@
+{
+  "packages": [
+    {
+      "name": "anes",
+      "version": "0.1.6",
+      "license": "MIT OR Apache-2.0",
+      "bundled": [],
+      "supplemental": [
+        {
+          "path": "anes-0.1.6/LICENSE-MIT",
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+          "source": "https://github.com/zrzka/anes-rs/blob/378ac7461ecac29fde9e10df7b08359d1315a9ad/LICENSE-MIT"
+        },
+        {
+          "path": "anes-0.1.6/LICENSE-APACHE",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+          "source": "https://github.com/zrzka/anes-rs/blob/378ac7461ecac29fde9e10df7b08359d1315a9ad/LICENSE-APACHE"
+        },
+        {
+          "path": "anes-0.1.6/README.md",
+          "sha256": "b62c8554d456263c75b49d19bf668360789a1275d6bdd7cbe0364cb45427e711",
+          "source": "https://github.com/zrzka/anes-rs/blob/378ac7461ecac29fde9e10df7b08359d1315a9ad/anes/README.md"
+        }
+      ]
+    },
+    {
+      "name": "r-efi",
+      "version": "6.0.0",
+      "license": "MIT OR Apache-2.0 OR LGPL-2.1-or-later",
+      "bundled": [
+        {
+          "path": "AUTHORS",
+          "sha256": "d027e91dbc9cdbb2f1190068e498bd6b61cff022b6a032b191021ba658d96111",
+          "source": "https://github.com/r-efi/r-efi/blob/7e1b0322d31d625f81a5656096330934f9cd835d/AUTHORS"
+        }
+      ],
+      "supplemental": []
+    }
+  ]
+}
