@@ -1,0 +1,17 @@
+{
+  "os": "Microsoft Windows Server 2025 Datacenter",
+  "version": "10.0.26100",
+  "build": "26100",
+  "dpi": 144,
+  "title": "ElevenClock Settings",
+  "tabOrder": [
+    1001,
+    2
+  ],
+  "forwardAndReverseDialogFocus": "passed",
+  "queuedKeyboardInput": "Tab, Shift+Tab, Alt+A and theme-selection arrows passed",
+  "closeGesture": "Window",
+  "capture": "PrintWindow of the actual native dialog",
+  "interactiveWindows11Acceptance": "not performed by this Server CI harness",
+  "commit": "35bee7826e9e6178c8ded55dc96d99587cdc5195"
+}

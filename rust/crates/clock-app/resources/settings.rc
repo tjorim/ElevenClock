@@ -1,0 +1,17 @@
+#pragma code_page(65001)
+#include <windows.h>
+1 RT_MANIFEST "resources/app.manifest"
+102 ICON "../../../icon.ico"
+101 DIALOGEX 0, 0, 300, 154
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+EXSTYLE WS_EX_APPWINDOW
+CAPTION "ElevenClock Settings"
+FONT 9, "Segoe UI"
+BEGIN
+    LTEXT "ElevenClock — Settings prototype", -1, 12, 12, 276, 14
+    LTEXT "Clock replacement is not enabled in this foundation build.", -1, 12, 34, 276, 22
+    LTEXT "&Appearance:", -1, 12, 65, 70, 12
+    COMBOBOX 1001, 88, 62, 190, 60, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT "Theme choices are a feasibility preview; preferences are not saved.", 1002, 12, 88, 276, 24
+    DEFPUSHBUTTON "&Close", IDCANCEL, 218, 124, 60, 18, WS_TABSTOP
+END
