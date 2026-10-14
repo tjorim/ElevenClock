@@ -24,6 +24,9 @@ mod native;
 #[cfg(all(windows, feature = "overlay-spike"))]
 pub use native::{ExperimentSlot, Update, run};
 
+#[cfg(all(windows, feature = "overlay-spike"))]
+pub(crate) use native::check_slot;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -50,6 +53,3 @@ mod tests {
         assert!(may_show(true, true, bar, bar, monitor, Some(other), false));
     }
 }
-
-#[cfg(all(windows, feature = "overlay-spike"))]
-pub(crate) use native::check_slot;
