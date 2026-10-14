@@ -1,0 +1,68 @@
+# ADR 0001: fail-closed discovery and isolated UIA experiments
+
+Date: 2026-10-14. Work item: [R02 / #3](https://github.com/tjorim/ElevenClock/issues/3).
+Status: **experimental isolation decision accepted; supported selector deferred**.
+
+Windows 11 taskbars may expose the clock through native children, UI Automation,
+or a provider subtree whose bounds also include notification and Show Desktop
+controls. A taskbar rectangle or an accessibility button alone is insufficient
+proof of a clock-only hit target. No stock Windows desktop is attached to this
+Linux development environment, so neither discovery strategy has been verified.
+
+The development probe inventories both strategies. Native observations use
+window classes and physical rectangles; UIA observations use AutomationId,
+ClassName, FrameworkId, ControlType, ProcessId, IsOffscreen and rectangles.
+It never reads localized Name properties, invokes controls, alters Explorer,
+or derives a clock slot from offsets. Actual successful selectors remain empty.
+
+Until the evidence gate passes, `verified_clock_rect` always rejects a candidate
+and every probe snapshot has `clock_rect: None`. Geometric validation checks
+generation, nonzero DPI, taskbar/monitor containment, a complete adjacent-control
+inventory and strict intersection with bell/Show Desktop/other controls.
+Touching edges are permitted. Passing geometry does not establish identity.
+The existing shared core models are unchanged; the provisional snapshot strategy
+field describes the native inventory path, not a chosen supported strategy.
+
+An in-process worker cannot promise cancellation of a blocked COM provider call.
+There is no evidence here that CoCancelCall or dropping interfaces provides
+bounded teardown. The alternative selected for **development experiments** is an
+isolated child of the same probe executable. COM is initialized MTA, owned and
+released entirely on the helper's main thread. Only owned value records are
+serialized; HWNDs, HMONITORs and COM interfaces stay in the helper.
+
+The supervisor assigns the helper to an unnamed, non-inherited Windows job with
+kill-on-close and a one-process limit. A stdin handshake permits native/COM work
+only after job assignment; losing the parent beforehand yields EOF. A five-second
+result deadline includes discovery, release, serialization and helper exit.
+After expiry the parent discards output, terminates the helper and polls for exit
+for at most one second. It stops on failed teardown or failed job assignment;
+it never starts replacement workers while an earlier worker may remain active.
+Kill-on-close covers abnormal supervisor exit. These are polling deadlines,
+not real-time scheduler guarantees or evidence that COM itself was cancelled.
+
+There is one active generation and at most one pending request. New requests
+replace the pending value and invalidate the active generation's result. Only
+observed helper exit frees the active slot. The development example submits
+samples sequentially; the queue tests exercise concurrent-request coalescing.
+No application callback or UI thread calls this blocking probe. The GUI app has
+no helper mode yet: before downstream production use, the same-executable
+helper arrangement, activation/lifetime and job behavior must be implemented
+and reviewed for `clock-app`, with actual Windows teardown measurements.
+
+Native inventory is capped at 2,048 children. UIA traversal is capped at 2,048
+elements and depth 64, with per-call latency and failures retained. Missing or
+invalid rectangles, incomplete inventory, provider errors, stale shell identity,
+changed geometry/DPI/topology, truncation, deadline or generation mismatch cannot
+produce an accepted clock rectangle. Whole-sample shell identity is checked
+before and after discovery using process creation time as well as PID; process
+IDs alone can be reused. Requests conservatively advance generation every sample.
+
+Alternatives rejected for now: guessed fixed slots, localized labels, Explorer
+injection, sending UIA interfaces across threads, abandoning blocked threads and
+spawning replacements, and interpreting a timeout as COM cancellation.
+
+**Go/no-go: NO-GO for R02's supported discovery contract and downstream overlay
+use.** The probe and portable validation can be reviewed now. Two stock Windows
+11 x64 builds, mixed-DPI displays, successful selector/exclusion evidence,
+Explorer-restart results and Windows job teardown remain mandatory. See the
+[evidence record and reproduction procedure](../windows-evidence/discovery.md).

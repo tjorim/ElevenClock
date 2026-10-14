@@ -24,6 +24,8 @@ jobs:
       - run: cargo +${{ matrix.toolchain }} clippy --manifest-path rust/Cargo.toml -p clock-core --all-targets --locked -- -D warnings
       - run: cargo +${{ matrix.toolchain }} test --manifest-path rust/Cargo.toml -p clock-core --locked
       - run: cargo +${{ matrix.toolchain }} test --manifest-path rust/Cargo.toml -p clock-core --doc --locked
+      - run: cargo +${{ matrix.toolchain }} clippy --manifest-path rust/Cargo.toml -p clock-windows --all-targets --locked -- -D warnings
+      - run: cargo +${{ matrix.toolchain }} test --manifest-path rust/Cargo.toml -p clock-windows --all-targets --locked
   windows:
     runs-on: windows-latest
     timeout-minutes: 15
@@ -40,7 +42,7 @@ jobs:
       - run: cargo +${{ matrix.toolchain }} fmt --manifest-path rust/Cargo.toml --all --check
       - run: cargo +${{ matrix.toolchain }} check --manifest-path rust/Cargo.toml --workspace --all-targets --locked
       - run: cargo +${{ matrix.toolchain }} clippy --manifest-path rust/Cargo.toml --workspace --all-targets --locked -- -D warnings
-      - run: cargo +${{ matrix.toolchain }} test --manifest-path rust/Cargo.toml --workspace --locked
+      - run: cargo +${{ matrix.toolchain }} test --manifest-path rust/Cargo.toml --workspace --all-targets --locked
       - run: cargo +${{ matrix.toolchain }} test --manifest-path rust/Cargo.toml --workspace --doc --locked
       - run: cargo +${{ matrix.toolchain }} build --manifest-path rust/Cargo.toml -p clock-app --release --target x86_64-pc-windows-msvc --locked
       - name: Check GUI subsystem and linked native resources

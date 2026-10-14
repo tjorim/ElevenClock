@@ -28,3 +28,14 @@ that the README/LICENSE conflict has been resolved or rebrand the project.
 R14 must establish the applicable GPL/asset obligations before distribution.
 CI prototype artifacts include the repository LICENSE and this policy; they are
 verification builds, not a release package or installer.
+
+R02 adds **development-only** `serde_json` 1.0 for the probe's structured evidence
+and generation-envelope tests. It uses the maintained Serde JSON implementation
+with default std support and no derive requirement; the locked version is checked
+on MSRV 1.90.0 and stable. Its new lock entries are serde, serde_json, itoa and
+zmij (MIT/Apache-2.0 alternatives); existing metadata dependencies are reused.
+It is a dev-dependency of clock-windows and does not enter clock-app's normal
+dependency graph. The Windows bindings enable documented COM, UIA, registry,
+process and job APIs; no additional runtime package, command parser or async
+runtime is introduced. Retain the complete inventory/notices for these developer
+artifacts too.

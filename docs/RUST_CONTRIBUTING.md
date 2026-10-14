@@ -87,3 +87,19 @@ Do not assume these work accessibly without the required desktop evidence.
 Only `clock-app`'s release executable is an app artifact. Tests, examples, probes,
 license inventory scripts and debug binaries are development artifacts and must
 never enter an installer or support flow. R14 owns packaging and final notices.
+
+## R02 discovery development
+
+Portable discovery validation and the process-supervisor tests also run on Linux:
+
+```sh
+cargo +1.90.0 test --manifest-path rust/Cargo.toml -p clock-windows --all-targets --locked
+cargo +1.90.0 clippy --manifest-path rust/Cargo.toml -p clock-windows --all-targets --locked -- -D warnings
+```
+
+The Windows-only FFI remains gated; only portable geometry/queue code is exposed
+on Linux. Native/UIA probing is blocking, development-only work in an isolated
+helper and must never run in application callbacks. The GUI app has no helper
+integration yet. See [R02 evidence](windows-evidence/discovery.md) for developer
+probe commands and the unchecked Windows gate, and the
+[discovery ADR](adr/0001-taskbar-discovery.md) before any downstream use.
