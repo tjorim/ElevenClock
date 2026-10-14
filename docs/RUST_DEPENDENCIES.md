@@ -63,3 +63,11 @@ missing, changed, unreadable or empty notices fail the check. These are retained
 original notices, not missing-notice exemptions. The checker uses no network.
 Run `python3 scripts/test-rust-license-check.py` for its positive and rejection
 regressions; the dependency CI job runs them before the inventory.
+
+R05 promotes **serde_json** 1.0 to a runtime dependency of clock-windows and adds
+**serde** 1.0 with derive for the private, versioned preference encoding. These
+maintained MIT/Apache-2.0 crates keep serialization behind the Windows adapter;
+core remains free of persistence/schema dependencies. **tempfile** 3 is a
+development-only dependency for isolated filesystem failure tests. All packages
+were already locked by earlier developer dependencies; no package versions or
+MSRV change. The same full license inventory applies to the new runtime graph.
