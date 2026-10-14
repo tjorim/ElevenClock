@@ -178,6 +178,26 @@ try {
         }
         Save-Context
     }
+    # Completing the profile can asynchronously recreate Explorer and its
+    # taskbar. Wait for a real clock subtree, not just an early Shell_TrayWnd.
+    $context.results.desktopReadiness = @()
+    $ready = $false
+    $readyDeadline = [DateTime]::UtcNow.AddSeconds(40)
+    $attempt = 0
+    do {
+        $attempt++
+        $active = Start-Probe "desktop-ready-$attempt" 1
+        $readyRecords = @(Read-Probe $active "desktop-ready-$attempt" 10)
+        $readyClock = @($readyRecords.result.taskbars.uia.elements | Where-Object { $_.automation_id -in @('TimeInnerTextBlock','DateInnerTextBlock') })
+        $context.results.desktopReadiness += [ordered]@{attempt=$attempt; statuses=@($readyRecords.result.status); clockTextNodes=$readyClock.Count}
+        if ($readyClock.Count) { $ready = $true; break }
+        Start-Sleep -Milliseconds 750
+    } while ([DateTime]::UtcNow -lt $readyDeadline)
+    Save-Context
+    if (!$ready) {
+        Capture-Desktop 'not-ready' $null
+        throw 'No real clock subtree after desktop startup bound; unsupported hosted environment'
+    }
     $shell = [TaskbarEvidenceNative]::FindWindowW('Shell_TrayWnd', $null)
     if ($shell -eq [IntPtr]::Zero) { throw 'No interactive Explorer taskbar on this hosted desktop' }
     Assert-NoHelpers 'initial state'
