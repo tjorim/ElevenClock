@@ -3,6 +3,7 @@
 use super::*;
 use crate::{
     events::{ShellEvent, Signal},
+    interaction::{ACTIVATION_COOLDOWN, CalendarOutcome, MenuCommand, ScreenPoint},
     render::PixelSize,
 };
 use chrono::DateTime;
@@ -59,6 +60,11 @@ enum Call {
     Timer(Duration),
     Poll(Duration),
     ShellChanged(Option<ShellIdentity>),
+    OpenCalendar(TaskbarKey),
+    ShowMenu(Option<ScreenPoint>, bool),
+    OpenSettings,
+    RestoreTray,
+    PausedChanged(bool),
     Stop,
 }
 
@@ -73,6 +79,8 @@ struct Fake {
     overlays: HashSet<TaskbarKey>,
     paint_result: BTreeMap<u64, PaintResult>,
     create_error: bool,
+    calendar: CalendarOutcome,
+    menu_choice: Option<MenuCommand>,
 }
 impl Fake {
     fn new() -> Self {
@@ -87,6 +95,8 @@ impl Fake {
             overlays: HashSet::new(),
             paint_result: BTreeMap::new(),
             create_error: false,
+            calendar: CalendarOutcome::Sent,
+            menu_choice: None,
         }
     }
 }
@@ -154,6 +164,23 @@ impl Platform for Fake {
     fn hide(&mut self, key: TaskbarKey) {
         self.calls.push(Call::Hide(key));
     }
+    fn open_calendar(&mut self, key: TaskbarKey) -> CalendarOutcome {
+        self.calls.push(Call::OpenCalendar(key));
+        self.calendar.clone()
+    }
+    fn show_menu(&mut self, anchor: Option<ScreenPoint>, paused: bool) -> Option<MenuCommand> {
+        self.calls.push(Call::ShowMenu(anchor, paused));
+        self.menu_choice.take()
+    }
+    fn open_settings(&mut self) {
+        self.calls.push(Call::OpenSettings);
+    }
+    fn restore_tray(&mut self) {
+        self.calls.push(Call::RestoreTray);
+    }
+    fn paused_changed(&mut self, paused: bool) {
+        self.calls.push(Call::PausedChanged(paused));
+    }
     fn arm_timer(&mut self, delay: Duration) {
         self.calls.push(Call::Timer(delay));
     }
@@ -213,6 +240,7 @@ fn start_reads_time_once_requests_discovery_and_arms_both_timers() {
         calls,
         vec![
             Call::ShellChanged(shell(10, 1)),
+            Call::RestoreTray,
             // 12:00:30 with a minute cadence: next boundary in 30 s.
             Call::Timer(Duration::from_secs(30)),
             Call::RequestDiscovery(0),
@@ -882,4 +910,252 @@ fn repeated_explorer_failures_never_accumulate_overlays_or_requests() {
         assert!(live.iter().all(|k| k.generation.0 == round));
     }
     assert_eq!(live.len(), 2);
+}
+
+// ---- R09: clock actions, menu, pause and tray ------------------------------
+
+fn shown(monitors: Monitors) -> Runtime<Fake> {
+    let mut runtime = runtime(monitors);
+    discover(&mut runtime, 0, vec![bar(0, 1, true), bar(0, 2, true)]);
+    take(&mut runtime);
+    runtime
+}
+fn click(runtime: &mut Runtime<Fake>, id: u64) {
+    runtime.handle(Input::Action(UserAction::Activate(key(0, id))));
+}
+fn opens(calls: &[Call]) -> usize {
+    calls
+        .iter()
+        .filter(|c| matches!(c, Call::OpenCalendar(_)))
+        .count()
+}
+
+#[test]
+fn one_click_sends_one_calendar_action_for_the_clicked_taskbar() {
+    let mut runtime = shown(Monitors::All);
+    click(&mut runtime, 2);
+    assert_eq!(take(&mut runtime), vec![Call::OpenCalendar(key(0, 2))]);
+}
+
+#[test]
+fn rapid_repeat_clicks_coalesce_but_a_later_deliberate_click_works() {
+    let mut runtime = shown(Monitors::All);
+    click(&mut runtime, 1);
+    click(&mut runtime, 1);
+    click(&mut runtime, 2);
+    assert_eq!(opens(&take(&mut runtime)), 1, "double click is one action");
+    runtime.platform.mono += ACTIVATION_COOLDOWN;
+    click(&mut runtime, 1);
+    assert_eq!(opens(&take(&mut runtime)), 1);
+}
+
+#[test]
+fn a_click_that_is_stale_hidden_or_unknown_does_nothing() {
+    let mut runtime = shown(Monitors::Primary);
+    // Not shown by design (other monitor), and a key from another generation.
+    click(&mut runtime, 2);
+    runtime.handle(Input::Action(UserAction::Activate(key(7, 1))));
+    assert_eq!(opens(&take(&mut runtime)), 0);
+
+    // Fullscreen hides the overlay; a click queued before that is ignored.
+    let mut runtime = shown(Monitors::All);
+    runtime.platform.observations.insert(
+        1,
+        Observation {
+            fullscreen: true,
+            ..Observation {
+                exists: true,
+                visible: true,
+                rect: Some(bar(0, 1, true).taskbar_rect),
+                dpi: 96,
+                monitor_rect: Some(bar(0, 1, true).monitor_rect),
+                fullscreen: false,
+            }
+        },
+    );
+    runtime.handle(Input::Poll);
+    take(&mut runtime);
+    click(&mut runtime, 1);
+    assert_eq!(opens(&take(&mut runtime)), 0);
+}
+
+#[test]
+fn held_modifiers_send_nothing_and_do_not_consume_the_cooldown_or_remove_overlays() {
+    let mut runtime = shown(Monitors::All);
+    runtime.platform.calendar = CalendarOutcome::ModifiersHeld;
+    click(&mut runtime, 1);
+    // The user lets go: the very next click works immediately.
+    runtime.platform.calendar = CalendarOutcome::Sent;
+    click(&mut runtime, 1);
+    let calls = take(&mut runtime);
+    assert_eq!(opens(&calls), 2);
+    assert!(!calls.iter().any(|c| matches!(c, Call::Hide(_))));
+    assert!(
+        runtime
+            .diagnostics()
+            .taskbars
+            .iter()
+            .all(|t| t.reason.is_none())
+    );
+}
+
+#[test]
+fn an_unknown_calendar_failure_removes_every_overlay_records_why_and_never_retries() {
+    let mut runtime = shown(Monitors::All);
+    runtime.platform.calendar = CalendarOutcome::Failed("input blocked".into());
+    click(&mut runtime, 1);
+    let calls = take(&mut runtime);
+    assert_eq!(opens(&calls), 1, "no retry of the failed action");
+    assert!(calls.contains(&Call::Hide(key(0, 1))));
+    assert!(calls.contains(&Call::Hide(key(0, 2))));
+    for taskbar in runtime.diagnostics().taskbars {
+        assert_eq!(
+            taskbar.reason,
+            Some(Reason::ActionFailed("input blocked".into()))
+        );
+    }
+    // Further clicks on a removed overlay do nothing, and ticks do not bring it back.
+    click(&mut runtime, 1);
+    runtime.platform.now = wall("2026-10-14T12:05:00+00:00");
+    runtime.handle(Input::Timer);
+    let calls = take(&mut runtime);
+    assert_eq!(opens(&calls), 0);
+    assert_eq!(paints(&calls), 0);
+}
+
+#[test]
+fn pause_then_resume_gives_a_failed_overlay_another_chance() {
+    let mut runtime = shown(Monitors::All);
+    runtime.platform.calendar = CalendarOutcome::Failed("x".into());
+    click(&mut runtime, 1);
+    take(&mut runtime);
+    runtime.platform.menu_choice = Some(MenuCommand::TogglePause);
+    runtime.handle(Input::Action(UserAction::ShowMenu(None)));
+    assert!(runtime.diagnostics().paused);
+    runtime.platform.mono += ACTIVATION_COOLDOWN;
+    runtime.platform.menu_choice = Some(MenuCommand::TogglePause);
+    runtime.handle(Input::Action(UserAction::ShowMenu(None)));
+    let calls = take(&mut runtime);
+    assert_eq!(paints(&calls), 2, "resume repaints both clocks");
+    assert!(
+        runtime
+            .diagnostics()
+            .taskbars
+            .iter()
+            .all(|t| t.reason.is_none())
+    );
+}
+
+#[test]
+fn the_menu_reports_the_current_mode_and_dispatches_exactly_the_chosen_command() {
+    let mut runtime = shown(Monitors::All);
+    let at = Some(ScreenPoint { x: -100, y: 1040 });
+    runtime.handle(Input::Action(UserAction::ShowMenu(at)));
+    assert_eq!(take(&mut runtime), vec![Call::ShowMenu(at, false)]);
+
+    runtime.platform.mono += ACTIVATION_COOLDOWN;
+    runtime.platform.menu_choice = Some(MenuCommand::Settings);
+    runtime.handle(Input::Action(UserAction::ShowMenu(at)));
+    assert_eq!(
+        take(&mut runtime),
+        vec![Call::ShowMenu(at, false), Call::OpenSettings]
+    );
+    assert!(!runtime.is_finished());
+}
+
+#[test]
+fn pause_hides_every_overlay_so_the_native_clock_shows_and_resume_restores_them() {
+    let mut runtime = shown(Monitors::All);
+    runtime.platform.menu_choice = Some(MenuCommand::TogglePause);
+    runtime.handle(Input::Action(UserAction::ShowMenu(None)));
+    let calls = take(&mut runtime);
+    assert!(calls.contains(&Call::Hide(key(0, 1))));
+    assert!(calls.contains(&Call::Hide(key(0, 2))));
+    assert!(calls.contains(&Call::PausedChanged(true)));
+    let diagnostics = runtime.diagnostics();
+    assert!(diagnostics.paused);
+    assert!(diagnostics.taskbars.iter().all(|t| matches!(
+        t.state,
+        OverlayState::Hidden(clock_core::HiddenReason::Paused)
+    )));
+
+    // Ticks, rediscovery and a click while paused never show or act.
+    runtime.platform.now = wall("2026-10-14T12:01:00+00:00");
+    runtime.handle(Input::Timer);
+    click(&mut runtime, 1);
+    let calls = take(&mut runtime);
+    assert_eq!(paints(&calls) + opens(&calls), 0);
+
+    // The menu now offers Resume.
+    runtime.platform.mono += ACTIVATION_COOLDOWN;
+    runtime.platform.menu_choice = Some(MenuCommand::TogglePause);
+    runtime.handle(Input::Action(UserAction::ShowMenu(None)));
+    let calls = take(&mut runtime);
+    assert_eq!(calls[0], Call::ShowMenu(None, true));
+    assert_eq!(paints(&calls), 2);
+    assert!(calls.contains(&Call::PausedChanged(false)));
+    assert!(!runtime.diagnostics().paused);
+}
+
+#[test]
+fn exit_from_the_menu_quits_like_any_other_exit() {
+    let mut runtime = shown(Monitors::All);
+    runtime.platform.menu_choice = Some(MenuCommand::Exit);
+    runtime.handle(Input::Action(UserAction::ShowMenu(None)));
+    let calls = take(&mut runtime);
+    assert!(calls.contains(&Call::Destroy(key(0, 1))));
+    assert_eq!(calls.iter().filter(|c| **c == Call::Stop).count(), 1);
+    assert!(runtime.is_finished());
+    runtime.handle(Input::Action(UserAction::ShowMenu(None)));
+    assert!(take(&mut runtime).is_empty());
+}
+
+#[test]
+fn mouse_and_keyboard_tray_events_for_one_gesture_open_one_menu() {
+    let mut runtime = shown(Monitors::All);
+    // NIN_SELECT and NIN_KEYSELECT can both arrive for one activation.
+    runtime.handle(Input::Action(UserAction::ShowMenu(None)));
+    runtime.handle(Input::Action(UserAction::ShowMenu(None)));
+    let menus = take(&mut runtime)
+        .iter()
+        .filter(|c| matches!(c, Call::ShowMenu(..)))
+        .count();
+    assert_eq!(menus, 1);
+}
+
+#[test]
+fn explorer_restart_re_registers_the_tray_from_the_existing_recovery_path_only() {
+    let mut runtime = shown(Monitors::All);
+    runtime.handle(Input::Signal(Signal::TaskbarCreated));
+    let calls = take(&mut runtime);
+    assert_eq!(calls.iter().filter(|c| **c == Call::RestoreTray).count(), 1);
+
+    // A new Explorer process noticed by the poll is the same single path.
+    runtime.platform.shell = shell(11, 2);
+    advance(&mut runtime, RECOVERY_POLL);
+    let calls = take(&mut runtime);
+    assert_eq!(calls.iter().filter(|c| **c == Call::RestoreTray).count(), 1);
+
+    // Steady state never touches the tray: no second recovery loop.
+    for _ in 0..5 {
+        advance(&mut runtime, RECOVERY_POLL);
+    }
+    assert!(!take(&mut runtime).contains(&Call::RestoreTray));
+}
+
+#[test]
+fn pause_survives_explorer_restart() {
+    let mut runtime = shown(Monitors::All);
+    runtime.platform.menu_choice = Some(MenuCommand::TogglePause);
+    runtime.handle(Input::Action(UserAction::ShowMenu(None)));
+    runtime.handle(Input::Signal(Signal::TaskbarCreated));
+    discover(&mut runtime, 1, vec![bar(1, 1, true), bar(1, 2, true)]);
+    assert!(runtime.diagnostics().paused);
+    assert!(
+        runtime
+            .platform
+            .overlays
+            .iter()
+            .all(|k| k.generation.0 == 0)
+    );
 }

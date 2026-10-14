@@ -15,12 +15,17 @@
 //! * Explorer replacement is detected by `TaskbarCreated` *and* by shell process
 //!   identity (PID + creation time), and old-generation results are discarded;
 //! * auto-hide, relocation and fullscreen are observed from events and a slow
-//!   recovery poll, with short bounded polling while a taskbar is animating.
+//!   recovery poll, with short bounded polling while a taskbar is animating;
+//! * user actions (R09) arrive as [`Input::Action`]: one calendar action per
+//!   click, the fixed menu, Pause/Resume (a core event, so the reducer hides every
+//!   overlay), Settings and Exit. The tray icon is re-registered from the same
+//!   shell-replacement path as everything else, not from a second recovery loop.
 //!
 //! The coordinator is generic over [`Platform`] so every rule above is covered by
 //! deterministic tests on any OS. The Windows implementation is `native`.
 use crate::{
     events::{RECOVERY_POLL, ShellEvent, Signal, TransitionPoll},
+    interaction::{ActivationGate, CalendarOutcome, MenuCommand, ScreenPoint},
     render::{Overflow, WorstCase},
     theme::{AppearanceTracker, SystemAppearance},
 };
@@ -135,6 +140,19 @@ pub trait Platform {
     fn destroy_overlay(&mut self, key: TaskbarKey);
     fn paint(&mut self, key: TaskbarKey, context: &PaintContext<'_>) -> PaintResult;
     fn hide(&mut self, key: TaskbarKey);
+    /// Send the single deliberate calendar action for the clicked overlay. Must
+    /// not block and must never be retried by the caller.
+    fn open_calendar(&mut self, key: TaskbarKey) -> CalendarOutcome;
+    /// Show the fixed menu (modal) and return the chosen command. `paused` selects
+    /// the Pause/Resume label.
+    fn show_menu(&mut self, anchor: Option<ScreenPoint>, paused: bool) -> Option<MenuCommand>;
+    /// Ask the application to open or focus Settings (R10 owns the window).
+    fn open_settings(&mut self);
+    /// (Re-)register the notification-area icon. Called once at start and from the
+    /// one shell-replacement path; failure is expected while Explorer starts.
+    fn restore_tray(&mut self) {}
+    /// Replacement was paused or resumed: update anything that shows the mode.
+    fn paused_changed(&mut self, _paused: bool) {}
     /// Cheap upkeep after each observation pass: for example, re-anchor overlay
     /// z-order next to its taskbar. Must not repaint or block.
     fn maintain(&mut self) {}
@@ -155,9 +173,20 @@ pub enum Input {
     /// The shell poll timer fired.
     Poll,
     Discovery(DiscoveryReport),
+    /// A click, screen-reader Invoke or menu request (R09).
+    Action(UserAction),
     /// Settings committed new preferences (already validated and persisted).
     Preferences(ValidatedPreferences),
     Quit,
+}
+
+/// What the user asked for through the overlay or tray. Values only.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum UserAction {
+    /// A left click, or a screen-reader Invoke, on this taskbar's overlay.
+    Activate(TaskbarKey),
+    /// Show the fixed menu; `None` anchors at the cursor.
+    ShowMenu(Option<ScreenPoint>),
 }
 
 /// Why a taskbar has no visible clock overlay, for Settings and Support.
@@ -171,6 +200,9 @@ pub enum Reason {
     Overflow(Overflow),
     RenderFailed(String),
     PlacementFailed(String),
+    /// The calendar action could not be sent, so overlays were removed to keep the
+    /// native clock usable. Pause then Resume (or an Explorer restart) tries again.
+    ActionFailed(String),
     /// Not currently shown by design (other monitor, taskbar hidden, fullscreen,
     /// locked); the reducer's [`OverlayState`] carries the specific cause.
     NotShown,
@@ -185,6 +217,8 @@ pub struct TaskbarDiagnostic {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Diagnostics {
     pub generation: ShellGeneration,
+    /// The user paused replacement: the native clock is showing on purpose.
+    pub paused: bool,
     pub taskbars: Vec<TaskbarDiagnostic>,
     pub last_discovery_failure: Option<DiscoveryFailure>,
     pub consecutive_failures: u32,
@@ -227,6 +261,8 @@ pub struct Runtime<P: Platform> {
     retry: Retry,
     last_failure: Option<DiscoveryFailure>,
     discovery_disabled: bool,
+    activation: ActivationGate,
+    menu: ActivationGate,
     finished: bool,
 }
 
@@ -253,6 +289,8 @@ impl<P: Platform> Runtime<P> {
             retry: Retry::default(),
             last_failure: None,
             discovery_disabled: false,
+            activation: ActivationGate::default(),
+            menu: ActivationGate::default(),
             finished: false,
         }
     }
@@ -265,6 +303,7 @@ impl<P: Platform> Runtime<P> {
         }
         self.shell = self.platform.shell_identity();
         self.platform.shell_changed(self.shell);
+        self.platform.restore_tray();
         let now = self.platform.local_now();
         self.dispatch(Event::Tick(now));
         self.dispatch(Event::TopologyChanged);
@@ -299,6 +338,7 @@ impl<P: Platform> Runtime<P> {
                 self.poll();
             }
             Input::Discovery(report) => self.discovery(report),
+            Input::Action(action) => self.action(action),
             Input::Preferences(preferences) => {
                 if self.state().preferences().format_source() != preferences.format_source() {
                     self.worst_case = WorstCase::for_format(preferences.format());
@@ -347,6 +387,7 @@ impl<P: Platform> Runtime<P> {
             .collect();
         Diagnostics {
             generation: state.generation(),
+            paused: state.is_paused(),
             taskbars,
             last_discovery_failure: self.last_failure.clone(),
             consecutive_failures: self.retry.failures,
@@ -429,6 +470,10 @@ impl<P: Platform> Runtime<P> {
         if force || current != self.shell {
             self.shell = current;
             self.platform.shell_changed(current);
+            // Explorer's notification area was rebuilt along with its taskbar: put
+            // the icon back from this same path. If the shell is not ready yet the
+            // registration fails quietly and the following `TaskbarCreated` retries.
+            self.platform.restore_tray();
             self.snapshots.clear();
             self.reported.clear();
             self.faults.clear();
@@ -671,8 +716,12 @@ impl<P: Platform> Runtime<P> {
     }
 
     fn paint(&mut self, key: TaskbarKey, text: &ClockText) {
-        if matches!(self.faults.get(&key), Some(Reason::PlacementFailed(_))) {
-            // No window exists for this taskbar; the native clock stays visible.
+        if matches!(
+            self.faults.get(&key),
+            Some(Reason::PlacementFailed(_) | Reason::ActionFailed(_))
+        ) {
+            // Either no window exists for this taskbar, or the overlay was removed
+            // on purpose so the native clock stays reachable.
             return;
         }
         let appearance = self.tracker.current();
@@ -701,6 +750,87 @@ impl<P: Platform> Runtime<P> {
                 self.faults.insert(key, Reason::RenderFailed(reason));
             }
         }
+    }
+
+    // ---- user actions -------------------------------------------------------
+
+    fn action(&mut self, action: UserAction) {
+        match action {
+            UserAction::Activate(key) => self.activate(key),
+            UserAction::ShowMenu(anchor) => self.show_menu(anchor),
+        }
+    }
+
+    fn activate(&mut self, key: TaskbarKey) {
+        // Only an overlay that is actually in front of the native clock may act. A
+        // click queued before a pause, fullscreen change, fault or Explorer restart
+        // is stale; the reducer already forgets keys of older generations.
+        if self.state().overlay_state(key) != OverlayState::Visible
+            || self.faults.contains_key(&key)
+        {
+            return;
+        }
+        let now = self.platform.monotonic();
+        if !self.activation.ready(now) {
+            return;
+        }
+        match self.platform.open_calendar(key) {
+            CalendarOutcome::Sent => self.activation.record(now),
+            // The user is holding a modifier: nothing was sent, nothing is wrong.
+            CalendarOutcome::ModifiersHeld => {}
+            CalendarOutcome::Failed(reason) => self.release_native_clock(reason),
+        }
+    }
+
+    /// The calendar action failed for a reason we cannot classify (input blocked,
+    /// partial insertion). Never retry: take every overlay away so the user keeps
+    /// full native access, and say why in diagnostics.
+    fn release_native_clock(&mut self, reason: String) {
+        let keys: Vec<_> = self.snapshots.values().map(|s| s.key).collect();
+        for key in keys {
+            self.platform.hide(key);
+            self.faults
+                .insert(key, Reason::ActionFailed(reason.clone()));
+        }
+    }
+
+    fn show_menu(&mut self, anchor: Option<ScreenPoint>) {
+        // The tray reports mouse and keyboard selection separately and Windows may
+        // send both for one gesture; a menu that just closed is not reopened.
+        let now = self.platform.monotonic();
+        if !self.menu.ready(now) {
+            return;
+        }
+        let paused = self.state().is_paused();
+        let command = self.platform.show_menu(anchor, paused);
+        let closed = self.platform.monotonic();
+        self.menu.record(closed);
+        if let Some(command) = command {
+            self.command(command);
+        }
+    }
+
+    fn command(&mut self, command: MenuCommand) {
+        match command {
+            MenuCommand::Settings => self.platform.open_settings(),
+            MenuCommand::TogglePause => {
+                let paused = !self.state().is_paused();
+                self.set_paused(paused);
+            }
+            MenuCommand::Exit => self.quit(),
+        }
+    }
+
+    fn set_paused(&mut self, paused: bool) {
+        if self.state().is_paused() == paused {
+            return;
+        }
+        // Pause then Resume is the user's retry for an overlay removed after a
+        // failed calendar action.
+        self.faults
+            .retain(|_, reason| !matches!(reason, Reason::ActionFailed(_)));
+        self.dispatch(Event::SetPaused(paused));
+        self.platform.paused_changed(paused);
     }
 
     fn disabled_discovery_reply(&mut self, generation: ShellGeneration) {

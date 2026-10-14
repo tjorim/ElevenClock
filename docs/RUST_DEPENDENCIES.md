@@ -73,3 +73,10 @@ core remains free of persistence/schema dependencies. **tempfile** 3 is a
 development-only dependency for isolated filesystem failure tests. All packages
 were already locked by earlier developer dependencies; no package versions or
 MSRV change. The same full license inventory applies to the new runtime graph.
+
+R09 adds **windows-core** 0.61.2 as a direct dependency of clock-windows: the
+`#[implement]` macro that builds the overlay's UI Automation provider names that crate
+in its expansion. It is the version `windows` 0.61 already locks, so no package, license
+or MSRV change; only the clock-windows dependency edge in `Cargo.lock` is new. The shared
+`windows` dependency also enables `Win32_System_Ole` and `Win32_System_Variant`, which the
+UIA provider interfaces require.

@@ -277,7 +277,7 @@ fn topology_preserves_windows_and_hidden_changes_defer_paint() {
 
 proptest::proptest! {
     #[test]
-    fn event_sequences_preserve_visibility_and_window_lifetime(events in proptest::collection::vec(0u8..8, 1..100)) {
+    fn event_sequences_preserve_visibility_and_window_lifetime(events in proptest::collection::vec(0u8..10, 1..100)) {
         let mut state = State::new(prefs("%H:%M"));
         let mut windows = std::collections::HashSet::new();
         for value in events {
@@ -290,6 +290,8 @@ proptest::proptest! {
                 4 => Event::SessionUnlocked,
                 5 => Event::ExplorerLost,
                 6 => Event::Tick(wall("2026-10-14T12:00:00+00:00")),
+                7 => Event::SetPaused(true),
+                8 => Event::SetPaused(false),
                 _ => Event::TopologyChanged,
             };
             let effects;
@@ -366,4 +368,58 @@ fn out_of_range_local_snapshot_removes_overlay_without_panicking() {
     assert!(effects.contains(&Effect::DestroyOverlay(snapshot_key())));
     assert_eq!(paints(&effects), 0);
     assert!(next_delay(extreme, Cadence::Minute) > Duration::ZERO);
+}
+
+#[test]
+fn pause_hides_every_overlay_and_resume_repaints_without_new_windows() {
+    let state = ready();
+    let (state, effects) = reduce(state, Event::SetPaused(true));
+    assert!(state.is_paused());
+    assert_eq!(
+        effects
+            .iter()
+            .filter(|e| matches!(e, Effect::Hide(_)))
+            .count(),
+        2
+    );
+    assert!(!effects.iter().any(|e| matches!(
+        e,
+        Effect::CreateOverlay { .. } | Effect::DestroyOverlay(_) | Effect::Paint { .. }
+    )));
+    for id in [1, 2] {
+        assert_eq!(
+            state.overlay_state(snapshot(id, 0).key),
+            OverlayState::Hidden(HiddenReason::Paused)
+        );
+    }
+    // Pausing twice and ticking while paused neither re-hides nor paints.
+    let (state, repeated) = reduce(state, Event::SetPaused(true));
+    assert!(repeated.is_empty());
+    let (state, ticked) = reduce(state, Event::Tick(wall("2026-10-14T12:01:00+00:00")));
+    assert_eq!(paints(&ticked), 0);
+    assert!(!ticked.iter().any(|e| matches!(e, Effect::Hide(_))));
+    // Discovery results keep the pause: a rediscovered taskbar stays hidden.
+    let (state, effects) = reduce(state, discovery(vec![snapshot(1, 0), snapshot(2, 0)], 0));
+    assert_eq!(paints(&effects), 0);
+    let (state, resumed) = reduce(state, Event::SetPaused(false));
+    assert!(!state.is_paused());
+    assert_eq!(
+        paints(&resumed),
+        2,
+        "resume shows current text once per clock"
+    );
+    assert!(
+        !resumed
+            .iter()
+            .any(|e| matches!(e, Effect::CreateOverlay { .. }))
+    );
+}
+
+#[test]
+fn explorer_loss_while_paused_stays_paused_and_quit_is_unaffected() {
+    let (state, _) = reduce(ready(), Event::SetPaused(true));
+    let (state, _) = reduce(state, Event::ExplorerLost);
+    assert!(state.is_paused(), "pause is a user choice, not shell state");
+    let (state, _) = reduce(state, Event::Quit);
+    assert!(state.is_quitting());
 }

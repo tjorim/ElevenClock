@@ -15,7 +15,11 @@ pub mod preferences_store;
 pub mod render;
 pub mod theme;
 
+#[cfg(windows)]
+pub(crate) mod accessibility;
 pub mod clock_time;
 pub mod events;
 pub mod instance;
+pub mod interaction;
 pub mod runtime;
+pub mod tray;
