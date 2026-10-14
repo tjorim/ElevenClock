@@ -26,7 +26,8 @@ jobs:
           targets: ${{ matrix.target }}
           components: clippy, rustfmt
       - run: cargo +stable clippy --manifest-path rust/Cargo.toml --workspace --all-targets --locked -- -D warnings
-      - run: cargo +stable build --manifest-path rust/Cargo.toml -p clock-windows --example taskbar_probe -p clock-overlay-spike --target ${{ matrix.target }} --locked
+      - run: cargo +stable build --manifest-path rust/Cargo.toml -p clock-windows --example taskbar_probe --target ${{ matrix.target }} --locked
+      - run: cargo +stable build --manifest-path rust/Cargo.toml -p clock-overlay-spike --target ${{ matrix.target }} --locked
       - name: Prepare and verify actual hosted desktop through R02
         shell: pwsh
         run: ./scripts/test-rust-taskbar.ps1 -PrepareHostedDesktop -ProbeTarget '${{ matrix.target }}' -Executable 'rust/target/${{ matrix.target }}/debug/examples/taskbar_probe.exe'
