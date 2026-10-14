@@ -146,3 +146,19 @@ All nine checker regression tests passed. Metadata and full locked dependency
 notice inventory both passed (exit 0); original attribution is retained in the
 output. The earlier failure record is kept as verification history. Windows
 checks remain unverified in this Linux environment.
+
+## Hosted PR verification
+
+PR #24's [Rust CI run 38533186341](https://github.com/tjorim/ElevenClock/actions/runs/38533186341)
+passed core jobs on 1.90/stable, Windows jobs on 1.90/stable, and the dependency
+job. This supplies hosted Windows build, test and foundation UI evidence.
+
+The separately triggered [R03 overlay run 38533186602](https://github.com/tjorim/ElevenClock/actions/runs/38533186602)
+failed all three desktop jobs: both Windows 11 ARM64 profiles (native ARM64 and
+emulated x64) reported `R03 NO-GO: Explorer restart visible coverage`; Server
+2025 x64 reported `Overlay visible=False not observed`. No R03 runtime, harness
+or workflow files differ from the integration branch in this PR. The existing
+R03 evidence explicitly retains red acceptance checks; its follow-up is #23.
+These failures remain visible and are not treated as successful overlay
+compatibility. The Server hidden-state failure is distinct from the previously
+recorded Server DPI-restore failure and needs diagnosis within the overlay work.
