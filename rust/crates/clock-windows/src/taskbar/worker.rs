@@ -17,7 +17,7 @@
 //!   `TeardownFailed`; it never respawns while a helper might still be alive;
 //! * thread count, process count and temporary files stay constant however many
 //!   requests fail.
-use super::{ProbeQueue, gate::Gate, protocol};
+use super::{ProbeQueue, protocol};
 use crate::runtime::{DiscoveryFailure, DiscoveryReport};
 use clock_core::{ShellGeneration, TaskbarKey};
 use std::{
@@ -56,8 +56,8 @@ pub struct HelperSpec {
 pub type SpecFactory = Box<dyn Fn(ShellGeneration) -> HelperSpec + Send + Sync>;
 
 /// Production helper: this executable, a private role marker, then a handshake
-/// that also selects native-only or UIA discovery.
-pub fn same_executable(gate: Gate) -> std::io::Result<SpecFactory> {
+/// that selects UIA discovery.
+pub fn same_executable() -> std::io::Result<SpecFactory> {
     let program = std::env::current_exe()?;
     Ok(Box::new(move |generation| HelperSpec {
         program: program.clone(),
@@ -66,11 +66,7 @@ pub fn same_executable(gate: Gate) -> std::io::Result<SpecFactory> {
             generation.0.to_string().into(),
         ],
         env: Vec::new(),
-        handshake: if gate.needs_uia() {
-            b"r08-go:uia\n".to_vec()
-        } else {
-            b"r08-go:native\n".to_vec()
-        },
+        handshake: b"r08-go:uia\n".to_vec(),
     }))
 }
 
@@ -284,7 +280,6 @@ pub struct DiscoveryWorker {
 impl DiscoveryWorker {
     pub fn spawn(
         factory: SpecFactory,
-        gate: Gate,
         deadline: Duration,
         notify: Notify,
     ) -> std::io::Result<Self> {
@@ -296,7 +291,7 @@ impl DiscoveryWorker {
         let worker = Arc::clone(&shared);
         let thread = std::thread::Builder::new()
             .name("elevenclock-discovery".into())
-            .spawn(move || worker_loop(&worker, &factory, gate, deadline, &notify))?;
+            .spawn(move || worker_loop(&worker, &factory, deadline, &notify))?;
         Ok(Self {
             shared,
             thread: Some(thread),
@@ -361,13 +356,7 @@ impl Drop for DiscoveryWorker {
     }
 }
 
-fn worker_loop(
-    shared: &Shared,
-    factory: &SpecFactory,
-    gate: Gate,
-    deadline: Duration,
-    notify: &Notify,
-) {
+fn worker_loop(shared: &Shared, factory: &SpecFactory, deadline: Duration, notify: &Notify) {
     loop {
         let generation = {
             let mut state = lock(shared);
@@ -387,7 +376,7 @@ fn worker_loop(
             state.stop || state.latest != Some(generation)
         };
         let run = match run_helper(&spec, deadline, &cancelled, &shared.stats) {
-            Ok(bytes) => match protocol::parse_report(&bytes, generation, gate) {
+            Ok(bytes) => match protocol::parse_report(&bytes, generation) {
                 Ok(parsed) => Run::Parsed(parsed),
                 Err(failure) => {
                     shared.stats.rejected.fetch_add(1, Ordering::Relaxed);

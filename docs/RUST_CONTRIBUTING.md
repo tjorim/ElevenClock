@@ -40,9 +40,9 @@ cargo +1.90.0 build --manifest-path rust/Cargo.toml -p clock-app --release --tar
 Repeat with `+stable`. Double-click the resulting `clock-app.exe` for the native
 runtime and Settings shell. It has no command suite. Closing Settings keeps the
 clock running in the background; **Exit ElevenClock** quits (R08, see
-[its record](windows-evidence/R08.md)). While this is a work in progress the overlay
-gate is open (`taskbar::gate`): the experimental R02 candidate places the clock, and
-P1 is still NO-GO (#23), so expect rough edges.
+[its record](windows-evidence/R08.md)). This is a work in progress with no
+release: the experimental R02 candidate places the clock overlay, and P1 is still
+NO-GO (#23), so expect rough edges.
 `rust-ci.yml` checks the GUI subsystem, embedded manifest, native launch/close
 and forward/reverse dialog focus. Its development harness captures the actual
 dialog and records runner OS/build/DPI as prototype evidence. The environment
@@ -171,7 +171,7 @@ discovery helper is the same executable started with a private marker
 cargo +1.90.0 test --manifest-path rust/Cargo.toml -p clock-windows --locked
 ```
 
-There is no feature flag for overlays any more; `Gate::current()` returns
-`Gate::Experimental`, and `Gate::Closed` stays as the fail-safe mode the tests use.
+There is no feature flag or support gate for overlays: the experimental candidate is
+always used, after geometric validation of its rectangle.
 Hosted lifecycle evidence: `scripts/test-rust-lifecycle.ps1` via
 [runtime-lifecycle.yml](../.github/workflows/runtime-lifecycle.yml).

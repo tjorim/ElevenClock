@@ -166,7 +166,7 @@ impl Platform for Fake {
 }
 
 fn runtime(monitors: Monitors) -> Runtime<Fake> {
-    let mut runtime = Runtime::new(Fake::new(), prefs(monitors), Gate::Experimental);
+    let mut runtime = Runtime::new(Fake::new(), prefs(monitors));
     runtime.start();
     runtime
 }
@@ -206,7 +206,7 @@ fn paints(calls: &[Call]) -> usize {
 
 #[test]
 fn start_reads_time_once_requests_discovery_and_arms_both_timers() {
-    let mut runtime = Runtime::new(Fake::new(), prefs(Monitors::All), Gate::Experimental);
+    let mut runtime = Runtime::new(Fake::new(), prefs(Monitors::All));
     runtime.start();
     let calls = take(&mut runtime);
     assert_eq!(
@@ -250,21 +250,6 @@ fn primary_mode_paints_only_the_primary_and_explains_the_other() {
         OverlayState::Hidden(clock_core::HiddenReason::Paused)
     );
     assert_eq!(secondary.reason, Some(Reason::NotShown));
-}
-
-#[test]
-fn a_closed_gate_discovers_taskbars_but_never_creates_an_overlay() {
-    let mut runtime = Runtime::new(Fake::new(), prefs(Monitors::All), Gate::Closed);
-    runtime.start();
-    discover(&mut runtime, 0, vec![bar(0, 1, false), bar(0, 2, false)]);
-    assert!(runtime.platform.overlays.is_empty());
-    let diagnostics = runtime.diagnostics();
-    assert_eq!(diagnostics.gate, Gate::Closed);
-    assert_eq!(diagnostics.taskbars.len(), 2);
-    for taskbar in diagnostics.taskbars {
-        assert_eq!(taskbar.state, OverlayState::Unavailable);
-        assert_eq!(taskbar.reason, Some(Reason::ClockPositionUnverified));
-    }
 }
 
 #[test]

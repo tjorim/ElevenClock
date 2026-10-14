@@ -15,10 +15,7 @@
 use clock_core::ShellGeneration;
 use clock_windows::{
     runtime::{DiscoveryFailure, DiscoveryReport},
-    taskbar::{
-        gate::Gate,
-        worker::{DiscoveryWorker, HelperSpec, SpecFactory, Stats},
-    },
+    taskbar::worker::{DiscoveryWorker, HelperSpec, SpecFactory, Stats},
 };
 use std::{
     io::Write,
@@ -95,7 +92,6 @@ fn run_parent(args: &[String]) -> ! {
     let pid_file = PathBuf::from(&args[0]);
     let worker = DiscoveryWorker::spawn(
         factory(|_| ("stall", 0), Some(pid_file)),
-        Gate::Closed,
         Duration::from_secs(120),
         Box::new(|| {}),
     )
@@ -146,7 +142,6 @@ fn harness(
     let counter = Arc::clone(&notified);
     let worker = DiscoveryWorker::spawn(
         factory(plan, pid_file),
-        Gate::Closed,
         deadline,
         Box::new(move || {
             counter.fetch_add(1, Ordering::SeqCst);
@@ -303,8 +298,8 @@ fn a_current_generation_report_is_published_with_native_handles_kept_private() {
     assert_eq!(reports[0].generation, ShellGeneration(4));
     let snapshots = reports[0].outcome.as_ref().expect("valid report");
     assert_eq!(snapshots.len(), 2);
-    // Gate::Closed: whatever the helper claims, no clock rectangle is produced.
-    assert!(snapshots.iter().all(|s| s.clock_rect.is_none()));
+    // The fixture's clock record is geometrically valid, so it is accepted.
+    assert!(snapshots.iter().all(|s| s.clock_rect.is_some()));
     assert_eq!(h.worker.handle_for(snapshots[1].key), Some(0x10002));
     assert!(h.notified.load(Ordering::SeqCst) >= 1);
     assert_eq!(h.stat(|s| &s.spawned), 1);

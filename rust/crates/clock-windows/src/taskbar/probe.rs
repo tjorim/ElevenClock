@@ -224,8 +224,8 @@ pub fn collect(generation: ShellGeneration) -> windows::core::Result<Vec<Taskbar
     collect_with(generation, true)
 }
 
-/// `with_uia = false` skips the blocking UI Automation inventory entirely, which is
-/// what the closed support gate uses: native queries only.
+/// `with_uia = false` skips the blocking UI Automation inventory entirely and
+/// gives native queries only (the fixture and native-only helper mode).
 pub fn collect_with(
     generation: ShellGeneration,
     with_uia: bool,

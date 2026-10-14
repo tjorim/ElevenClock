@@ -1,7 +1,7 @@
 # ADR 0002: same-executable discovery helper for the app runtime
 
 Date: 2026-10-14. Work item: [R08 / #9](https://github.com/tjorim/ElevenClock/issues/9).
-Status: **implemented for review; the overlay gate is open for the work-in-progress build (P1 is still NO-GO)**.
+Status: **implemented for review; work in progress (P1 is still NO-GO, so overlay placement is experimental)**.
 Amends [ADR 0001](0001-taskbar-discovery.md), which required this arrangement to be
 implemented and reviewed for `clock-app` before downstream use.
 
@@ -47,13 +47,13 @@ in the process list and cannot be inherited by accident into unrelated children.
   rejected as a whole.
 * Process exit (any path) closes the job, which kills a surviving helper.
 
-## Support gate
+## Discovery mode
 
-With the gate closed (a fail-safe mode) the handshake selects *native-only* discovery:
-no UIA, no COM, no clock rectangle in any report the parent accepts. With the gate open
-(`Gate::current()` today) the handshake selects the UIA inventory and the experimental
-R02 candidate may supply a rectangle after the same geometric validation as R02. There
-is no build flag; switching the gate is a one-line change in `taskbar::gate`.
+The handshake also selects the helper's discovery mode. The parent always requests
+`r08-go:uia`, so the UIA inventory runs and the experimental R02 candidate may supply a
+clock rectangle after the same geometric validation as R02; the parent decides, never
+the helper. The `r08-go:native` mode (no UIA, no COM) remains for supervision tests whose
+fixture process cannot run UIA. There is no build flag or runtime gate.
 
 ## Residual risks and review points
 

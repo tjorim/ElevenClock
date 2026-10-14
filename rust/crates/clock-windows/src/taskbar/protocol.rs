@@ -4,8 +4,7 @@
 //! value-only JSON crosses the process boundary. The parent trusts none of it:
 //! the envelope must match the requested generation, sizes are bounded, rectangles
 //! are re-validated through `PhysicalRect::new`, and a clock rectangle is only
-//! produced when the support [`Gate`] allows it.
-use super::gate::Gate;
+//! accepted after the same geometric validation as R02.
 use crate::runtime::{DiscoveryFailure, ShellIdentity};
 use clock_core::{
     DiscoveryStrategy, MonitorId, PhysicalRect, ShellGeneration, TaskbarId, TaskbarKey,
@@ -94,11 +93,10 @@ fn rejected(why: &str) -> DiscoveryFailure {
     DiscoveryFailure::Rejected(why.into())
 }
 
-/// Decide a taskbar's clock rectangle. With the gate closed this is always
-/// `None`, whatever the helper claims: the support decision is the parent's, not
-/// the helper's (see `taskbar::gate`).
+/// Decide a taskbar's clock rectangle: geometric validation only, the
+/// identity of the candidate remains experimental. The decision is the parent's,
+/// not the helper's.
 fn clock_rect(
-    gate: Gate,
     snapshot: &TaskbarSnapshot,
     generation: ShellGeneration,
     record: Option<&ClockRecord>,
@@ -106,37 +104,27 @@ fn clock_rect(
     let Some(record) = record else {
         return Ok(None);
     };
-    match gate {
-        Gate::Closed => Ok(None),
-        Gate::Experimental => {
-            if record.adjacent.len() > MAX_ADJACENT {
-                return Err(rejected("too many neighbouring controls"));
-            }
-            let candidate = rect_from_wire(record.rect)?;
-            let adjacent = record
-                .adjacent
-                .iter()
-                .map(|wire| rect_from_wire(*wire))
-                .collect::<Result<Vec<_>, _>>()?;
-            // Geometric validation only; identity remains experimental.
-            Ok(super::geometry::validate_candidate(
-                snapshot,
-                generation,
-                candidate,
-                &adjacent,
-                record.exclusions_complete,
-            )
-            .ok()
-            .map(|()| candidate))
-        }
+    if record.adjacent.len() > MAX_ADJACENT {
+        return Err(rejected("too many neighbouring controls"));
     }
+    let candidate = rect_from_wire(record.rect)?;
+    let adjacent = record
+        .adjacent
+        .iter()
+        .map(|wire| rect_from_wire(*wire))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(super::geometry::validate_candidate(
+        snapshot,
+        generation,
+        candidate,
+        &adjacent,
+        record.exclusions_complete,
+    )
+    .ok()
+    .map(|()| candidate))
 }
 
-pub fn parse_report(
-    bytes: &[u8],
-    requested: ShellGeneration,
-    gate: Gate,
-) -> Result<Parsed, DiscoveryFailure> {
+pub fn parse_report(bytes: &[u8], requested: ShellGeneration) -> Result<Parsed, DiscoveryFailure> {
     if bytes.len() as u64 > MAX_OUTPUT_BYTES {
         return Err(rejected("oversized output"));
     }
@@ -174,13 +162,9 @@ pub fn parse_report(
             } else {
                 TaskbarVisibility::Hidden
             },
-            strategy: if gate.needs_uia() {
-                DiscoveryStrategy::UiAutomation
-            } else {
-                DiscoveryStrategy::NativeChildren
-            },
+            strategy: DiscoveryStrategy::UiAutomation,
         };
-        snapshot.clock_rect = clock_rect(gate, &snapshot, requested, record.clock.as_ref())?;
+        snapshot.clock_rect = clock_rect(&snapshot, requested, record.clock.as_ref())?;
         snapshots.push(snapshot);
         handles.push((key, record.hwnd));
     }
@@ -215,26 +199,17 @@ mod tests {
             }]
         })
     }
-    fn parse(
-        value: &serde_json::Value,
-        generation: u64,
-        gate: Gate,
-    ) -> Result<Parsed, DiscoveryFailure> {
-        parse_report(
-            value.to_string().as_bytes(),
-            ShellGeneration(generation),
-            gate,
-        )
+    fn parse(value: &serde_json::Value, generation: u64) -> Result<Parsed, DiscoveryFailure> {
+        parse_report(value.to_string().as_bytes(), ShellGeneration(generation))
     }
 
     #[test]
-    fn a_closed_gate_never_yields_a_clock_rectangle_even_for_a_perfect_candidate() {
-        let parsed = parse(&report(7), 7, Gate::Closed).unwrap();
+    fn a_perfect_candidate_yields_a_snapshot_with_its_identity_and_handle() {
+        let parsed = parse(&report(7), 7).unwrap();
         assert_eq!(parsed.snapshots.len(), 1);
-        assert_eq!(parsed.snapshots[0].clock_rect, None);
         assert_eq!(
             parsed.snapshots[0].strategy,
-            DiscoveryStrategy::NativeChildren
+            DiscoveryStrategy::UiAutomation
         );
         assert_eq!(
             parsed.shell,
@@ -247,8 +222,8 @@ mod tests {
     }
 
     #[test]
-    fn the_experimental_gate_still_requires_geometric_validation() {
-        let parsed = parse(&report(7), 7, Gate::Experimental).unwrap();
+    fn a_clock_rectangle_still_requires_geometric_validation() {
+        let parsed = parse(&report(7), 7).unwrap();
         assert_eq!(
             parsed.snapshots[0].clock_rect,
             Some(PhysicalRect::new(-120, 1032, 100, 48).unwrap())
@@ -262,7 +237,7 @@ mod tests {
         ] {
             let mut bad = report(7);
             bad["taskbars"][0]["clock"][field] = value;
-            let parsed = parse(&bad, 7, Gate::Experimental).unwrap();
+            let parsed = parse(&bad, 7).unwrap();
             assert_eq!(parsed.snapshots[0].clock_rect, None, "{field}");
         }
     }
@@ -270,19 +245,18 @@ mod tests {
     #[test]
     fn stale_and_foreign_envelopes_are_rejected() {
         assert!(matches!(
-            parse(&report(6), 7, Gate::Closed),
+            parse(&report(6), 7),
             Err(DiscoveryFailure::Rejected(_))
         ));
         let mut other_schema = report(7);
         other_schema["schema"] = json!(1);
-        assert!(parse(&other_schema, 7, Gate::Closed).is_err());
-        assert!(parse_report(b"", ShellGeneration(7), Gate::Closed).is_err());
-        assert!(parse_report(b"{not json", ShellGeneration(7), Gate::Closed).is_err());
+        assert!(parse(&other_schema, 7).is_err());
+        assert!(parse_report(b"", ShellGeneration(7)).is_err());
+        assert!(parse_report(b"{not json", ShellGeneration(7)).is_err());
         assert!(
             parse_report(
                 &vec![b' '; (MAX_OUTPUT_BYTES + 1) as usize],
-                ShellGeneration(7),
-                Gate::Closed
+                ShellGeneration(7)
             )
             .is_err()
         );
@@ -314,14 +288,14 @@ mod tests {
         for (index, mutate) in cases.iter().enumerate() {
             let mut value = report(7);
             mutate(&mut value);
-            assert!(parse(&value, 7, Gate::Closed).is_err(), "case {index}");
+            assert!(parse(&value, 7).is_err(), "case {index}");
         }
     }
 
     #[test]
     fn no_taskbars_and_no_shell_are_representable() {
         let value = json!({"schema": 2, "generation": 3, "shell": null, "taskbars": []});
-        let parsed = parse(&value, 3, Gate::Closed).unwrap();
+        let parsed = parse(&value, 3).unwrap();
         assert!(parsed.snapshots.is_empty());
         assert_eq!(parsed.shell, None);
     }

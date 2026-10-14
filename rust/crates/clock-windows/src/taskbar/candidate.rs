@@ -1,5 +1,5 @@
 //! The R02 *experimental* clock candidate, as a pure function over a UIA
-//! inventory (development builds only; see `taskbar::gate`).
+//! inventory (experimental: P1 is NO-GO, see #23).
 //!
 //! This reproduces what the hosted captures recorded and R03's spike used: a
 //! visible XAML `SystemTray.OmniButtonLeft` button owned by the shell whose
@@ -7,7 +7,7 @@
 //! (`OmniButtonRight`) and Show Desktop buttons as neighbours. It uses only
 //! locale-independent properties: never a localized Name, an ordinal or an offset.
 //! Passing it proves nothing about hit targets on untested configurations, which
-//! is why the gate that consumes it stays closed in production.
+//! is why it stays experimental until P1 is a GO.
 use clock_core::PhysicalRect;
 
 /// The inventory fields the selection needs; native types convert into this.

@@ -21,7 +21,6 @@ use crate::{
     render::{PaintOutcome, PaintRequest, RenderError, Renderer, WorstCase},
     settings::{PlatformError, SettingsWindow},
     taskbar::{
-        gate::Gate,
         probe::{current_shell, physical_rect},
         worker::{DEADLINE, DiscoveryWorker, TEARDOWN_LIMIT, same_executable},
     },
@@ -485,17 +484,15 @@ pub fn run<S: PreferencesStore>(
     launch: LaunchMode,
     instance: &InstanceGuard,
 ) -> Result<ExitReason, PlatformError> {
-    let gate = Gate::current();
     let settings = SettingsWindow::new()?;
     let host = HostWindow::create(&instance.names().window_title).map_err(start_error)?;
     let renderer = Renderer::new().map_err(|e| start_error(render_error(e)))?;
     let class = OverlayClass::register().map_err(start_error)?;
     let notifications = Notifications::install(host.hwnd).map_err(start_error)?;
     let target = host.hwnd.0 as usize;
-    let factory = same_executable(gate).map_err(|e| start_error(e.into()))?;
+    let factory = same_executable().map_err(|e| start_error(e.into()))?;
     let worker = DiscoveryWorker::spawn(
         factory,
-        gate,
         DEADLINE,
         Box::new(move || {
             // SAFETY: posting to the host window from the worker thread is the
@@ -525,7 +522,7 @@ pub fn run<S: PreferencesStore>(
         paint_state: None,
         repaint_epoch: REPAINT_EPOCH.load(Ordering::Relaxed),
     };
-    let mut runtime = Runtime::new(platform, session.active().clone(), gate);
+    let mut runtime = Runtime::new(platform, session.active().clone());
     runtime.start();
     if launch == LaunchMode::Interactive {
         settings.show_or_focus()?;

@@ -22,7 +22,6 @@
 use crate::{
     events::{RECOVERY_POLL, ShellEvent, Signal, TransitionPoll},
     render::{Overflow, WorstCase},
-    taskbar::gate::Gate,
     theme::{AppearanceTracker, SystemAppearance},
 };
 use chrono::{DateTime, FixedOffset};
@@ -164,8 +163,8 @@ pub enum Input {
 /// Why a taskbar has no visible clock overlay, for Settings and Support.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Reason {
-    /// No clock-only rectangle was proven for this taskbar (support gate closed,
-    /// or the shell exposed no verifiable clock). The native clock stays visible.
+    /// No clock-only rectangle was proven for this taskbar (the shell exposed
+    /// no verifiable clock). The native clock stays visible.
     ClockPositionUnverified,
     InvalidGeometry,
     /// Text does not fit the clock slot; this overlay is hidden, others unaffected.
@@ -185,7 +184,6 @@ pub struct TaskbarDiagnostic {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct Diagnostics {
-    pub gate: Gate,
     pub generation: ShellGeneration,
     pub taskbars: Vec<TaskbarDiagnostic>,
     pub last_discovery_failure: Option<DiscoveryFailure>,
@@ -212,7 +210,6 @@ impl Retry {
 pub struct Runtime<P: Platform> {
     platform: P,
     state: Option<State>,
-    gate: Gate,
     tracker: AppearanceTracker,
     theme_revision: u64,
     worst_case: WorstCase,
@@ -234,13 +231,12 @@ pub struct Runtime<P: Platform> {
 }
 
 impl<P: Platform> Runtime<P> {
-    pub fn new(mut platform: P, preferences: ValidatedPreferences, gate: Gate) -> Self {
+    pub fn new(mut platform: P, preferences: ValidatedPreferences) -> Self {
         let tracker = AppearanceTracker::new(platform.system_appearance());
         Self {
             worst_case: WorstCase::for_format(preferences.format()),
             platform,
             state: Some(State::new(preferences)),
-            gate,
             tracker,
             theme_revision: 0,
             shell: None,
@@ -350,7 +346,6 @@ impl<P: Platform> Runtime<P> {
             })
             .collect();
         Diagnostics {
-            gate: self.gate,
             generation: state.generation(),
             taskbars,
             last_discovery_failure: self.last_failure.clone(),
