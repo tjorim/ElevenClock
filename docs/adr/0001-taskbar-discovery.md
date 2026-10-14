@@ -3,6 +3,11 @@
 Date: 2026-10-14. Work item: [R02 / #3](https://github.com/tjorim/ElevenClock/issues/3).
 Status: **experimental isolation decision accepted; supported selector deferred**.
 
+Issue #3 now tracks the completed probe/hosted-feasibility milestone. The single
+[real-desktop acceptance follow-up #21](https://github.com/tjorim/ElevenClock/issues/21)
+owns the remaining checks and blocks production discovery/overlays until a GO
+is recorded. PR #20 remains the implementation review/merge vehicle.
+
 Windows 11 taskbars may expose the clock through native children, UI Automation,
 or a provider subtree whose bounds also include notification and Show Desktop
 controls. A taskbar rectangle or an accessibility button alone is insufficient

@@ -16,8 +16,9 @@ Developer probes/tests are not shipped as user tools.
 | Phase / item | Issue | Prerequisites |
 | --- | --- | --- |
 | P0 / R01 | [#2 — Bootstrap native Windows app, Rust contracts and CI](https://github.com/tjorim/ElevenClock/issues/2) | None |
-| P1 / R02 | [#3 — Probe native clock bounds and record a supported taskbar discovery strategy](https://github.com/tjorim/ElevenClock/issues/3) | [#2](https://github.com/tjorim/ElevenClock/issues/2) |
-| P1 / R03 | [#4 — Prove a non-activating clock overlay and native calendar access](https://github.com/tjorim/ElevenClock/issues/4) | [#3](https://github.com/tjorim/ElevenClock/issues/3) |
+| P1 / R02 feasibility | [#3 — Build taskbar discovery probe and record hosted feasibility evidence](https://github.com/tjorim/ElevenClock/issues/3) | [#2](https://github.com/tjorim/ElevenClock/issues/2) |
+| P1 / R02 desktop gate | [#21 — Complete real-desktop discovery acceptance on Windows 11 x64](https://github.com/tjorim/ElevenClock/issues/21) | [#3](https://github.com/tjorim/ElevenClock/issues/3), suitable x64/mixed-DPI desktops |
+| P1 / R03 | [#4 — Prove a non-activating clock overlay and native calendar access](https://github.com/tjorim/ElevenClock/issues/4) | [#3](https://github.com/tjorim/ElevenClock/issues/3); [#21](https://github.com/tjorim/ElevenClock/issues/21) GO before production overlay readiness |
 | P2 / R04 | [#5 — Implement validated datetime formatting and explicit ISO week-date presets](https://github.com/tjorim/ElevenClock/issues/5) | [#2](https://github.com/tjorim/ElevenClock/issues/2) |
 | P2 / R05 | [#6 — Implement private per-user preference persistence and recovery](https://github.com/tjorim/ElevenClock/issues/6) | [#2](https://github.com/tjorim/ElevenClock/issues/2), [#5](https://github.com/tjorim/ElevenClock/issues/5) |
 | P2 / R06 | [#7 — Implement deterministic scheduling and per-taskbar visibility state](https://github.com/tjorim/ElevenClock/issues/7) | [#2](https://github.com/tjorim/ElevenClock/issues/2) |
@@ -34,7 +35,7 @@ Developer probes/tests are not shipped as user tools.
 ## Phase gates
 
 - **P0:** #2 establishes contracts and checks. Start here.
-- **P1:** #3 and #4 prove the Explorer integration on recorded Windows builds. P3 remains blocked until the gate passes.
+- **P1:** #3 completes the probe/hosted-feasibility milestone. #21 owns the remaining native x64, mixed-DPI, hit-target and UIA failure checks; its GO and #4's overlay evidence are required before production Explorer integration. Completing #3 does not unblock that gate. Prototype experiments may progress independently.
 - **P2:** #5 and #7 can run independently after #2; #6 follows #5. This work can progress alongside P1.
 - **P3:** #8 → #9 → #10 produces a usable, recoverable native clock.
 - **P4:** #11 completes Settings; #12 in-app Support and #13 startup can then proceed independently.
@@ -46,6 +47,7 @@ Developer probes/tests are not shipped as user tools.
 flowchart TD
   R01["R01 / #2"]
   R02["R02 / #3"]
+  R02Desktop["R02 desktop GO / #21"]
   R03["R03 / #4"]
   R04["R04 / #5"]
   R05["R05 / #6"]
@@ -60,6 +62,9 @@ flowchart TD
   R14["R14 / #15"]
   R15["R15 / #16"]
   R01 --> R02
+  R02 --> R02Desktop
+  R02Desktop -->|production gate| R03
+  R02Desktop -->|production gate| R08
   R02 --> R03
   R01 --> R04
   R01 --> R05

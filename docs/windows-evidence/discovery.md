@@ -4,6 +4,13 @@ Status: **hosted desktop experiments pass; NO-GO for the complete Windows 11 x64
 support gate**. Actual remote desktop verification is now available, beyond Linux
 unit tests and cross-compilation. No verified clock rectangle is enabled.
 
+Tracking decision: [#3](https://github.com/tjorim/ElevenClock/issues/3) is the
+completed probe/hosted-feasibility milestone; implementation is in PR #20.
+All remaining desktop tasks below are consolidated in
+[#21](https://github.com/tjorim/ElevenClock/issues/21). That issue requires an
+evidence-backed GO before verified rectangles or dependent production overlays
+are enabled. Closing the feasibility milestone does not satisfy this gate.
+
 ## Recorded environments and results
 
 [R02 desktop run 38508357876](https://github.com/tjorim/ElevenClock/actions/runs/38508357876)
