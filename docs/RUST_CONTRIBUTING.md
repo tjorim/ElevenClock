@@ -110,7 +110,7 @@ probe commands and the unchecked Windows gate, and the
 [discovery ADR](adr/0001-taskbar-discovery.md) before any downstream use.
 
 When the local workspace is Linux, use the
-[hosted desktop workflow](../.github/workflows/taskbar-probe.yml) for actual
+[hosted desktop workflow](../.github/workflows/runtime-lifecycle.yml) for actual
 Win32/COM verification. It runs the same probe on Windows Server x64 and Windows
 11 ARM64 with native ARM64 and emulated x64 binaries, retaining screenshots,
 structured output, Explorer-restart observations and helper-lifetime results.

@@ -1,7 +1,7 @@
-name: R08 hosted runtime lifecycle
+name: R08 hosted runtime lifecycle (includes the R02 desktop evidence)
 on:
   pull_request:
-    paths: ['rust/**', 'scripts/test-rust-lifecycle.ps1', '.github/workflows/runtime-lifecycle.yml']
+    paths: ['rust/**', 'scripts/test-rust-lifecycle.ps1', 'scripts/test-rust-taskbar.ps1', '.github/workflows/runtime-lifecycle.yml']
   workflow_dispatch:
 concurrency:
   group: r08-lifecycle-${{ github.ref }}
@@ -21,7 +21,7 @@ jobs:
           - runner: windows-11-arm
             target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -29,9 +29,11 @@ jobs:
           targets: ${{ matrix.target }}
       - run: cargo +stable build --manifest-path rust/Cargo.toml -p clock-app --target ${{ matrix.target }} --locked
       - run: cargo +stable build --manifest-path rust/Cargo.toml -p clock-windows --example taskbar_probe --target ${{ matrix.target }} --locked
-      - name: Prepare and verify actual hosted desktop through R02
+      # R02 evidence (formerly its own workflow): prepares the hosted desktop, then
+      # real shell discovery, screenshots, Explorer restart and helper lifetime.
+      - name: R02 actual shell discovery, screenshots, restart and helper lifetime
         shell: pwsh
-        run: ./scripts/test-rust-taskbar.ps1 -PrepareHostedDesktop -ProbeTarget '${{ matrix.target }}' -Executable 'rust/target/${{ matrix.target }}/debug/examples/taskbar_probe.exe'
+        run: ./scripts/test-rust-taskbar.ps1 -RestartExplorer -PrepareHostedDesktop -ProbeTarget '${{ matrix.target }}' -Executable 'rust/target/${{ matrix.target }}/debug/examples/taskbar_probe.exe'
       - name: Lifecycle, second launch, close-to-background, Exit and Explorer restarts
         shell: pwsh
         run: ./scripts/test-rust-lifecycle.ps1 -Executable 'rust/target/${{ matrix.target }}/debug/clock-app.exe' -OutputDirectory 'native-evidence/lifecycle'
