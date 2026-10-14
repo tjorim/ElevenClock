@@ -765,8 +765,11 @@ mod imp {
                     .iter()
                     .find(|r| r["event"] == "end" && r["seq"] == *seq)
             });
-            let held_failed = held_end
-                .is_some_and(|e| e["ok"] == false && e["t"].as_u64().unwrap() >= kill_issued);
+            // The call was in flight when Explorer was terminated and returned only
+            // afterwards. Observed on hosted Windows: it returns S_OK (no error), so a
+            // UIA "success" is not proof the shell was alive; callers must re-check
+            // shell identity, which discovery does.
+            let outlived_death = held_end.is_some_and(|e| e["t"].as_u64().unwrap() >= kill_issued);
             let stale: Vec<&Value> = records
                 .iter()
                 .filter(|r| {
@@ -787,13 +790,20 @@ mod imp {
                 "shell_recovery_samples": recovery_samples,
                 "call_held_outstanding": held.as_ref().map(|(op, seq, t)| json!({"op": op, "seq": seq, "begin_micros": t, "held_for_ms": (kill_issued.saturating_sub(*t)) / 1000})),
                 "outstanding_call_result": held_end,
-                "outstanding_call_failed_at_death": held_failed,
+                "outstanding_call_returned_after_terminate": outlived_death,
+                "outstanding_call_hresult": held_end.map(|e| e["hresult"].clone()),
                 "retained_object_calls": stale,
                 "recovered_record": recovered,
                 "client_finished": finished,
             }));
             let fresh_shell = matches!((before, after), (Some(b), Some(a)) if b != a);
-            if held_failed && fresh_shell && recovered.is_some() {
+            let retained_all_failed = !stale.is_empty() && stale.iter().all(|r| r["ok"] == false);
+            if held.is_some()
+                && outlived_death
+                && retained_all_failed
+                && fresh_shell
+                && recovered.is_some()
+            {
                 correlated = true;
             }
             evidence(
