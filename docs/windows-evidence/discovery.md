@@ -6,10 +6,12 @@ unit tests and cross-compilation. No verified clock rectangle is enabled.
 
 Tracking decision: [#3](https://github.com/tjorim/ElevenClock/issues/3) is the
 completed probe/hosted-feasibility milestone; implementation is in PR #20.
-All remaining desktop tasks below are consolidated in
-[#21](https://github.com/tjorim/ElevenClock/issues/21). That issue requires an
-evidence-backed GO before verified rectangles or dependent production overlays
-are enabled. Closing the feasibility milestone does not satisfy this gate.
+Desktop variants blocked by hosted-runner limitations are consolidated in shared
+[#21](https://github.com/tjorim/ElevenClock/issues/21). Hosted-capable hit testing
+and UIA failure/lifetime work remain in #4/#9 and must be attempted in CI first.
+Required desktop and hosted evidence together determine the GO before verified
+rectangles or dependent production overlays are enabled. Closing the feasibility
+milestone does not satisfy this gate.
 
 ## Recorded environments and results
 
@@ -170,8 +172,8 @@ emulated x64 development probe builds passed in the hosted evidence workflow.
 - [x] Actual Windows jobs: three injected deadlines and confirmed stalled-helper parent loss, with no remaining helpers
 - [ ] Two stock **Windows 11 x64 OS builds**, with exact build/UBR records
 - [ ] Real mixed-DPI second display and negative-coordinate/topology observations
-- [ ] Independently verified complete neighboring hit-target inventory and supported selectors
-- [ ] Specific in-flight UIA stale-object behavior and actual stalled-provider measurements
+- [ ] Complete neighboring hit-target inventory and supported selectors: hosted automation in #4; unavailable native x64/mixed-DPI repetitions in #21
+- [ ] Specific in-flight UIA stale-object and blocked-provider measurements: hosted validation in #9, not deferred solely for lack of local Windows
 - [ ] Manual R02 go decision for downstream production discovery/overlay use
 
 A suitable native Windows 11 x64 VM or desktop with two independently scaled

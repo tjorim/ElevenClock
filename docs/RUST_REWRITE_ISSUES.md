@@ -17,7 +17,7 @@ Developer probes/tests are not shipped as user tools.
 | --- | --- | --- |
 | P0 / R01 | [#2 — Bootstrap native Windows app, Rust contracts and CI](https://github.com/tjorim/ElevenClock/issues/2) | None |
 | P1 / R02 feasibility | [#3 — Build taskbar discovery probe and record hosted feasibility evidence](https://github.com/tjorim/ElevenClock/issues/3) | [#2](https://github.com/tjorim/ElevenClock/issues/2) |
-| P1 / R02 desktop gate | [#21 — Complete real-desktop discovery acceptance on Windows 11 x64](https://github.com/tjorim/ElevenClock/issues/21) | [#3](https://github.com/tjorim/ElevenClock/issues/3), suitable x64/mixed-DPI desktops |
+| Shared desktop backlog (initial P1 / R02 gate) | [#21 — Desktop checks blocked by hosted-runner limitations](https://github.com/tjorim/ElevenClock/issues/21) | Source issue, documented hosted limitation, suitable desktop conditions |
 | P1 / R03 | [#4 — Prove a non-activating clock overlay and native calendar access](https://github.com/tjorim/ElevenClock/issues/4) | [#3](https://github.com/tjorim/ElevenClock/issues/3); [#21](https://github.com/tjorim/ElevenClock/issues/21) GO before production overlay readiness |
 | P2 / R04 | [#5 — Implement validated datetime formatting and explicit ISO week-date presets](https://github.com/tjorim/ElevenClock/issues/5) | [#2](https://github.com/tjorim/ElevenClock/issues/2) |
 | P2 / R05 | [#6 — Implement private per-user preference persistence and recovery](https://github.com/tjorim/ElevenClock/issues/6) | [#2](https://github.com/tjorim/ElevenClock/issues/2), [#5](https://github.com/tjorim/ElevenClock/issues/5) |
@@ -35,13 +35,17 @@ Developer probes/tests are not shipped as user tools.
 ## Phase gates
 
 - **P0:** #2 establishes contracts and checks. Start here.
-- **P1:** #3 completes the probe/hosted-feasibility milestone. #21 owns the remaining native x64, mixed-DPI, hit-target and UIA failure checks; its GO and #4's overlay evidence are required before production Explorer integration. Completing #3 does not unblock that gate. Prototype experiments may progress independently.
+- **P1:** #3 completes the probe/hosted-feasibility milestone. #21 owns unavailable native x64/mixed-DPI desktop variants; hosted hit testing and UIA failure/lifetime validation remain in #4/#9. Their combined GO and overlay evidence are required before production Explorer integration. Completing #3 does not unblock that gate. Prototype experiments may progress independently.
 - **P2:** #5 and #7 can run independently after #2; #6 follows #5. This work can progress alongside P1.
 - **P3:** #8 → #9 → #10 produces a usable, recoverable native clock.
 - **P4:** #11 completes Settings; #12 in-app Support and #13 startup can then proceed independently.
 - **P5:** #14 → #15 → #16 validates, packages and proposes the final cutover. Do not auto-merge main.
 
 ## Dependency graph
+
+Shared #21 can accept checks from other issues only after a documented hosted
+attempt/limitation; each entry names its own consumer gate. The graph below shows
+the initial R02 consumers, not a blanket dependency for all future rewrite work.
 
 ```mermaid
 flowchart TD

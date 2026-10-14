@@ -112,3 +112,18 @@ structured output, Explorer-restart observations and helper-lifetime results.
 Do not treat ARM64/x64 emulation as a native Windows 11 x64 OS, count two binaries
 on one OS build as two builds, or replace mixed-DPI evidence with a single display.
 The evidence record lists the exact verified environments and remaining gates.
+
+## Shared desktop acceptance backlog
+
+Use [#21](https://github.com/tjorim/ElevenClock/issues/21) across rewrite issues
+only for checks that cannot be meaningfully verified on an appropriate hosted
+runner. Try hosted Windows images and feasible harness/workflow changes first.
+Missing local Windows, an interactive UI requirement or an unimplemented harness
+does not justify deferral. Ordinary UI automation, hit testing, screenshots,
+keyboard access and controlled COM/UIA failure tests belong in hosted CI.
+
+Each deferred entry must link its source issue/acceptance criterion, hosted
+attempts or an established platform limitation, required desktop conditions,
+reproduction commands, expected evidence and the specific feature/release gate.
+Group tasks by source issue. Recheck capabilities/access and move a variant back
+to hosted CI when feasible; do not defer the entire issue or block unrelated work.

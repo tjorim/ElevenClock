@@ -4,9 +4,11 @@ Date: 2026-10-14. Work item: [R02 / #3](https://github.com/tjorim/ElevenClock/is
 Status: **experimental isolation decision accepted; supported selector deferred**.
 
 Issue #3 now tracks the completed probe/hosted-feasibility milestone. The single
-[real-desktop acceptance follow-up #21](https://github.com/tjorim/ElevenClock/issues/21)
-owns the remaining checks and blocks production discovery/overlays until a GO
-is recorded. PR #20 remains the implementation review/merge vehicle.
+[shared desktop acceptance backlog #21](https://github.com/tjorim/ElevenClock/issues/21)
+owns only variants blocked by documented hosted-runner limitations. Hosted-capable
+hit testing and UIA error/staleness/blocked-call work remain in #4/#9. Both forms
+of evidence are required for production discovery/overlay GO. PR #20 remains the
+implementation review/merge vehicle.
 
 Windows 11 taskbars may expose the clock through native children, UI Automation,
 or a provider subtree whose bounds also include notification and Show Desktop
