@@ -6,14 +6,18 @@ Status: **experimental isolation decision accepted; supported selector deferred*
 Windows 11 taskbars may expose the clock through native children, UI Automation,
 or a provider subtree whose bounds also include notification and Show Desktop
 controls. A taskbar rectangle or an accessibility button alone is insufficient
-proof of a clock-only hit target. No stock Windows desktop is attached to this
-Linux development environment, so neither discovery strategy has been verified.
+proof of a clock-only hit target. No stock Windows x64 desktop is attached to this Linux environment. Hosted
+Server x64 and Windows 11 ARM64 native/emulated experiments are now recorded,
+but do not satisfy the two-stock-x64-build and mixed-DPI gate.
 
-The development probe inventories both strategies. Native observations use
-window classes and physical rectangles; UIA observations use AutomationId,
+The development probe inventories both strategies. Native observations use bounded direct class lookup as well as EnumWindows,
+with physical rectangles; UIA observations use AutomationId,
 ClassName, FrameworkId, ControlType, ProcessId, IsOffscreen and rectangles.
 It never reads localized Name properties, invokes controls, alters Explorer,
-or derives a clock slot from offsets. Actual successful selectors remain empty.
+or derives a clock slot from offsets. The recorded experimental UIA candidate is a XAML OmniButtonLeft containing
+TimeInnerTextBlock and DateInnerTextBlock IDs. It fits measured sibling rectangles
+on the recorded hosted desktops. Supported selectors remain empty until the full
+x64/mixed-DPI and independent hit-target gate passes.
 
 Until the evidence gate passes, `verified_clock_rect` always rejects a candidate
 and every probe snapshot has `clock_rect: None`. Geometric validation checks
@@ -66,3 +70,11 @@ use.** The probe and portable validation can be reviewed now. Two stock Windows
 11 x64 builds, mixed-DPI displays, successful selector/exclusion evidence,
 Explorer-restart results and Windows job teardown remain mandatory. See the
 [evidence record and reproduction procedure](../windows-evidence/discovery.md).
+
+Hosted follow-up: the three jobs in run 38508357876 pass on native Server x64,
+native Windows 11 ARM64 and emulated x64 on that same ARM64 build. They record
+real discovery, screenshots, Explorer failure/recovery and Windows job teardown
+with confirmed injected stalls. This validates the development isolation decision
+on those environments without asserting actual COM cancellation, two Windows 11
+x64 OS builds, mixed DPI or complete hit-target proof. The GUI app still needs
+its own reviewed helper activation/lifetime implementation before production use.
