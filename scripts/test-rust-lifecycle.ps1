@@ -29,6 +29,20 @@ public static class Lifecycle {
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr FindWindowW(string className, string title);
     [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr dialog, int id);
     [DllImport("user32.dll")] public static extern IntPtr SendMessageW(IntPtr window, uint message, IntPtr wparam, IntPtr lparam);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowTextW(IntPtr window, StringBuilder text, int count);
+    // Diagnostic: every top-level window of a process, as "class | title | visible".
+    public static string[] Describe(uint process) {
+        var found = new List<string>();
+        EnumWindows((window, parameter) => {
+            uint owner; GetWindowThreadProcessId(window, out owner);
+            if (owner != process) return true;
+            var cls = new StringBuilder(128); var title = new StringBuilder(256);
+            GetClassNameW(window, cls, cls.Capacity); GetWindowTextW(window, title, title.Capacity);
+            found.Add(cls + " | " + title + " | " + (IsWindowVisible(window) ? "visible" : "hidden"));
+            return true;
+        }, IntPtr.Zero);
+        return found.ToArray();
+    }
     public static int Count(uint process, string className, bool visibleOnly) {
         int count = 0;
         EnumWindows((window, parameter) => {
@@ -78,11 +92,14 @@ $app = $null
 try {
     # 1. Quiet (login-style) start: the clock runs without opening Settings.
     $app = Start-Process $exe -ArgumentList '--startup' -PassThru
-    Start-Sleep -Seconds 3
+    $deadline = [DateTime]::UtcNow.AddSeconds(15)
+    while ([Lifecycle]::FindWindowW('ElevenClock.Runtime.Host', $null) -eq [IntPtr]::Zero -and !$app.HasExited -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 200 }
+    Start-Sleep -Seconds 2
     $app.Refresh()
-    if ($app.HasExited) { throw 'Quiet startup exited' }
+    $results.steps.startupWindows = @([Lifecycle]::Describe([uint32]$app.Id))
+    if ($app.HasExited) { throw "Quiet startup exited with code $($app.ExitCode)" }
     if ($app.MainWindowHandle -ne 0) { throw 'Quiet startup must not open Settings' }
-    if ([Lifecycle]::FindWindowW('ElevenClock.Runtime.Host', $null) -eq [IntPtr]::Zero) { throw 'Runtime host window missing' }
+    if ([Lifecycle]::FindWindowW('ElevenClock.Runtime.Host', $null) -eq [IntPtr]::Zero) { throw "Runtime host window missing; windows: $($results.steps.startupWindows -join '; ')" }
     $results.steps.quietStart = 'Process running, no Settings window, host window present'
 
     # 2. Idle: at most the app plus one discovery helper at any time.
