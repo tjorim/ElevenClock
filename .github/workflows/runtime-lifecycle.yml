@@ -34,9 +34,11 @@ jobs:
       - name: R02 actual shell discovery, screenshots, restart and helper lifetime
         shell: pwsh
         run: ./scripts/test-rust-taskbar.ps1 -RestartExplorer -PrepareHostedDesktop -ProbeTarget '${{ matrix.target }}' -Executable 'rust/target/${{ matrix.target }}/debug/examples/taskbar_probe.exe'
+      # -ObserveOverlays only records overlay counts; the gate is open (work in
+      # progress, P1 still NO-GO), so those counts are evidence, not acceptance.
       - name: Lifecycle, second launch, close-to-background, Exit and Explorer restarts
         shell: pwsh
-        run: ./scripts/test-rust-lifecycle.ps1 -Executable 'rust/target/${{ matrix.target }}/debug/clock-app.exe' -OutputDirectory 'native-evidence/lifecycle'
+        run: ./scripts/test-rust-lifecycle.ps1 -Executable 'rust/target/${{ matrix.target }}/debug/clock-app.exe' -OutputDirectory 'native-evidence/lifecycle' -ObserveOverlays
       # Real UI Automation calls against a controlled provider (hung, killed mid-call,
       # retained elements) and, with ELEVENCLOCK_UIA_EXPLORER, against real Explorer
       # killed while a taskbar call is outstanding. Evidence JSON is uploaded.
@@ -46,15 +48,6 @@ jobs:
           ELEVENCLOCK_UIA_EXPLORER: '1'
           ELEVENCLOCK_EVIDENCE_DIR: native-evidence/uia
         run: cargo +stable test --manifest-path rust/Cargo.toml -p clock-windows --test uia_lifetime --target ${{ matrix.target }} --locked
-      # Development-only build that lets the unverified R02 candidate create an
-      # overlay. Informational: P1 is NO-GO, so this is evidence, not acceptance.
-      - name: Overlay observation with the unverified-overlays development build
-        if: matrix.target == 'x86_64-pc-windows-msvc' && matrix.runner == 'windows-2025'
-        continue-on-error: true
-        shell: pwsh
-        run: |
-          cargo +stable build --manifest-path rust/Cargo.toml -p clock-app --features unverified-overlays --target-dir rust/target-dev --target ${{ matrix.target }} --locked
-          ./scripts/test-rust-lifecycle.ps1 -Executable 'rust/target-dev/${{ matrix.target }}/debug/clock-app.exe' -OutputDirectory 'native-evidence/lifecycle-dev-overlays' -ObserveOverlays
       - uses: actions/upload-artifact@v4
         if: always()
         with:

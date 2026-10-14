@@ -6,11 +6,6 @@ rust-version.workspace = true
 publish.workspace = true
 license-file.workspace = true
 
-[features]
-# Development experiments only; never enable for a release build. See
-# clock-windows::taskbar::gate and docs/windows-evidence/R08.md.
-unverified-overlays = ["clock-windows/unverified-overlays"]
-
 [target.'cfg(windows)'.dependencies]
 clock-core.workspace = true
 clock-windows.workspace = true

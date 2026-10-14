@@ -74,11 +74,19 @@ jobs:
         if: matrix.toolchain == 'stable'
         shell: powershell
         run: ./scripts/test-rust-ui-environment.ps1
+      # A build you can run. The overlay gate is open (work in progress, P1 still
+      # NO-GO, see #23), so expect rough edges. x64 only; not a release package.
+      - uses: actions/upload-artifact@v4
+        if: matrix.toolchain == 'stable'
+        with:
+          name: elevenclock-dev-x64
+          retention-days: 30
+          path: rust/target/x86_64-pc-windows-msvc/release/clock-app.exe
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always() && matrix.toolchain == 'stable'
         with:
-          # Evidence only (Settings/UI smoke captures). The placeholder app binary is
-          # deliberately not published; releases come from R14.
+          # Evidence only (Settings/UI smoke captures).
           name: windows-ui-evidence
           retention-days: 14
           path: native-evidence/

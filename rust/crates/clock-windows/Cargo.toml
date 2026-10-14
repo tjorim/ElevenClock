@@ -9,9 +9,6 @@ license-file.workspace = true
 [features]
 default = []
 overlay-spike = []
-# Development experiments only: lets the R02 *unverified* UIA candidate supply a
-# clock rectangle. Never enabled in release builds (see taskbar::gate).
-unverified-overlays = []
 
 [dependencies]
 chrono.workspace = true

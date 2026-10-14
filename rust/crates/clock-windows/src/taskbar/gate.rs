@@ -1,30 +1,26 @@
-//! The production support gate for taskbar clock rectangles (R02 / R03 / #21).
+//! The support gate for taskbar clock rectangles (R02 / R03 / #21).
 //!
-//! P1 is NO-GO: Explorer-restart coverage recovery failed on every hosted profile
-//! and the stock Windows 11 x64 / mixed-DPI evidence is missing. Until an
-//! evidence-backed GO is recorded, the runtime performs discovery and reconciles
-//! every event, but no snapshot ever carries a clock rectangle, so the reducer
-//! creates no overlay and the native clock stays untouched.
+//! The project is a work in progress with no released build, so the gate is open:
+//! the runtime uses the R02 *experimental* UIA candidate (after geometric
+//! validation) to place the clock overlay. P1 is still NO-GO (#23: overlay coverage
+//! after an Explorer restart is not reliable), so expect rough edges.
 //!
-//! Opening the gate is deliberately a compile-time development decision: the
-//! `unverified-overlays` feature exists for hosted/desktop experiments and must
-//! never be enabled for a release build.
+//! `Gate::Closed` is kept as the fail-safe mode: with it the parent never accepts a
+//! clock rectangle whatever the helper claims, so the reducer creates no overlay and
+//! the native clock is untouched. Tests exercise it, and a release can switch
+//! [`Gate::current`] back to it.
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Gate {
-    /// Production behaviour: clock rectangles are never produced.
+    /// Clock rectangles are never produced (fail-safe).
     Closed,
-    /// Development builds only: the R02 *experimental* UIA candidate may supply a
-    /// rectangle after geometric validation. Not a supported selector.
+    /// The R02 experimental UIA candidate may supply a rectangle after geometric
+    /// validation. Not a supported selector.
     Experimental,
 }
 impl Gate {
     pub const fn current() -> Self {
-        if cfg!(feature = "unverified-overlays") {
-            Self::Experimental
-        } else {
-            Self::Closed
-        }
+        Self::Experimental
     }
     /// Whether discovery needs the (expensive, blocking-provider) UIA inventory.
     pub const fn needs_uia(self) -> bool {
@@ -36,12 +32,9 @@ impl Gate {
 mod tests {
     use super::*;
     #[test]
-    fn the_default_build_keeps_the_gate_closed() {
-        if !cfg!(feature = "unverified-overlays") {
-            assert_eq!(Gate::current(), Gate::Closed);
-            assert!(!Gate::current().needs_uia());
-        } else {
-            assert_eq!(Gate::current(), Gate::Experimental);
-        }
+    fn the_work_in_progress_build_uses_the_experimental_candidate() {
+        assert_eq!(Gate::current(), Gate::Experimental);
+        assert!(Gate::current().needs_uia());
+        assert!(!Gate::Closed.needs_uia());
     }
 }

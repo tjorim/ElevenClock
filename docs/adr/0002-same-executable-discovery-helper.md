@@ -1,7 +1,7 @@
 # ADR 0002: same-executable discovery helper for the app runtime
 
 Date: 2026-10-14. Work item: [R08 / #9](https://github.com/tjorim/ElevenClock/issues/9).
-Status: **implemented for review; production overlays stay disabled by the P1 gate**.
+Status: **implemented for review; the overlay gate is open for the work-in-progress build (P1 is still NO-GO)**.
 Amends [ADR 0001](0001-taskbar-discovery.md), which required this arrangement to be
 implemented and reviewed for `clock-app` before downstream use.
 
@@ -49,11 +49,11 @@ in the process list and cannot be inherited by accident into unrelated children.
 
 ## Support gate
 
-With the gate closed (the shipped configuration) the handshake selects *native-only*
-discovery: no UIA, no COM, no clock rectangle in any report the parent accepts. The
-`unverified-overlays` development feature selects the UIA inventory and lets the
-experimental R02 candidate supply a rectangle after the same geometric validation as
-R02. It must never be enabled for a release build. See `taskbar::gate`.
+With the gate closed (a fail-safe mode) the handshake selects *native-only* discovery:
+no UIA, no COM, no clock rectangle in any report the parent accepts. With the gate open
+(`Gate::current()` today) the handshake selects the UIA inventory and the experimental
+R02 candidate may supply a rectangle after the same geometric validation as R02. There
+is no build flag; switching the gate is a one-line change in `taskbar::gate`.
 
 ## Residual risks and review points
 

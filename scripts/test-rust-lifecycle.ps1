@@ -4,9 +4,8 @@
 # start, second launch, close-to-background, Exit, and (optionally) Explorer
 # kill/restart while measuring processes, threads and handles. It uses only
 # public process/window state: the product has no command suite or debug channel.
-# Overlay observation (-ObserveOverlays) is informational evidence for the
-# development-only `unverified-overlays` build; the production gate is closed and
-# creates no overlay, so it is never an acceptance check.
+# Overlay observation (-ObserveOverlays) is informational evidence: P1 is still
+# NO-GO (#23), so overlay counts are recorded but never an acceptance check.
 param(
     [string]$Executable = 'rust/target/x86_64-pc-windows-msvc/debug/clock-app.exe',
     [string]$OutputDirectory = 'native-evidence/lifecycle',
