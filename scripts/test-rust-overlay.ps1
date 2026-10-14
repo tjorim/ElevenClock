@@ -5,7 +5,7 @@ param(
     [string]$ProbeTarget = 'x86_64-pc-windows-msvc'
 )
 $ErrorActionPreference = 'Stop'
-Add-Type -AssemblyName System.Drawing, System.Windows.Forms, UIAutomationClient, UIAutomationTypes
+Add-Type -AssemblyName System.Drawing, System.Windows.Forms, UIAutomationClient, UIAutomationTypes, WindowsBase
 Add-Type @'
 using System;
 using System.Runtime.InteropServices;
@@ -104,6 +104,10 @@ try {
     $fixture=New-Object Windows.Forms.Form
     $fixture.Text='R03 foreground fixture';$fixture.StartPosition='Manual';$fixture.Bounds=New-Object Drawing.Rectangle(100,100,480,320)
     $fixture.Show();[Windows.Forms.Application]::DoEvents();[OverlayEvidence]::SetForegroundWindow($fixture.Handle)|Out-Null
+    # Establish foreground with a real title-bar click outside the hosted Start
+    # menu's bounds. SetForegroundWindow can be denied by the foreground lock.
+    [OverlayEvidence]::Click(150,115);[Windows.Forms.Application]::DoEvents()
+    if ([OverlayEvidence]::GetForegroundWindow() -ne $fixture.Handle) {throw 'Could not establish foreground fixture before prototype launch'}
     $p=Start-Spike 'primary' 'primary-win-n'
     $h=Wait-Overlay $true
     $point=Clock-Point $h
@@ -128,11 +132,25 @@ try {
     foreach ($key in @(0x5b,0x5c,0x4e)) {if ([OverlayEvidence]::GetAsyncKeyState($key) -lt 0) {throw 'Injected shortcut left a key down'}}
     $context.results.calendar=[ordered]@{actions=$actions; oneAction=$true; noStuckKeys=$true; visualAcceptance='Pending screenshot inspection'}
     Stop-Spike $p;$p=$null;Capture 'forced-termination-native'
-    $native=[Windows.Automation.AutomationElement]::FromPoint((New-Object Windows.Point($point[0],$point[1])))
+    $native=[Windows.Automation.AutomationElement]::FromPoint(([System.Windows.Point]::new($point[0],$point[1])))
     $context.results.forcedTermination=[ordered]@{noRemainingProcesses=$true;nativeHitClass=$native.Current.ClassName;nativeHitProcess=$native.Current.ProcessId}
     if ($native.Current.ProcessId -eq $PID) {throw 'Native clock not restored'}
     # Close the flyout by clicking our ordinary fixture before more discovery.
     [OverlayEvidence]::Click(200,200)
+    # Test a separate deliberate keyboard strategy: never retry an ambiguous
+    # UIA invoke with keyboard input on the same click.
+    [OverlayEvidence]::Click(150,115)
+    $p=Start-Spike 'keyboard-calendar' 'primary-keyboard';$h=Wait-Overlay $true
+    $keyboardPoint=Clock-Point $h
+    [OverlayEvidence]::Click($keyboardPoint[0],$keyboardPoint[1]);Start-Sleep -Seconds 2
+    Capture 'calendar-keyboard'
+    $keyboardReport=Get-Content (Join-Path $output 'keyboard-calendar.json') -Raw|ConvertFrom-Json
+    $keyboardActions=@($keyboardReport.reports.result.action|Where-Object {$_})
+    if ($keyboardActions.Count -ne 1 -or $keyboardActions[0] -ne 'win_n_once') {throw 'Separate deliberate keyboard click did not produce exactly one Win+N'}
+    foreach ($key in @(0x5b,0x5c,0x4e)) {if ([OverlayEvidence]::GetAsyncKeyState($key) -lt 0) {throw 'Keyboard strategy left a key down'}}
+    $context.results.keyboardCalendar=[ordered]@{actions=$keyboardActions;oneAction=$true;noStuckKeys=$true;separateClickFromUia=$true;visualAcceptance='Pending screenshot inspection'}
+    Stop-Spike $p;$p=$null
+    [OverlayEvidence]::Click(150,115)
     $p=Start-Spike 'all' 'all-win-n';$h=Wait-Overlay $true;Capture 'all-visible'
     $context.results.allDisplays=[ordered]@{availableDisplays=[Windows.Forms.Screen]::AllScreens.Count; claimedMixedDpi=$false}
     # Actual auto-hide state on an ephemeral hosted desktop, restored in finally.
@@ -191,7 +209,7 @@ try {
     foreach ($node in $neighbors) {
         $neighborIndex++
         $r=$node.Current.BoundingRectangle;$x=[int]($r.X+$r.Width/2);$y=[int]($r.Y+$r.Height/2)
-        $hit=[Windows.Automation.AutomationElement]::FromPoint((New-Object Windows.Point($x,$y)))
+        $hit=[Windows.Automation.AutomationElement]::FromPoint(([System.Windows.Point]::new($x,$y)))
         if ($hit.Current.ProcessId -eq $p.Id) {throw 'Overlay obstructs neighboring control'}
         $context.results.neighbors+= [ordered]@{class=$node.Current.ClassName;hitClass=$hit.Current.ClassName;hitProcess=$hit.Current.ProcessId;point=@($x,$y)}
         [OverlayEvidence]::Click($x,$y);Start-Sleep -Milliseconds 750;Capture "neighbor-$neighborIndex"

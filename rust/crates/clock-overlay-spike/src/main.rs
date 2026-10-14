@@ -149,7 +149,7 @@ mod experiment {
             let action = (|| -> Result<Value, Error> {
                 if request["action"] == "invoke" {
                     let slot = decode(&request["slot"])?;
-                    Ok(json!({"action": prototype_interaction::invoke(&slot, request["fallback"].as_bool().unwrap_or(false))?}))
+                    Ok(json!({"action": prototype_interaction::invoke(&slot, request["fallback"].as_bool().unwrap_or(false), request["keyboard_only"].as_bool().unwrap_or(false))?}))
                 } else {
                     if std::env::var_os("ELEVENCLOCK_R03_REJECT_DISCOVERY").is_some() {
                         return Err("Injected unsupported-discovery result; no geometry accepted".into());
@@ -166,7 +166,12 @@ mod experiment {
         if args.len() != 3
             || !matches!(
                 args[2].as_str(),
-                "primary" | "all" | "primary-win-n" | "all-win-n"
+                "primary"
+                    | "all"
+                    | "primary-win-n"
+                    | "all-win-n"
+                    | "primary-keyboard"
+                    | "all-keyboard"
             )
         {
             return Err("Development usage: overlay_spike evidence.json seconds primary|all|primary-win-n|all-win-n".into());
@@ -178,6 +183,7 @@ mod experiment {
         let path = std::path::PathBuf::from(&args[0]);
         let all = args[2].starts_with("all");
         let fallback = args[2].ends_with("win-n");
+        let keyboard_only = args[2].ends_with("keyboard");
         let (tx, rx) = mpsc::sync_channel(1);
         let (observation_tx, observation_rx) = mpsc::sync_channel::<String>(128);
         let (click_tx, click_rx) = mpsc::sync_channel::<ExperimentSlot>(1);
@@ -192,7 +198,7 @@ mod experiment {
                 let click = click_rx.try_recv().ok();
                 let request = match &click {
                     Some(slot) => {
-                        json!({"sequence":sequence,"action":"invoke","slot":encode(slot),"fallback":fallback})
+                        json!({"sequence":sequence,"action":"invoke","slot":encode(slot),"fallback":fallback,"keyboard_only":keyboard_only})
                     }
                     None => json!({"sequence":sequence,"action":"discover","all":all}),
                 };

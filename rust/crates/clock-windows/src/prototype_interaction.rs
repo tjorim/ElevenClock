@@ -181,7 +181,7 @@ pub fn discover(generation: u64, all: bool) -> Result<Vec<ExperimentSlot>> {
 
 /// UIA is attempted once. An Invoke error is ambiguous and MUST NOT trigger a
 /// second action. Only absence of the pattern permits deliberate Win+N testing.
-pub fn invoke(slot: &ExperimentSlot, fallback: bool) -> Result<&'static str> {
+pub fn invoke(slot: &ExperimentSlot, fallback: bool, keyboard_only: bool) -> Result<&'static str> {
     unsafe {
         CoInitializeEx(None, COINIT_MULTITHREADED).ok()?;
     }
@@ -198,6 +198,12 @@ pub fn invoke(slot: &ExperimentSlot, fallback: bool) -> Result<&'static str> {
             slot,
         )?
     };
+    if keyboard_only {
+        // A separately selected experiment, never a retry after UIA success or
+        // failure. Identity is still independently checked before input.
+        win_n()?;
+        return Ok("win_n_once");
+    }
     // Preserve S_OK + null (pattern unavailable), which the generated binding
     // reports as E_POINTER. Provider errors never authorize keyboard fallback.
     let mut pattern = std::ptr::null_mut();
@@ -227,7 +233,14 @@ pub fn invoke(slot: &ExperimentSlot, fallback: bool) -> Result<&'static str> {
 fn win_n() -> Result<()> {
     use windows::Win32::UI::Input::KeyboardAndMouse::*;
     // Do not release modifiers owned by the user. A single batch, no retries.
-    for key in [VK_LWIN, VK_RWIN, VK_CONTROL, VK_SHIFT, VK_MENU] {
+    for key in [
+        VK_LWIN,
+        VK_RWIN,
+        VK_CONTROL,
+        VK_SHIFT,
+        VK_MENU,
+        VIRTUAL_KEY(0x4e),
+    ] {
         if unsafe { GetAsyncKeyState(i32::from(key.0)) } < 0 {
             return Err(rejected());
         }
