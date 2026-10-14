@@ -8,36 +8,35 @@ in main through #17. The old `rust-rewrite-plan` link in R01 no longer resolves.
 
 ## Toolchains and commands
 
-Rust 2024, MSRV **1.90.0** (released 2025-09-18), with a pinned development
-toolchain in `rust/rust-toolchain.toml`. This floor was selected for this workspace
-and verified locally, rather than inherited from another product. CI also checks
-current stable (1.99.0 at this implementation). When working from the repository
-root, pass `+1.90.0` explicitly; the directory override applies inside `rust/`.
-Install rustfmt and Clippy. Use `fmt --all` from the repository root: Rust
-1.90 cargo-fmt otherwise reports "Failed to find targets" for this virtual
-workspace when its manifest is supplied from a different directory. Release builds require a native Windows host so resources cannot be silently
-omitted during cross-compilation. Linux cross-target checks are type checks only.
+Rust 2024 on current **stable** only: CI runs one toolchain, and the repository does
+not pin one (no `rust-toolchain.toml`). Workspace `rust-version` (1.90) records the
+compiler the code was last verified against; no CI job checks it, so raise it
+when you use a newer feature rather than treating it as a tested floor. Install
+rustfmt and Clippy. Use `fmt --all` from the repository root so cargo-fmt finds
+this virtual workspace's targets. Release builds require a native Windows host so
+resources cannot be silently omitted during cross-compilation. Linux cross-target
+checks are type checks only.
 Windows development requires the MSVC toolchain and
 Windows SDK resource compiler; users do not need these developer tools.
 
 ```sh
-cargo +1.90.0 fmt --manifest-path rust/Cargo.toml --all --check
-cargo +1.90.0 test --manifest-path rust/Cargo.toml -p clock-core --locked
-cargo +1.90.0 test --manifest-path rust/Cargo.toml -p clock-core --doc --locked
-cargo +1.90.0 clippy --manifest-path rust/Cargo.toml -p clock-core --all-targets --locked -- -D warnings
+cargo fmt --manifest-path rust/Cargo.toml --all --check
+cargo test --manifest-path rust/Cargo.toml -p clock-core --locked
+cargo test --manifest-path rust/Cargo.toml -p clock-core --doc --locked
+cargo clippy --manifest-path rust/Cargo.toml -p clock-core --all-targets --locked -- -D warnings
 ```
 
 On Windows, additionally run:
 
 ```sh
-cargo +1.90.0 check --manifest-path rust/Cargo.toml --workspace --all-targets --locked
-cargo +1.90.0 clippy --manifest-path rust/Cargo.toml --workspace --all-targets --locked -- -D warnings
-cargo +1.90.0 test --manifest-path rust/Cargo.toml --workspace --locked
-cargo +1.90.0 test --manifest-path rust/Cargo.toml --workspace --doc --locked
-cargo +1.90.0 build --manifest-path rust/Cargo.toml -p clock-app --release --target x86_64-pc-windows-msvc --locked
+cargo check --manifest-path rust/Cargo.toml --workspace --all-targets --locked
+cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets --locked -- -D warnings
+cargo test --manifest-path rust/Cargo.toml --workspace --locked
+cargo test --manifest-path rust/Cargo.toml --workspace --doc --locked
+cargo build --manifest-path rust/Cargo.toml -p clock-app --release --target x86_64-pc-windows-msvc --locked
 ```
 
-Repeat with `+stable`. Double-click the resulting `clock-app.exe` for the native
+Double-click the resulting `clock-app.exe` for the native
 runtime and Settings shell. It has no command suite. Closing Settings keeps the
 clock running in the background; **Exit ElevenClock** quits (R08, see
 [its record](windows-evidence/R08.md)). This is a work in progress with no
@@ -99,8 +98,8 @@ never enter an installer or support flow. R14 owns packaging and final notices.
 Portable discovery validation and the process-supervisor tests also run on Linux:
 
 ```sh
-cargo +1.90.0 test --manifest-path rust/Cargo.toml -p clock-windows --all-targets --locked
-cargo +1.90.0 clippy --manifest-path rust/Cargo.toml -p clock-windows --all-targets --locked -- -D warnings
+cargo test --manifest-path rust/Cargo.toml -p clock-windows --all-targets --locked
+cargo clippy --manifest-path rust/Cargo.toml -p clock-windows --all-targets --locked -- -D warnings
 ```
 
 The Windows-only FFI remains gated; only portable geometry/queue code is exposed
@@ -168,7 +167,7 @@ discovery helper is the same executable started with a private marker
 ([ADR 0002](adr/0002-same-executable-discovery-helper.md)); it is not a user command.
 
 ```sh
-cargo +1.90.0 test --manifest-path rust/Cargo.toml -p clock-windows --locked
+cargo test --manifest-path rust/Cargo.toml -p clock-windows --locked
 ```
 
 There is no feature flag or support gate for overlays: the experimental candidate is

@@ -11,47 +11,33 @@ permissions:
 jobs:
   core:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        toolchain: ['1.90.0', stable]
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: ${{ matrix.toolchain }}
           components: rustfmt, clippy
-      - run: cargo +${{ matrix.toolchain }} fmt --manifest-path rust/Cargo.toml --all --check
-      - run: cargo +${{ matrix.toolchain }} clippy --manifest-path rust/Cargo.toml -p clock-core --all-targets --locked -- -D warnings
-      - run: cargo +${{ matrix.toolchain }} test --manifest-path rust/Cargo.toml -p clock-core --locked
-      - run: cargo +${{ matrix.toolchain }} test --manifest-path rust/Cargo.toml -p clock-core --doc --locked
-      - run: cargo +${{ matrix.toolchain }} clippy --manifest-path rust/Cargo.toml -p clock-windows --all-targets --locked -- -D warnings
-      - run: cargo +${{ matrix.toolchain }} test --manifest-path rust/Cargo.toml -p clock-windows --all-targets --locked
+      - run: cargo fmt --manifest-path rust/Cargo.toml --all --check
+      - run: cargo clippy --manifest-path rust/Cargo.toml -p clock-core --all-targets --locked -- -D warnings
+      - run: cargo test --manifest-path rust/Cargo.toml -p clock-core --locked
+      - run: cargo test --manifest-path rust/Cargo.toml -p clock-core --doc --locked
+      - run: cargo clippy --manifest-path rust/Cargo.toml -p clock-windows --all-targets --locked -- -D warnings
+      - run: cargo test --manifest-path rust/Cargo.toml -p clock-windows --all-targets --locked
   windows:
     runs-on: windows-latest
     timeout-minutes: 15
-    strategy:
-      matrix:
-        toolchain: ['1.90.0', stable]
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: ${{ matrix.toolchain }}
           components: rustfmt, clippy
           targets: x86_64-pc-windows-msvc
-      - run: cargo +${{ matrix.toolchain }} fmt --manifest-path rust/Cargo.toml --all --check
-      - run: cargo +${{ matrix.toolchain }} check --manifest-path rust/Cargo.toml --workspace --all-targets --locked
-      - run: cargo +${{ matrix.toolchain }} clippy --manifest-path rust/Cargo.toml --workspace --all-targets --locked -- -D warnings
-      # The MSRV leg only has to compile and lint on Windows; running the suite,
-      # the release build and the desktop smoke checks once (stable) is enough.
-      - if: matrix.toolchain == 'stable'
-        run: cargo +${{ matrix.toolchain }} test --manifest-path rust/Cargo.toml --workspace --all-targets --locked
-      - if: matrix.toolchain == 'stable'
-        run: cargo +${{ matrix.toolchain }} test --manifest-path rust/Cargo.toml --workspace --doc --locked
-      - if: matrix.toolchain == 'stable'
-        run: cargo +${{ matrix.toolchain }} build --manifest-path rust/Cargo.toml -p clock-app --release --target x86_64-pc-windows-msvc --locked
+      - run: cargo fmt --manifest-path rust/Cargo.toml --all --check
+      - run: cargo check --manifest-path rust/Cargo.toml --workspace --all-targets --locked
+      - run: cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --manifest-path rust/Cargo.toml --workspace --all-targets --locked
+      - run: cargo test --manifest-path rust/Cargo.toml --workspace --doc --locked
+      - run: cargo build --manifest-path rust/Cargo.toml -p clock-app --release --target x86_64-pc-windows-msvc --locked
       - name: Check GUI subsystem and linked native resources
-        if: matrix.toolchain == 'stable'
         shell: pwsh
         run: |
           $exe = 'rust/target/x86_64-pc-windows-msvc/release/clock-app.exe'
@@ -67,24 +53,21 @@ jobs:
           $utf16 = [Text.Encoding]::Unicode.GetString($bytes)
           if (!$utf16.Contains('ElevenClock Settings')) { throw 'Missing Settings dialog resource' }
       - name: Native dialog launch, focus, capture and close smoke check
-        if: matrix.toolchain == 'stable'
         shell: pwsh
         run: ./scripts/test-rust-settings.ps1
       - name: High contrast, keyboard and real display-scaling feasibility
-        if: matrix.toolchain == 'stable'
         shell: powershell
         run: ./scripts/test-rust-ui-environment.ps1
       # A build you can run. The overlay is live (work in progress, P1 still
       # NO-GO, see #23), so expect rough edges. x64 only; not a release package.
       - uses: actions/upload-artifact@v4
-        if: matrix.toolchain == 'stable'
         with:
           name: elevenclock-dev-x64
           retention-days: 30
           path: rust/target/x86_64-pc-windows-msvc/release/clock-app.exe
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
-        if: always() && matrix.toolchain == 'stable'
+        if: always()
         with:
           # Evidence only (Settings/UI smoke captures).
           name: windows-ui-evidence
