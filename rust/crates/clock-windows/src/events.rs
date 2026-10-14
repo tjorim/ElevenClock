@@ -103,7 +103,9 @@ pub fn signal_for_message(
             WTS_SESSION_LOCK => Some(Signal::SessionLocked),
             WTS_SESSION_UNLOCK => Some(Signal::SessionUnlocked),
             // Fast user switching and remote sessions change the display set.
-            WTS_CONSOLE_CONNECT | WTS_CONSOLE_DISCONNECT | WTS_REMOTE_CONNECT
+            WTS_CONSOLE_CONNECT
+            | WTS_CONSOLE_DISCONNECT
+            | WTS_REMOTE_CONNECT
             | WTS_REMOTE_DISCONNECT => Some(Signal::TopologyChanged),
             _ => None,
         },
@@ -135,7 +137,9 @@ pub fn shell_event_for(
         }
         // High-rate object events: only taskbar windows are relevant, and only
         // whole-window notifications (not carets, cursors or children).
-        WinEventKind::ObjectShow | WinEventKind::ObjectHide | WinEventKind::ObjectLocationChange => {
+        WinEventKind::ObjectShow
+        | WinEventKind::ObjectHide
+        | WinEventKind::ObjectLocationChange => {
             (is_window_object && is_taskbar_window()).then_some(ShellEvent::TaskbarChanged)
         }
     }
@@ -245,7 +249,10 @@ mod tests {
     fn maps_notifications_to_signals() {
         let map = |m, w, s| signal_for_message(m, w, s, TASKBAR_CREATED);
         assert_eq!(map(TASKBAR_CREATED, 0, None), Some(Signal::TaskbarCreated));
-        assert_eq!(map(WM_DISPLAYCHANGE, 32, None), Some(Signal::TopologyChanged));
+        assert_eq!(
+            map(WM_DISPLAYCHANGE, 32, None),
+            Some(Signal::TopologyChanged)
+        );
         assert_eq!(map(WM_DPICHANGED, 0, None), Some(Signal::TopologyChanged));
         assert_eq!(map(WM_TIMECHANGE, 0, None), Some(Signal::TimeChanged));
         assert_eq!(
@@ -264,7 +271,10 @@ mod tests {
             map(WM_SETTINGCHANGE, SPI_SETWORKAREA, None),
             Some(Signal::TopologyChanged)
         );
-        assert_eq!(map(WM_POWERBROADCAST, PBT_APMSUSPEND, None), Some(Signal::Suspended));
+        assert_eq!(
+            map(WM_POWERBROADCAST, PBT_APMSUSPEND, None),
+            Some(Signal::Suspended)
+        );
         for resume in [PBT_APMRESUMEAUTOMATIC, PBT_APMRESUMESUSPEND] {
             assert_eq!(map(WM_POWERBROADCAST, resume, None), Some(Signal::Resumed));
         }

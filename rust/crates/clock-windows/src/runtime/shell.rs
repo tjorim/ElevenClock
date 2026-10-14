@@ -134,7 +134,10 @@ mod tests {
             visible: false,
             ..observed(&s)
         };
-        assert_eq!(classify(&s, &o), Placement::Present(TaskbarVisibility::Hidden));
+        assert_eq!(
+            classify(&s, &o),
+            Placement::Present(TaskbarVisibility::Hidden)
+        );
     }
 
     #[test]
@@ -153,7 +156,13 @@ mod tests {
     fn dpi_or_monitor_changes_and_missing_windows_invalidate_the_snapshot() {
         let s = snapshot();
         assert_eq!(
-            classify(&s, &Observation { dpi: 96, ..observed(&s) }),
+            classify(
+                &s,
+                &Observation {
+                    dpi: 96,
+                    ..observed(&s)
+                }
+            ),
             Placement::Relocated
         );
         assert_eq!(
@@ -168,12 +177,24 @@ mod tests {
         );
         assert_eq!(classify(&s, &Observation::GONE), Placement::Gone);
         assert_eq!(
-            classify(&s, &Observation { rect: None, ..observed(&s) }),
+            classify(
+                &s,
+                &Observation {
+                    rect: None,
+                    ..observed(&s)
+                }
+            ),
             Placement::Gone
         );
         // Unknown DPI (zero) is not treated as a change; discovery owns validity.
         assert_eq!(
-            classify(&s, &Observation { dpi: 0, ..observed(&s) }),
+            classify(
+                &s,
+                &Observation {
+                    dpi: 0,
+                    ..observed(&s)
+                }
+            ),
             Placement::Present(TaskbarVisibility::Visible)
         );
     }
@@ -182,11 +203,26 @@ mod tests {
     fn fullscreen_requires_a_covering_non_shell_foreground() {
         let monitor = rect(-1920, 0, 1920, 1080);
         assert!(covers_monitor(Some(monitor), false, monitor));
-        assert!(covers_monitor(Some(rect(-2000, -10, 2100, 1200)), false, monitor));
-        assert!(!covers_monitor(Some(monitor), true, monitor), "desktop/shell");
+        assert!(covers_monitor(
+            Some(rect(-2000, -10, 2100, 1200)),
+            false,
+            monitor
+        ));
+        assert!(
+            !covers_monitor(Some(monitor), true, monitor),
+            "desktop/shell"
+        );
         assert!(!covers_monitor(None, false, monitor));
-        assert!(!covers_monitor(Some(rect(-1900, 0, 1000, 700)), false, monitor));
+        assert!(!covers_monitor(
+            Some(rect(-1900, 0, 1000, 700)),
+            false,
+            monitor
+        ));
         // A fullscreen window on the neighbouring monitor does not cover this one.
-        assert!(!covers_monitor(Some(rect(0, 0, 1920, 1080)), false, monitor));
+        assert!(!covers_monitor(
+            Some(rect(0, 0, 1920, 1080)),
+            false,
+            monitor
+        ));
     }
 }

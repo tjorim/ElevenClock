@@ -51,6 +51,7 @@ public static class SettingsNative {
     [DllImport("user32.dll")] public static extern IntPtr GetNextDlgTabItem(IntPtr dialog, IntPtr control, bool previous);
     [DllImport("user32.dll")] public static extern int GetDlgCtrlID(IntPtr control);
     [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr window);
+    [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr dialog, int id);
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
     [DllImport("user32.dll")] public static extern bool GetGUIThreadInfo(uint thread, ref GuiInfo info);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr SendMessageW(IntPtr window, uint message, IntPtr wparam, IntPtr lparam);
@@ -58,6 +59,8 @@ public static class SettingsNative {
 '@
 [SettingsNative]::SetThreadDpiAwarenessContext([IntPtr](-4)) | Out-Null
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
+# Processes of this executable that exist before the run (other tests, helpers).
+$baseline = @(Get-Process -Name clock-app -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
 $app = Start-Process $Executable -PassThru
 try {
     $deadline = [DateTime]::UtcNow.AddSeconds(15)
@@ -72,9 +75,11 @@ try {
     if ($ExpectedDpi -ne 0 -and $dpi -ne $ExpectedDpi) { throw "Actual window DPI $dpi differs from requested $ExpectedDpi" }
     $first = [SettingsNative]::GetNextDlgTabItem($window, [IntPtr]::Zero, $false)
     $second = [SettingsNative]::GetNextDlgTabItem($window, $first, $false)
-    $wrap = [SettingsNative]::GetNextDlgTabItem($window, $second, $false)
+    $third = [SettingsNative]::GetNextDlgTabItem($window, $second, $false)
+    $wrap = [SettingsNative]::GetNextDlgTabItem($window, $third, $false)
     if ([SettingsNative]::GetDlgCtrlID($first) -ne 1001) { throw 'First tab stop must be Appearance' }
-    if ([SettingsNative]::GetDlgCtrlID($second) -ne 2) { throw 'Second tab stop must be Close' }
+    if ([SettingsNative]::GetDlgCtrlID($second) -ne 1003) { throw 'Second tab stop must be Exit' }
+    if ([SettingsNative]::GetDlgCtrlID($third) -ne 2) { throw 'Third tab stop must be Close' }
     if ($wrap -ne $first) { throw 'Unexpected tab stop or broken tab cycle' }
     # WM_NEXTDLGCTL exercises real forward/reverse dialog focus navigation.
     # This is message-based evidence, not an interactive keyboard acceptance run.
@@ -84,7 +89,7 @@ try {
     $info = New-Object SettingsNative+GuiInfo
     $info.Size = [Runtime.InteropServices.Marshal]::SizeOf($info)
     [SettingsNative]::SendMessageW($window, 0x0028, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
-    if (![SettingsNative]::GetGUIThreadInfo($thread, [ref]$info) -or $info.Focus -ne $second) { throw 'Forward focus did not reach Close' }
+    if (![SettingsNative]::GetGUIThreadInfo($thread, [ref]$info) -or $info.Focus -ne $second) { throw 'Forward focus did not reach Exit' }
     [SettingsNative]::SendMessageW($window, 0x0028, [IntPtr]1, [IntPtr]::Zero) | Out-Null
     if (![SettingsNative]::GetGUIThreadInfo($thread, [ref]$info) -or $info.Focus -ne $first) { throw 'Reverse focus did not reach Appearance' }
     # Input goes through the actual Windows input queue and modal dialog manager.
@@ -137,7 +142,7 @@ try {
         build = $os.BuildNumber
         dpi = [SettingsNative]::GetDpiForWindow($window)
         title = $app.MainWindowTitle
-        tabOrder = @(1001, 2)
+        tabOrder = @(1001, 1003, 2)
         forwardAndReverseDialogFocus = 'passed'
         queuedKeyboardInput = 'Tab, Shift+Tab, Alt+A and theme-selection arrows passed'
         closeGesture = $CloseGesture
@@ -145,14 +150,46 @@ try {
         interactiveWindows11Acceptance = 'not performed by this Server CI harness'
         commit = $env:GITHUB_SHA
     } | ConvertTo-Json | Tee-Object -FilePath (Join-Path $OutputDirectory 'context.json')
+    function Wait-Settings([bool]$Open, [string]$What) {
+        $deadline = [DateTime]::UtcNow.AddSeconds(15)
+        do {
+            Start-Sleep -Milliseconds 100
+            $app.Refresh()
+            if ($app.HasExited) { throw "Application exited while waiting for: $What" }
+            $isOpen = $app.MainWindowHandle -ne 0 -and $app.MainWindowTitle -eq 'ElevenClock Settings'
+        } while ($isOpen -ne $Open -and [DateTime]::UtcNow -lt $deadline)
+        if ($isOpen -ne $Open) { throw "Timed out waiting for: $What" }
+    }
     switch ($CloseGesture) {
         'Window' { if (!$app.CloseMainWindow()) { throw 'Could not request native window close' } }
         'Escape' { [SettingsNative]::KeyStroke(27, 0) }
         'Enter' { [SettingsNative]::KeyStroke(13, 0) }
         'Mnemonic' { [SettingsNative]::KeyStroke(67, 18) }
     }
-    if (!$app.WaitForExit(5000)) { throw 'Prototype did not close' }
-    if ($app.ExitCode -ne 0) { throw 'Prototype reported failure' }
+    # Closing Settings closes only the window: the clock keeps running (R08).
+    Wait-Settings $false 'Settings to close'
+    Start-Sleep -Milliseconds 500
+    $app.Refresh()
+    if ($app.HasExited) { throw 'Closing Settings stopped the application; it must keep running' }
+    # A second launch signals the existing process, shows Settings there and exits.
+    $again = Start-Process $Executable -PassThru
+    if (!$again.WaitForExit(15000)) { $again.Kill(); throw 'Second launch did not exit' }
+    if ($again.ExitCode -ne 0) { throw "Second launch exit code $($again.ExitCode)" }
+    Wait-Settings $true 'second launch to show Settings in the existing process'
+    $windows = @(Get-Process -Name clock-app -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -eq 'ElevenClock Settings' })
+    if ($windows.Count -ne 1) { throw "Expected one Settings window, found $($windows.Count)" }
+    # Exit stops the application and releases everything it started.
+    $exit = [SettingsNative]::GetDlgItem($app.MainWindowHandle, 1003)
+    if ($exit -eq [IntPtr]::Zero) { throw 'Exit button not found' }
+    [SettingsNative]::SendMessageW($exit, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+    if (!$app.WaitForExit(10000)) { throw 'Exit did not stop the application' }
+    if ($app.ExitCode -ne 0) { throw 'Application reported failure on Exit' }
+    $deadline = [DateTime]::UtcNow.AddSeconds(10)
+    do {
+        Start-Sleep -Milliseconds 100
+        $left = @(Get-Process -Name clock-app -ErrorAction SilentlyContinue | Where-Object { $_.Id -notin $baseline })
+    } while ($left.Count -gt 0 -and [DateTime]::UtcNow -lt $deadline)
+    if ($left.Count -gt 0) { throw "Processes remained after Exit: $($left.Id -join ',')" }
 } finally {
     $app.Refresh()
     if (!$app.HasExited) { $app.Kill() }

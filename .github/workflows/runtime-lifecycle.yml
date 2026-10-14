@@ -1,0 +1,52 @@
+name: R08 hosted runtime lifecycle
+on:
+  pull_request:
+    paths: ['rust/**', 'scripts/test-rust-lifecycle.ps1', '.github/workflows/runtime-lifecycle.yml']
+  workflow_dispatch:
+concurrency:
+  group: r08-lifecycle-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  lifecycle:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2025
+            target: x86_64-pc-windows-msvc
+          - runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+          - runner: windows-11-arm
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - run: cargo +stable build --manifest-path rust/Cargo.toml -p clock-app --target ${{ matrix.target }} --locked
+      - run: cargo +stable build --manifest-path rust/Cargo.toml -p clock-windows --example taskbar_probe --target ${{ matrix.target }} --locked
+      - name: Prepare and verify actual hosted desktop through R02
+        shell: pwsh
+        run: ./scripts/test-rust-taskbar.ps1 -PrepareHostedDesktop -ProbeTarget '${{ matrix.target }}' -Executable 'rust/target/${{ matrix.target }}/debug/examples/taskbar_probe.exe'
+      - name: Lifecycle, second launch, close-to-background, Exit and Explorer restarts
+        shell: pwsh
+        run: ./scripts/test-rust-lifecycle.ps1 -Executable 'rust/target/${{ matrix.target }}/debug/clock-app.exe' -OutputDirectory 'native-evidence/lifecycle'
+      # Development-only build that lets the unverified R02 candidate create an
+      # overlay. Informational: P1 is NO-GO, so this is evidence, not acceptance.
+      - name: Overlay observation with the unverified-overlays development build
+        if: matrix.target == 'x86_64-pc-windows-msvc' && matrix.runner == 'windows-2025'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          cargo +stable build --manifest-path rust/Cargo.toml -p clock-app --features unverified-overlays --target-dir rust/target-dev --target ${{ matrix.target }} --locked
+          ./scripts/test-rust-lifecycle.ps1 -Executable 'rust/target-dev/${{ matrix.target }}/debug/clock-app.exe' -OutputDirectory 'native-evidence/lifecycle-dev-overlays' -ObserveOverlays
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: r08-lifecycle-${{ matrix.runner }}-${{ matrix.target }}
+          path: native-evidence/
+          if-no-files-found: error

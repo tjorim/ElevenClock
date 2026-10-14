@@ -38,8 +38,10 @@ cargo +1.90.0 build --manifest-path rust/Cargo.toml -p clock-app --release --tar
 ```
 
 Repeat with `+stable`. Double-click the resulting `clock-app.exe` for the native
-Settings foundation. It has no command suite, persistence, overlay or background
-clock yet. Closing the prototype exits; R08 adds the continuing runtime lifecycle.
+runtime and Settings shell. It has no command suite. Closing Settings keeps the
+clock running in the background; **Exit ElevenClock** quits (R08, see
+[its record](windows-evidence/R08.md)). The shipped build creates no overlay while
+the P1 gate is closed.
 `rust-ci.yml` checks the GUI subsystem, embedded manifest, native launch/close
 and forward/reverse dialog focus. Its development harness captures the actual
 dialog and records runner OS/build/DPI as prototype evidence. The environment
@@ -154,3 +156,22 @@ host. `clock-windows::theme` resolves opaque palettes (high contrast first). See
 the [R07 handoff](windows-evidence/R07.md) for the API, resource ownership and the
 unchecked interactive gates. `ELEVENCLOCK_R07_THEME` is a development-only switch
 for the overlay harness, not a user setting.
+
+## R08 runtime development
+
+`clock-windows::runtime::Runtime` is generic over a `Platform` and fully tested on
+Linux with a scripted platform; the Windows implementation is `runtime::native`.
+`tests/discovery_worker.rs` (custom `main`, no libtest harness) runs real child
+processes on every host and, on Windows, job-object and parent-loss tests. The app's
+discovery helper is the same executable started with a private marker
+([ADR 0002](adr/0002-same-executable-discovery-helper.md)); it is not a user command.
+
+```sh
+cargo +1.90.0 test --manifest-path rust/Cargo.toml -p clock-windows --locked
+cargo +1.90.0 test --manifest-path rust/Cargo.toml -p clock-windows --locked --features unverified-overlays
+```
+
+`unverified-overlays` (also on `clock-app`) is a **development-only** switch that lets
+the unverified R02 candidate produce a clock rectangle; never enable it for a release
+build. Hosted lifecycle evidence: `scripts/test-rust-lifecycle.ps1` via
+[runtime-lifecycle.yml](../.github/workflows/runtime-lifecycle.yml).

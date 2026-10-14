@@ -7,7 +7,8 @@ use windows::{
     Win32::{
         Foundation::{HWND, LPARAM, WPARAM},
         System::RemoteDesktop::{
-            NOTIFY_FOR_THIS_SESSION, WTSRegisterSessionNotification, WTSUnRegisterSessionNotification,
+            NOTIFY_FOR_THIS_SESSION, WTSRegisterSessionNotification,
+            WTSUnRegisterSessionNotification,
         },
         UI::{
             Accessibility::{HWINEVENTHOOK, SetWinEventHook, UnhookWinEvent},
@@ -43,12 +44,7 @@ pub fn enqueue(signal: Signal) {
             // SAFETY: the target is the host window, destroyed only after the
             // loop ends. A failed post is recovered by the next message or poll.
             let posted = unsafe {
-                PostMessageW(
-                    Some(HWND(target as *mut _)),
-                    WM_WAKE,
-                    WPARAM(0),
-                    LPARAM(0),
-                )
+                PostMessageW(Some(HWND(target as *mut _)), WM_WAKE, WPARAM(0), LPARAM(0))
             };
             if posted.is_err() {
                 WAKE_POSTED.set(false);
@@ -151,11 +147,8 @@ impl Notifications {
         // being absent; the runtime reports reduced event coverage.
         this.session =
             unsafe { WTSRegisterSessionNotification(host, NOTIFY_FOR_THIS_SESSION) }.is_ok();
-        this.system_hooks.extend(hook(
-            EVENT_SYSTEM_FOREGROUND,
-            EVENT_SYSTEM_MINIMIZEEND,
-            0,
-        ));
+        this.system_hooks
+            .extend(hook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_MINIMIZEEND, 0));
         Ok(this)
     }
 
@@ -210,7 +203,11 @@ fn hook(min: u32, max: u32, pid: u32) -> Option<HWINEVENTHOOK> {
 
 impl Drop for Notifications {
     fn drop(&mut self) {
-        for handle in self.system_hooks.drain(..).chain(self.object_hooks.drain(..)) {
+        for handle in self
+            .system_hooks
+            .drain(..)
+            .chain(self.object_hooks.drain(..))
+        {
             // SAFETY: handles are owned and unhooked exactly once.
             let _ = unsafe { UnhookWinEvent(handle) };
         }

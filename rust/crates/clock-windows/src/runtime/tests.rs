@@ -6,9 +6,7 @@ use crate::{
     render::PixelSize,
 };
 use chrono::DateTime;
-use clock_core::{
-    DiscoveryStrategy, MonitorId, Monitors, Preferences, TaskbarId, Theme,
-};
+use clock_core::{DiscoveryStrategy, MonitorId, Monitors, Preferences, TaskbarId, Theme};
 use std::collections::{BTreeMap, HashSet};
 
 fn wall(value: &str) -> DateTime<FixedOffset> {
@@ -172,11 +170,7 @@ fn runtime(monitors: Monitors) -> Runtime<Fake> {
     runtime.start();
     runtime
 }
-fn report(
-    runtime: &Runtime<Fake>,
-    generation: u64,
-    snapshots: Vec<TaskbarSnapshot>,
-) -> Input {
+fn report(runtime: &Runtime<Fake>, generation: u64, snapshots: Vec<TaskbarSnapshot>) -> Input {
     Input::Discovery(DiscoveryReport {
         generation: ShellGeneration(generation),
         shell: runtime.shell,
@@ -204,7 +198,10 @@ fn requests(calls: &[Call]) -> Vec<u64> {
         .collect()
 }
 fn paints(calls: &[Call]) -> usize {
-    calls.iter().filter(|c| matches!(c, Call::Paint(..))).count()
+    calls
+        .iter()
+        .filter(|c| matches!(c, Call::Paint(..)))
+        .count()
 }
 
 #[test]
@@ -233,7 +230,10 @@ fn discovery_creates_and_paints_every_selected_monitor_without_restart() {
     assert!(calls.contains(&Call::Create(key(0, 1))));
     assert!(calls.contains(&Call::Create(key(0, 2))));
     assert_eq!(paints(&calls), 2);
-    assert_eq!(runtime.state().overlay_state(key(0, 2)), OverlayState::Visible);
+    assert_eq!(
+        runtime.state().overlay_state(key(0, 2)),
+        OverlayState::Visible
+    );
     let diagnostics = runtime.diagnostics();
     assert!(diagnostics.taskbars.iter().all(|t| t.reason.is_none()));
 }
@@ -294,14 +294,25 @@ fn clock_changes_and_resume_take_fresh_time_instead_of_extrapolating() {
     runtime.platform.now = wall("2026-10-13T08:15:00+01:00");
     runtime.handle(Input::Signal(Signal::TimeChanged));
     let calls = take(&mut runtime);
-    assert!(calls.iter().any(|c| matches!(c, Call::Paint(_, lines) if lines[0] == "08:15")));
+    assert!(
+        calls
+            .iter()
+            .any(|c| matches!(c, Call::Paint(_, lines) if lines[0] == "08:15"))
+    );
     assert!(calls.contains(&Call::Timer(Duration::from_secs(60))));
     // Resume: time, then topology (after the settle window), appearance and shell.
     runtime.platform.now = wall("2026-10-14T09:00:00+02:00");
     runtime.handle(Input::Signal(Signal::Resumed));
     let calls = take(&mut runtime);
-    assert!(calls.iter().any(|c| matches!(c, Call::Paint(_, lines) if lines[0] == "09:00")));
-    assert!(requests(&calls).is_empty(), "topology waits for the settle window");
+    assert!(
+        calls
+            .iter()
+            .any(|c| matches!(c, Call::Paint(_, lines) if lines[0] == "09:00"))
+    );
+    assert!(
+        requests(&calls).is_empty(),
+        "topology waits for the settle window"
+    );
     advance(&mut runtime, TOPOLOGY_SETTLE);
     assert_eq!(requests(&take(&mut runtime)), vec![0]);
 }
@@ -341,7 +352,11 @@ fn taskbar_created_replaces_the_generation_and_rejects_old_discovery_results() {
     assert!(runtime.platform.overlays.is_empty());
     // A late result from the old Explorer must not resurrect anything.
     discover(&mut runtime, 0, vec![bar(0, 1, true)]);
-    assert!(take(&mut runtime).iter().all(|c| !matches!(c, Call::Create(_))));
+    assert!(
+        take(&mut runtime)
+            .iter()
+            .all(|c| !matches!(c, Call::Create(_)))
+    );
     assert!(runtime.platform.overlays.is_empty());
     runtime.platform.shell = shell(77, 5);
     discover(&mut runtime, 1, vec![bar(1, 1, true), bar(1, 2, true)]);
@@ -417,7 +432,10 @@ fn failed_discovery_fails_closed_then_retries_with_bounded_backoff() {
     };
     fail(&mut runtime, DiscoveryFailure::Deadline);
     let calls = take(&mut runtime);
-    assert!(calls.contains(&Call::Destroy(key(0, 1))), "partial output is discarded");
+    assert!(
+        calls.contains(&Call::Destroy(key(0, 1))),
+        "partial output is discarded"
+    );
     assert!(runtime.platform.overlays.is_empty());
     // First retry after 2 s, then 4 s, 8 s ... capped at 60 s.
     let mut waits = Vec::new();
@@ -466,7 +484,10 @@ fn a_failed_helper_teardown_disables_discovery_without_further_requests() {
         outcome: Err(DiscoveryFailure::TeardownFailed),
     }));
     assert!(runtime.diagnostics().discovery_disabled);
-    assert!(runtime.platform.overlays.is_empty(), "native clock restored");
+    assert!(
+        runtime.platform.overlays.is_empty(),
+        "native clock restored"
+    );
     take(&mut runtime);
     // No signal or poll can start another helper, but Explorer loss still
     // resolves the reducer without one.
@@ -526,7 +547,13 @@ fn auto_hide_hides_and_restores_each_monitor_independently() {
     runtime.platform.observations.insert(1, sliding);
     runtime.handle(Input::Signal(Signal::Shell(ShellEvent::TaskbarChanged)));
     let calls = take(&mut runtime);
-    assert_eq!(calls, vec![Call::Hide(key(0, 1)), Call::Poll(crate::events::TRANSITION_POLL)]);
+    assert_eq!(
+        calls,
+        vec![
+            Call::Hide(key(0, 1)),
+            Call::Poll(crate::events::TRANSITION_POLL)
+        ]
+    );
     assert_eq!(
         runtime.state().overlay_state(key(0, 2)),
         OverlayState::Visible
@@ -569,7 +596,9 @@ fn clock_ticks_cannot_postpone_the_recovery_poll() {
         runtime.handle(Input::Timer);
     }
     assert!(
-        take(&mut runtime).iter().all(|c| !matches!(c, Call::Poll(_))),
+        take(&mut runtime)
+            .iter()
+            .all(|c| !matches!(c, Call::Poll(_))),
         "the armed poll timer is reused"
     );
 }
@@ -629,7 +658,10 @@ fn a_dpi_change_or_unplugged_monitor_rediscovers() {
     advance(&mut runtime, TOPOLOGY_SETTLE);
     take(&mut runtime);
     discover(&mut runtime, 0, vec![former_primary, swapped_secondary]);
-    assert_eq!(runtime.state().overlay_state(key(0, 2)), OverlayState::Visible);
+    assert_eq!(
+        runtime.state().overlay_state(key(0, 2)),
+        OverlayState::Visible
+    );
     assert_eq!(
         runtime.state().overlay_state(key(0, 1)),
         OverlayState::Hidden(clock_core::HiddenReason::Paused)
@@ -648,7 +680,10 @@ fn fullscreen_hides_only_the_covered_monitor_and_restores_it() {
     runtime.platform.observations.insert(2, covered);
     runtime.handle(Input::Signal(Signal::Shell(ShellEvent::ForegroundChanged)));
     assert_eq!(take(&mut runtime), vec![Call::Hide(key(0, 2))]);
-    assert_eq!(runtime.state().overlay_state(key(0, 1)), OverlayState::Visible);
+    assert_eq!(
+        runtime.state().overlay_state(key(0, 1)),
+        OverlayState::Visible
+    );
     runtime.platform.observations.remove(&2);
     runtime.handle(Input::Signal(Signal::Shell(ShellEvent::ForegroundChanged)));
     assert_eq!(paints(&take(&mut runtime)), 1);
@@ -689,7 +724,11 @@ fn lock_hides_and_unlock_refreshes_time_and_discovery_before_showing() {
     assert_eq!(paints(&calls), 0, "no pre-lock geometry is shown");
     discover(&mut runtime, 0, vec![bar(0, 1, true)]);
     let calls = take(&mut runtime);
-    assert!(calls.iter().any(|c| matches!(c, Call::Paint(_, lines) if lines[0] == "18:30")));
+    assert!(
+        calls
+            .iter()
+            .any(|c| matches!(c, Call::Paint(_, lines) if lines[0] == "18:30"))
+    );
 }
 
 #[test]
@@ -723,7 +762,11 @@ fn preference_changes_apply_to_the_running_clock() {
     runtime.handle(Input::Preferences(format));
     let calls = take(&mut runtime);
     assert!(calls.contains(&Call::Create(key(0, 2))), "all monitors");
-    assert!(calls.iter().any(|c| matches!(c, Call::Paint(_, lines) if lines == &vec!["2026".to_string()])));
+    assert!(
+        calls
+            .iter()
+            .any(|c| matches!(c, Call::Paint(_, lines) if lines == &vec!["2026".to_string()]))
+    );
     assert_eq!(runtime.worst_case.fingerprint(), {
         WorstCase::for_format(runtime.state().preferences().format()).fingerprint()
     });
@@ -733,8 +776,14 @@ fn preference_changes_apply_to_the_running_clock() {
 fn overflow_and_render_failure_hide_only_the_affected_overlay_with_a_reason() {
     let mut runtime = runtime(Monitors::All);
     let overflow = Overflow {
-        required: PixelSize { width: 140, height: 40 },
-        available: PixelSize { width: 100, height: 48 },
+        required: PixelSize {
+            width: 140,
+            height: 40,
+        },
+        available: PixelSize {
+            width: 100,
+            height: 48,
+        },
     };
     runtime
         .platform
@@ -747,14 +796,21 @@ fn overflow_and_render_failure_hide_only_the_affected_overlay_with_a_reason() {
     let mut third = bar(0, 1, true);
     third.key.id = TaskbarId(3);
     third.primary = false;
-    discover(&mut runtime, 0, vec![bar(0, 1, true), bar(0, 2, true), third]);
+    discover(
+        &mut runtime,
+        0,
+        vec![bar(0, 1, true), bar(0, 2, true), third],
+    );
     let calls = take(&mut runtime);
     assert!(calls.contains(&Call::Hide(key(0, 2))));
     assert!(calls.contains(&Call::Hide(key(0, 3))));
     assert!(!calls.contains(&Call::Hide(key(0, 1))));
     let diagnostics = runtime.diagnostics();
     assert_eq!(diagnostics.taskbars[0].reason, None);
-    assert_eq!(diagnostics.taskbars[1].reason, Some(Reason::Overflow(overflow)));
+    assert_eq!(
+        diagnostics.taskbars[1].reason,
+        Some(Reason::Overflow(overflow))
+    );
     assert_eq!(
         diagnostics.taskbars[2].reason,
         Some(Reason::RenderFailed("device lost".into()))
@@ -770,7 +826,13 @@ fn overflow_and_render_failure_hide_only_the_affected_overlay_with_a_reason() {
         .validate()
         .unwrap(),
     ));
-    assert!(runtime.diagnostics().taskbars.iter().all(|t| t.reason.is_none()));
+    assert!(
+        runtime
+            .diagnostics()
+            .taskbars
+            .iter()
+            .all(|t| t.reason.is_none())
+    );
 }
 
 #[test]

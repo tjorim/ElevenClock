@@ -24,7 +24,13 @@ impl InstanceNames {
     pub fn for_user(sid: &str) -> Self {
         let clean: String = sid
             .chars()
-            .map(|c| if c.is_ascii_alphanumeric() || c == '-' { c } else { '_' })
+            .map(|c| {
+                if c.is_ascii_alphanumeric() || c == '-' {
+                    c
+                } else {
+                    '_'
+                }
+            })
             .collect();
         Self {
             mutex: format!("Local\\ElevenClock.Instance.{clean}"),
@@ -47,7 +53,9 @@ pub enum LaunchMode {
 pub enum Role {
     Application(LaunchMode),
     /// Private discovery helper (see the helper ADR). Not a user command.
-    DiscoveryHelper { generation: u64 },
+    DiscoveryHelper {
+        generation: u64,
+    },
 }
 pub const STARTUP_MARKER: &str = "--startup";
 pub const HELPER_MARKER: &str = "--elevenclock-discovery-helper";

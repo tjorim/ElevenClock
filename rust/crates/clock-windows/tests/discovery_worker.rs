@@ -114,7 +114,10 @@ fn factory(
         let (mode, extra) = plan(generation.0);
         let mut env = Vec::new();
         if let Some(path) = &pid_file {
-            env.push(("ELEVENCLOCK_FIXTURE_PID".into(), path.clone().into_os_string()));
+            env.push((
+                "ELEVENCLOCK_FIXTURE_PID".into(),
+                path.clone().into_os_string(),
+            ));
         }
         HelperSpec {
             program: program.clone(),
@@ -181,7 +184,9 @@ fn process_alive(pid: u32) -> bool {
     {
         use windows::Win32::{
             Foundation::{CloseHandle, STILL_ACTIVE},
-            System::Threading::{GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION},
+            System::Threading::{
+                GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+            },
         };
         // SAFETY: query-only handle, closed on every path.
         unsafe {
@@ -189,7 +194,8 @@ fn process_alive(pid: u32) -> bool {
                 return false;
             };
             let mut code = 0u32;
-            let alive = GetExitCodeProcess(handle, &mut code).is_ok() && code == STILL_ACTIVE.0 as u32;
+            let alive =
+                GetExitCodeProcess(handle, &mut code).is_ok() && code == STILL_ACTIVE.0 as u32;
             let _ = CloseHandle(handle);
             alive
         }
@@ -203,7 +209,10 @@ fn wait_for_file(path: &PathBuf) -> u32 {
         {
             return pid;
         }
-        assert!(started.elapsed() < Duration::from_secs(10), "helper never started");
+        assert!(
+            started.elapsed() < Duration::from_secs(10),
+            "helper never started"
+        );
         std::thread::sleep(Duration::from_millis(5));
     }
 }
@@ -279,7 +288,11 @@ fn usage() -> Usage {
     }
     #[cfg(not(any(target_os = "linux", windows)))]
     {
-        Usage { threads: 0, handles: 0, memory_kib: 0 }
+        Usage {
+            threads: 0,
+            handles: 0,
+            memory_kib: 0,
+        }
     }
 }
 
@@ -302,12 +315,18 @@ fn a_report_for_another_generation_is_rejected_not_published_as_current() {
     let h = harness(|_| ("wrong-generation", 0), Duration::from_secs(10), None);
     h.worker.request(ShellGeneration(9));
     let reports = h.wait_for_reports(1);
-    assert!(matches!(&reports[0].outcome, Err(DiscoveryFailure::Rejected(_))));
-    assert!(h.worker.handle_for(clock_core::TaskbarKey {
-        generation: ShellGeneration(10),
-        id: clock_core::TaskbarId(1)
-    })
-    .is_none());
+    assert!(matches!(
+        &reports[0].outcome,
+        Err(DiscoveryFailure::Rejected(_))
+    ));
+    assert!(
+        h.worker
+            .handle_for(clock_core::TaskbarKey {
+                generation: ShellGeneration(10),
+                id: clock_core::TaskbarId(1)
+            })
+            .is_none()
+    );
     assert_eq!(h.stat(|s| &s.rejected), 1);
 }
 
@@ -327,11 +346,18 @@ fn malformed_oversized_and_failing_helpers_fail_closed() {
 fn a_deadline_discards_even_a_complete_looking_partial_report_and_reaps_the_helper() {
     let dir = tempfile::tempdir().unwrap();
     let pid_file = dir.path().join("pid");
-    let h = harness(|_| ("report-then-stall", 0), Duration::from_millis(400), Some(pid_file.clone()));
+    let h = harness(
+        |_| ("report-then-stall", 0),
+        Duration::from_millis(400),
+        Some(pid_file.clone()),
+    );
     h.worker.request(ShellGeneration(2));
     let pid = wait_for_file(&pid_file);
     let reports = h.wait_for_reports(1);
-    assert_eq!(reports[0].outcome.as_ref().unwrap_err(), &DiscoveryFailure::Deadline);
+    assert_eq!(
+        reports[0].outcome.as_ref().unwrap_err(),
+        &DiscoveryFailure::Deadline
+    );
     // Exit was observed before the result was published.
     assert!(!process_alive(pid), "helper {pid} survived its deadline");
     assert_eq!(h.stat(|s| &s.deadlines), 1);
@@ -354,7 +380,10 @@ fn a_new_generation_terminates_the_running_helper_and_only_the_newest_publishes(
     let reports = h.wait_for_reports(1);
     assert_eq!(reports[0].generation, ShellGeneration(2));
     assert!(reports[0].outcome.is_ok());
-    assert!(!process_alive(stalled), "stale helper must be gone before the replacement result");
+    assert!(
+        !process_alive(stalled),
+        "stale helper must be gone before the replacement result"
+    );
     assert_eq!(h.stat(|s| &s.cancelled), 1);
     assert_eq!(h.stat(|s| &s.spawned), 2);
     assert_eq!(h.stat(|s| &s.exited_observed), 2);
@@ -372,13 +401,20 @@ fn a_burst_of_requests_coalesces_to_one_helper_for_the_newest_generation() {
     assert_eq!(reports[0].generation, ShellGeneration(20));
     std::thread::sleep(Duration::from_millis(100));
     assert!(h.worker.take_reports().is_empty());
-    assert!(h.stat(|s| &s.spawned) <= 2, "at most the first and the newest ran");
+    assert!(
+        h.stat(|s| &s.spawned) <= 2,
+        "at most the first and the newest ran"
+    );
 }
 
 fn shutdown_terminates_a_running_helper_and_joins_the_worker() {
     let dir = tempfile::tempdir().unwrap();
     let pid_file = dir.path().join("pid");
-    let mut h = harness(|_| ("stall", 0), Duration::from_secs(60), Some(pid_file.clone()));
+    let mut h = harness(
+        |_| ("stall", 0),
+        Duration::from_secs(60),
+        Some(pid_file.clone()),
+    );
     h.worker.request(ShellGeneration(1));
     let pid = wait_for_file(&pid_file);
     assert!(h.worker.shutdown(Duration::from_secs(5)));
@@ -393,11 +429,11 @@ fn shutdown_terminates_a_running_helper_and_joins_the_worker() {
 fn repeated_failures_timeouts_and_recoveries_do_not_accumulate_resources() {
     let h = harness(
         |g| match g % 5 {
-            0 => ("stall", 0),        // deadline
-            1 => ("exit", 7),         // crash
-            2 => ("garbage", 0),      // malformed
+            0 => ("stall", 0),   // deadline
+            1 => ("exit", 7),    // crash
+            2 => ("garbage", 0), // malformed
             3 => ("wrong-generation", 0),
-            _ => ("report", 2),       // success
+            _ => ("report", 2), // success
         },
         Duration::from_millis(150),
         None,
@@ -417,7 +453,11 @@ fn repeated_failures_timeouts_and_recoveries_do_not_accumulate_resources() {
     let after = usage();
     let spawned = h.stat(|s| &s.spawned);
     assert_eq!(spawned, 5 + rounds, "exactly one helper per request");
-    assert_eq!(spawned, h.stat(|s| &s.exited_observed), "every helper's exit was observed");
+    assert_eq!(
+        spawned,
+        h.stat(|s| &s.exited_observed),
+        "every helper's exit was observed"
+    );
     assert_eq!(after.threads, before.threads, "{before:?} -> {after:?}");
     assert!(
         after.handles <= before.handles + 2,
@@ -468,17 +508,44 @@ fn main() {
     let filters: Vec<_> = args.iter().filter(|a| !a.starts_with("--")).collect();
     #[allow(unused_mut)]
     let mut tests: Vec<(&str, TestFn)> = vec![
-        ("a_current_generation_report_is_published_with_native_handles_kept_private", a_current_generation_report_is_published_with_native_handles_kept_private),
-        ("a_report_for_another_generation_is_rejected_not_published_as_current", a_report_for_another_generation_is_rejected_not_published_as_current),
-        ("malformed_oversized_and_failing_helpers_fail_closed", malformed_oversized_and_failing_helpers_fail_closed),
-        ("a_deadline_discards_even_a_complete_looking_partial_report_and_reaps_the_helper", a_deadline_discards_even_a_complete_looking_partial_report_and_reaps_the_helper),
-        ("a_new_generation_terminates_the_running_helper_and_only_the_newest_publishes", a_new_generation_terminates_the_running_helper_and_only_the_newest_publishes),
-        ("a_burst_of_requests_coalesces_to_one_helper_for_the_newest_generation", a_burst_of_requests_coalesces_to_one_helper_for_the_newest_generation),
-        ("shutdown_terminates_a_running_helper_and_joins_the_worker", shutdown_terminates_a_running_helper_and_joins_the_worker),
-        ("repeated_failures_timeouts_and_recoveries_do_not_accumulate_resources", repeated_failures_timeouts_and_recoveries_do_not_accumulate_resources),
+        (
+            "a_current_generation_report_is_published_with_native_handles_kept_private",
+            a_current_generation_report_is_published_with_native_handles_kept_private,
+        ),
+        (
+            "a_report_for_another_generation_is_rejected_not_published_as_current",
+            a_report_for_another_generation_is_rejected_not_published_as_current,
+        ),
+        (
+            "malformed_oversized_and_failing_helpers_fail_closed",
+            malformed_oversized_and_failing_helpers_fail_closed,
+        ),
+        (
+            "a_deadline_discards_even_a_complete_looking_partial_report_and_reaps_the_helper",
+            a_deadline_discards_even_a_complete_looking_partial_report_and_reaps_the_helper,
+        ),
+        (
+            "a_new_generation_terminates_the_running_helper_and_only_the_newest_publishes",
+            a_new_generation_terminates_the_running_helper_and_only_the_newest_publishes,
+        ),
+        (
+            "a_burst_of_requests_coalesces_to_one_helper_for_the_newest_generation",
+            a_burst_of_requests_coalesces_to_one_helper_for_the_newest_generation,
+        ),
+        (
+            "shutdown_terminates_a_running_helper_and_joins_the_worker",
+            shutdown_terminates_a_running_helper_and_joins_the_worker,
+        ),
+        (
+            "repeated_failures_timeouts_and_recoveries_do_not_accumulate_resources",
+            repeated_failures_timeouts_and_recoveries_do_not_accumulate_resources,
+        ),
     ];
     #[cfg(windows)]
-    tests.push(("parent_loss_removes_the_helper_job", parent_loss_removes_the_helper_job));
+    tests.push((
+        "parent_loss_removes_the_helper_job",
+        parent_loss_removes_the_helper_job,
+    ));
     let mut failed = Vec::new();
     for (name, test) in tests {
         if !filters.is_empty() && !filters.iter().any(|f| name.contains(f.as_str())) {

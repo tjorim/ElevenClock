@@ -82,8 +82,13 @@ fn rect_from_wire(wire: RectWire) -> Result<PhysicalRect, DiscoveryFailure> {
     let edge = |value: i64| {
         i32::try_from(value).map_err(|_| rejected("rectangle edge outside the 32-bit range"))
     };
-    PhysicalRect::new(edge(wire[0])?, edge(wire[1])?, edge(wire[2])?, edge(wire[3])?)
-        .map_err(|_| rejected("invalid rectangle"))
+    PhysicalRect::new(
+        edge(wire[0])?,
+        edge(wire[1])?,
+        edge(wire[2])?,
+        edge(wire[3])?,
+    )
+    .map_err(|_| rejected("invalid rectangle"))
 }
 fn rejected(why: &str) -> DiscoveryFailure {
     DiscoveryFailure::Rejected(why.into())
@@ -135,8 +140,7 @@ pub fn parse_report(
     if bytes.len() as u64 > MAX_OUTPUT_BYTES {
         return Err(rejected("oversized output"));
     }
-    let report: Report =
-        serde_json::from_slice(bytes).map_err(|_| rejected("malformed output"))?;
+    let report: Report = serde_json::from_slice(bytes).map_err(|_| rejected("malformed output"))?;
     if report.schema != SCHEMA {
         return Err(rejected("unsupported schema"));
     }
@@ -211,7 +215,11 @@ mod tests {
             }]
         })
     }
-    fn parse(value: &serde_json::Value, generation: u64, gate: Gate) -> Result<Parsed, DiscoveryFailure> {
+    fn parse(
+        value: &serde_json::Value,
+        generation: u64,
+        gate: Gate,
+    ) -> Result<Parsed, DiscoveryFailure> {
         parse_report(
             value.to_string().as_bytes(),
             ShellGeneration(generation),
@@ -224,8 +232,17 @@ mod tests {
         let parsed = parse(&report(7), 7, Gate::Closed).unwrap();
         assert_eq!(parsed.snapshots.len(), 1);
         assert_eq!(parsed.snapshots[0].clock_rect, None);
-        assert_eq!(parsed.snapshots[0].strategy, DiscoveryStrategy::NativeChildren);
-        assert_eq!(parsed.shell, Some(ShellIdentity { pid: 4242, started: 133_000_000_000_000_000 }));
+        assert_eq!(
+            parsed.snapshots[0].strategy,
+            DiscoveryStrategy::NativeChildren
+        );
+        assert_eq!(
+            parsed.shell,
+            Some(ShellIdentity {
+                pid: 4242,
+                started: 133_000_000_000_000_000
+            })
+        );
         assert_eq!(parsed.handles, vec![(parsed.snapshots[0].key, 65_538)]);
     }
 
@@ -252,13 +269,23 @@ mod tests {
 
     #[test]
     fn stale_and_foreign_envelopes_are_rejected() {
-        assert!(matches!(parse(&report(6), 7, Gate::Closed), Err(DiscoveryFailure::Rejected(_))));
+        assert!(matches!(
+            parse(&report(6), 7, Gate::Closed),
+            Err(DiscoveryFailure::Rejected(_))
+        ));
         let mut other_schema = report(7);
         other_schema["schema"] = json!(1);
         assert!(parse(&other_schema, 7, Gate::Closed).is_err());
         assert!(parse_report(b"", ShellGeneration(7), Gate::Closed).is_err());
         assert!(parse_report(b"{not json", ShellGeneration(7), Gate::Closed).is_err());
-        assert!(parse_report(&vec![b' '; (MAX_OUTPUT_BYTES + 1) as usize], ShellGeneration(7), Gate::Closed).is_err());
+        assert!(
+            parse_report(
+                &vec![b' '; (MAX_OUTPUT_BYTES + 1) as usize],
+                ShellGeneration(7),
+                Gate::Closed
+            )
+            .is_err()
+        );
     }
 
     #[test]

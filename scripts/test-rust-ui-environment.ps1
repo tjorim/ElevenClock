@@ -71,6 +71,7 @@ public static class UiEnvironment {
     public static extern bool Parameters(uint action, uint param, ref HighContrast value, uint flags);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
     [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr dialog, int id);
+    [DllImport("user32.dll")] public static extern IntPtr SendMessageW(IntPtr window, uint message, IntPtr wparam, IntPtr lparam);
     [DllImport("oleacc.dll")] public static extern int AccessibleObjectFromWindow(IntPtr window, uint objectId, ref Guid iid, [MarshalAs(UnmanagedType.Interface)] out Accessibility.IAccessible accessible);
     public static Accessibility.IAccessible Accessible(IntPtr window) {
         Guid iid = new Guid("618736E0-3C3D-11CF-810C-00AA00389B71");
@@ -263,9 +264,26 @@ try {
     if ($name -notlike 'Appearance*' -or !$focusable) { throw "Native Appearance label/focus failed: name='$name', focusable=$focusable" }
     if ($closeName -ne 'Close') { throw "Native Close label failed: '$closeName'" }
     $results.explorerDoubleClick = 'Real queued left-button double-click opened the native executable'
-    if (!$opened.CloseMainWindow()) { throw 'Could not request close on the double-clicked prototype' }
-    if (!$opened.WaitForExit(10000)) { throw 'Double-clicked prototype did not exit after close' }
-    if ($opened.ExitCode -ne 0) { throw "Double-clicked prototype exit code: '$($opened.ExitCode)'" }
+    $exitName = ([UiEnvironment]::Accessible([UiEnvironment]::GetDlgItem($opened.MainWindowHandle, 1003))).accName(0)
+    if ($exitName -notlike 'Exit*') { throw "Native Exit label failed: '$exitName'" }
+    $results.accessibleLabels.exit = $exitName
+    # Closing Settings keeps the clock running (R08); a second launch reopens it.
+    $exe = $opened.MainModule.FileName
+    if (!$opened.CloseMainWindow()) { throw 'Could not request close on the double-clicked app' }
+    $deadline = [DateTime]::UtcNow.AddSeconds(10)
+    do { Start-Sleep -Milliseconds 100; $opened.Refresh() } while (!$opened.HasExited -and $opened.MainWindowHandle -ne 0 -and [DateTime]::UtcNow -lt $deadline)
+    if ($opened.HasExited) { throw 'Closing Settings stopped the double-clicked app' }
+    if ($opened.MainWindowHandle -ne 0) { throw 'Settings window did not close' }
+    $results.explorerCloseToBackground = 'Settings closed; the double-clicked process kept running'
+    $again = Start-Process $exe -PassThru
+    if (!$again.WaitForExit(15000)) { $again.Kill(); throw 'Second launch did not exit' }
+    $deadline = [DateTime]::UtcNow.AddSeconds(10)
+    do { Start-Sleep -Milliseconds 100; $opened.Refresh() } while ($opened.MainWindowHandle -eq 0 -and [DateTime]::UtcNow -lt $deadline)
+    if ($opened.MainWindowTitle -ne 'ElevenClock Settings') { throw 'Second launch did not focus the existing Settings window' }
+    $results.explorerSecondLaunch = 'Second launch exited and the existing process reopened Settings'
+    [UiEnvironment]::SendMessageW([UiEnvironment]::GetDlgItem($opened.MainWindowHandle, 1003), 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+    if (!$opened.WaitForExit(10000)) { throw 'Exit did not stop the double-clicked app' }
+    if ($opened.ExitCode -ne 0) { throw "Double-clicked app exit code: '$($opened.ExitCode)'" }
     $results.explorerExitCode = $opened.ExitCode
 } finally {
     if ($opened) { $opened.Refresh(); if (!$opened.HasExited) { $opened.Kill() }; $opened.Dispose() }

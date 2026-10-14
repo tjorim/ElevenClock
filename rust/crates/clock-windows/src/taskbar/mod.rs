@@ -3,12 +3,14 @@
 pub mod candidate;
 pub mod gate;
 pub mod geometry;
-pub mod protocol;
-pub mod worker;
+#[cfg(windows)]
+pub mod helper;
 #[cfg(windows)]
 pub mod probe;
+pub mod protocol;
 #[cfg(windows)]
 pub mod uia;
+pub mod worker;
 
 use clock_core::ShellGeneration;
 

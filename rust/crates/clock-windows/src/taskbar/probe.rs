@@ -25,6 +25,9 @@ pub struct NativeChild {
 #[derive(Debug)]
 pub struct TaskbarObservation {
     pub snapshot: TaskbarSnapshot,
+    /// The helper-local window handle. Only the UI thread's native layer keeps it,
+    /// and only after revalidating class and owning process.
+    pub hwnd: usize,
     pub shell_pid: u32,
     pub shell_started: u64,
     pub native_children: Vec<NativeChild>,
@@ -119,7 +122,7 @@ unsafe extern "system" fn children(hwnd: HWND, param: LPARAM) -> BOOL {
     BOOL(1)
 }
 
-fn shell_identity(hwnd: HWND) -> windows::core::Result<(u32, u64)> {
+pub(crate) fn shell_identity(hwnd: HWND) -> windows::core::Result<(u32, u64)> {
     let mut pid = 0;
     // SAFETY: output pointers are live; owned process handle is always closed.
     unsafe {
@@ -208,9 +211,25 @@ pub fn os_build() -> windows::core::Result<(String, u32)> {
     Ok((String::from_utf16_lossy(&buffer[..end]), revision))
 }
 
+/// Identity of the process that owns the primary taskbar, if one exists.
+pub fn current_shell() -> Option<(u32, u64)> {
+    // SAFETY: class-name lookup of a top-level window; failure means no shell.
+    let hwnd = unsafe { FindWindowW(w!("Shell_TrayWnd"), None) }.ok()?;
+    shell_identity(hwnd).ok()
+}
+
 /// Returns value records only. Any shell replacement during a taskbar probe
 /// invalidates the complete result. IDs are local ordinals, never HWND values.
 pub fn collect(generation: ShellGeneration) -> windows::core::Result<Vec<TaskbarObservation>> {
+    collect_with(generation, true)
+}
+
+/// `with_uia = false` skips the blocking UI Automation inventory entirely, which is
+/// what the closed support gate uses: native queries only.
+pub fn collect_with(
+    generation: ShellGeneration,
+    with_uia: bool,
+) -> windows::core::Result<Vec<TaskbarObservation>> {
     let handles = taskbar_handles()?;
     let initial: Vec<_> = handles
         .iter()
@@ -248,7 +267,11 @@ pub fn collect(generation: ShellGeneration) -> windows::core::Result<Vec<Taskbar
                 LPARAM((&mut native_children as *mut Vec<NativeChild>) as isize),
             );
         }
-        let uia = crate::taskbar::uia::inventory(hwnd);
+        let uia = if with_uia {
+            crate::taskbar::uia::inventory(hwnd)
+        } else {
+            crate::taskbar::uia::Inventory::default()
+        };
         if shell_identity(hwnd)? != identity || bounds(hwnd) != Some(taskbar_rect) {
             return Err(windows::core::Error::new(
                 windows::core::HRESULT(0x80004005u32 as i32),
@@ -256,6 +279,7 @@ pub fn collect(generation: ShellGeneration) -> windows::core::Result<Vec<Taskbar
             ));
         }
         observations.push(TaskbarObservation {
+            hwnd: hwnd.0 as usize,
             snapshot: TaskbarSnapshot {
                 key: TaskbarKey {
                     generation,

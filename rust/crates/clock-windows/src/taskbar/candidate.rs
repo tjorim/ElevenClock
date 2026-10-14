@@ -83,7 +83,12 @@ mod tests {
     fn r(l: i32, t: i32, w: i32, h: i32) -> Option<PhysicalRect> {
         Some(PhysicalRect::new(l, t, w, h).unwrap())
     }
-    fn element(parent: Option<usize>, id: &str, class: &str, rect: Option<PhysicalRect>) -> CandidateElement {
+    fn element(
+        parent: Option<usize>,
+        id: &str,
+        class: &str,
+        rect: Option<PhysicalRect>,
+    ) -> CandidateElement {
         CandidateElement {
             parent,
             automation_id: id.into(),
@@ -99,11 +104,36 @@ mod tests {
         vec![
             element(None, "", "Shell_TrayWnd", r(0, 720, 1024, 48)), // 0
             element(Some(0), "", "SystemTray.NormalButton", r(900, 720, 10, 48)), // 1 (not a neighbour class of interest)
-            element(Some(0), "SystemTrayIcon", "SystemTray.OmniButtonLeft", r(910, 720, 74, 48)), // 2
-            element(Some(2), "TimeInnerTextBlock", "TextBlock", r(915, 724, 60, 20)),
-            element(Some(2), "DateInnerTextBlock", "TextBlock", r(915, 744, 60, 20)),
-            element(Some(0), "SystemTrayIcon", "SystemTray.OmniButtonRight", r(984, 720, 28, 48)),
-            element(Some(0), "ShowDesktop", "SystemTray.ShowDesktopButton", r(1012, 720, 12, 48)),
+            element(
+                Some(0),
+                "SystemTrayIcon",
+                "SystemTray.OmniButtonLeft",
+                r(910, 720, 74, 48),
+            ), // 2
+            element(
+                Some(2),
+                "TimeInnerTextBlock",
+                "TextBlock",
+                r(915, 724, 60, 20),
+            ),
+            element(
+                Some(2),
+                "DateInnerTextBlock",
+                "TextBlock",
+                r(915, 744, 60, 20),
+            ),
+            element(
+                Some(0),
+                "SystemTrayIcon",
+                "SystemTray.OmniButtonRight",
+                r(984, 720, 28, 48),
+            ),
+            element(
+                Some(0),
+                "ShowDesktop",
+                "SystemTray.ShowDesktopButton",
+                r(1012, 720, 12, 48),
+            ),
         ]
     }
 
@@ -131,7 +161,12 @@ mod tests {
         // Two matching buttons are ambiguous, never "pick the first".
         let mut twin = tray();
         let len = twin.len();
-        twin.push(element(Some(0), "SystemTrayIcon", "SystemTray.OmniButtonLeft", r(0, 0, 10, 10)));
+        twin.push(element(
+            Some(0),
+            "SystemTrayIcon",
+            "SystemTray.OmniButtonLeft",
+            r(0, 0, 10, 10),
+        ));
         twin.push(element(Some(len), "TimeInnerTextBlock", "TextBlock", None));
         twin.push(element(Some(len), "DateInnerTextBlock", "TextBlock", None));
         assert_eq!(select(&twin, 1234, true), None);

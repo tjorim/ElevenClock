@@ -41,6 +41,8 @@ pub use shell::{Observation, Placement};
 
 #[cfg(windows)]
 pub mod native;
+#[cfg(windows)]
+pub(crate) mod overlay_window;
 
 /// Trailing-edge settle window: display changes arrive as several messages, and
 /// each discovery costs a helper process, so one refresh serves the whole burst.
@@ -75,7 +77,9 @@ impl fmt::Display for DiscoveryFailure {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Deadline => f.write_str("Taskbar discovery did not finish in time."),
-            Self::HelperExit(code) => write!(f, "Taskbar discovery stopped unexpectedly ({code:?})."),
+            Self::HelperExit(code) => {
+                write!(f, "Taskbar discovery stopped unexpectedly ({code:?}).")
+            }
             Self::Rejected(why) => write!(f, "Taskbar discovery returned unusable data: {why}"),
             Self::Unavailable(why) => write!(f, "Taskbar discovery could not start: {why}"),
             Self::NoTaskbar => f.write_str("Windows did not report a taskbar yet."),
@@ -132,6 +136,9 @@ pub trait Platform {
     fn destroy_overlay(&mut self, key: TaskbarKey);
     fn paint(&mut self, key: TaskbarKey, context: &PaintContext<'_>) -> PaintResult;
     fn hide(&mut self, key: TaskbarKey);
+    /// Cheap upkeep after each observation pass: for example, re-anchor overlay
+    /// z-order next to its taskbar. Must not repaint or block.
+    fn maintain(&mut self) {}
     /// Replace the single outstanding monotonic one-shot clock timer.
     fn arm_timer(&mut self, delay: Duration);
     /// Replace the single outstanding shell poll timer.
@@ -521,6 +528,7 @@ impl<P: Platform> Runtime<P> {
                 }
             }
         }
+        self.platform.maintain();
         if !relocated.is_empty() {
             changed = true;
             // Throttle: an inconsistent shell must not turn polling into a
