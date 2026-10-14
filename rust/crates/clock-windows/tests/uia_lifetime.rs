@@ -607,7 +607,60 @@ mod imp {
         );
     }
 
-    // Case 5 (opt-in): real Explorer. Kill it while a taskbar UIA call is outstanding.
+    #[link(name = "ntdll")]
+    unsafe extern "system" {
+        fn NtSuspendProcess(process: windows::Win32::Foundation::HANDLE) -> i32;
+        fn NtResumeProcess(process: windows::Win32::Foundation::HANDLE) -> i32;
+    }
+
+    /// Suspends a process so a client's call into it stays genuinely in flight, and
+    /// guarantees it is resumed (or terminated) on every path so a failed test can
+    /// never leave the desktop frozen.
+    struct Freeze {
+        process: windows::Win32::Foundation::HANDLE,
+        suspended: bool,
+    }
+    impl Freeze {
+        fn new(pid: u32) -> Self {
+            use windows::Win32::System::Threading::{
+                OpenProcess, PROCESS_SUSPEND_RESUME, PROCESS_TERMINATE,
+            };
+            // SAFETY: opens the shell process with exactly the rights used below.
+            let process =
+                unsafe { OpenProcess(PROCESS_SUSPEND_RESUME | PROCESS_TERMINATE, false, pid) }
+                    .expect("open the shell process");
+            // SAFETY: valid handle with PROCESS_SUSPEND_RESUME.
+            let status = unsafe { NtSuspendProcess(process) };
+            assert!(status >= 0, "NtSuspendProcess failed: {status:#x}");
+            Self {
+                process,
+                suspended: true,
+            }
+        }
+        fn terminate(&mut self) {
+            // SAFETY: valid handle with PROCESS_TERMINATE. A suspended process can be
+            // terminated; the death is what the outstanding call must observe.
+            let _ = unsafe { windows::Win32::System::Threading::TerminateProcess(self.process, 1) };
+            self.suspended = false;
+        }
+    }
+    impl Drop for Freeze {
+        fn drop(&mut self) {
+            // SAFETY: valid handle, closed exactly once.
+            unsafe {
+                if self.suspended {
+                    let _ = NtResumeProcess(self.process);
+                }
+                let _ = windows::Win32::Foundation::CloseHandle(self.process);
+            }
+        }
+    }
+
+    // Case 5 (opt-in): real Explorer. To make "a call is outstanding when Explorer
+    // dies" certain rather than lucky, Explorer is first *suspended* (a taskbar UIA
+    // call then cannot complete), the call is observed in flight for at least half a
+    // second, and only then is Explorer terminated. This is a deliberate freeze, not
+    // a hang Explorer produced on its own, and is labelled that way in the evidence.
     fn real_explorer_restart_correlation() {
         if std::env::var_os("ELEVENCLOCK_UIA_EXPLORER").is_none() {
             println!("skipped: set ELEVENCLOCK_UIA_EXPLORER=1 (it restarts the user's shell)");
@@ -616,11 +669,11 @@ mod imp {
         let dir = scratch();
         let mut attempts = Vec::new();
         let mut correlated = false;
-        for attempt in 1..=6 {
+        for attempt in 1..=4 {
             let log = dir.path().join(format!("explorer-{attempt}.jsonl"));
-            let mut client = spawn_trace("taskbar", &log, 90, None);
+            let mut client = spawn_trace("taskbar", &log, 120, None);
             wait_for(
-                "steady state before the kill",
+                "steady state before the freeze",
                 Duration::from_secs(60),
                 || {
                     read_log(&log)
@@ -631,19 +684,31 @@ mod imp {
                 },
             );
             let before = probe::current_shell();
-            // Kill at an instant when the client is inside a call.
-            let started = Instant::now();
-            while started.elapsed() < Duration::from_secs(10)
-                && outstanding(&read_log(&log)).is_none()
-            {}
+            let pid = before.expect("a running shell").0;
+            let mut freeze = Freeze::new(pid);
+            let freeze_t = micros();
+            // Hold until a call has been in flight for >= 500 ms.
+            let mut held = None;
+            let waited = Instant::now();
+            while waited.elapsed() < Duration::from_secs(10) {
+                let records = read_log(&log);
+                if let Some(begin) = outstanding(&records)
+                    && micros().saturating_sub(begin["t"].as_u64().unwrap()) >= 500_000
+                {
+                    held = Some((
+                        begin["op"].as_str().unwrap().to_string(),
+                        begin["seq"].as_u64().unwrap(),
+                        begin["t"].as_u64().unwrap(),
+                    ));
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
             let kill_issued = micros();
-            let status = Command::new("taskkill")
-                .args(["/F", "/IM", "explorer.exe"])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
+            freeze.terminate();
+            drop(freeze);
             let kill_done = micros();
-            // Wait for the shell (Windows normally restarts it itself).
+            // Windows normally restarts the shell itself; start it if it does not.
             let restart = Instant::now();
             while target("taskbar").is_none() && restart.elapsed() < Duration::from_secs(25) {
                 std::thread::sleep(Duration::from_millis(250));
@@ -654,20 +719,15 @@ mod imp {
                     target("taskbar").is_some()
                 });
             }
-            let recovered_client = finish(&mut client, Duration::from_secs(90));
+            let finished = finish(&mut client, Duration::from_secs(120));
             let records = read_log(&log);
-            // The operation that spanned the kill, if any, and what it returned.
-            let begins: Vec<&Value> = records.iter().filter(|r| r["event"] == "begin").collect();
-            let spanning = begins.iter().find_map(|b| {
-                let (t, seq) = (b["t"].as_u64()?, b["seq"].as_u64()?);
-                let end = records
+            let held_end = held.as_ref().and_then(|(_, seq, _)| {
+                records
                     .iter()
-                    .find(|r| r["event"] == "end" && r["seq"] == seq);
-                let end_t = end.and_then(|e| e["t"].as_u64()).unwrap_or(u64::MAX);
-                (t <= kill_issued && end_t >= kill_issued)
-                    .then(|| json!({"op": b["op"], "seq": seq, "begin_micros": t, "end": end}))
+                    .find(|r| r["event"] == "end" && r["seq"] == *seq)
             });
-            let spanning_failed = spanning.as_ref().is_some_and(|s| s["end"]["ok"] == false);
+            let held_failed = held_end
+                .is_some_and(|e| e["ok"] == false && e["t"].as_u64().unwrap() >= kill_issued);
             let stale: Vec<&Value> = records
                 .iter()
                 .filter(|r| {
@@ -676,25 +736,22 @@ mod imp {
                 .collect();
             let recovered = records.iter().find(|r| r["event"] == "recovered");
             let after = probe::current_shell();
-            let entry = json!({
+            attempts.push(json!({
                 "attempt": attempt,
-                "kind": "real Explorer",
+                "kind": "real Explorer, suspended (NtSuspendProcess) to hold a taskbar UIA call in flight, then terminated",
                 "shell_before": before.map(|s| json!({"pid": s.0, "started": s.1})),
                 "shell_after": after.map(|s| json!({"pid": s.0, "started": s.1})),
-                "kill_issued_micros": kill_issued, "kill_done_micros": kill_done,
-                "taskkill_ok": status.map(|s| s.success()).unwrap_or(false),
-                "call_spanning_the_kill": spanning,
-                "spanning_call_failed": spanning_failed,
+                "freeze_micros": freeze_t, "terminate_issued_micros": kill_issued, "terminate_done_micros": kill_done,
+                "call_held_outstanding": held.as_ref().map(|(op, seq, t)| json!({"op": op, "seq": seq, "begin_micros": t, "held_for_ms": (kill_issued.saturating_sub(*t)) / 1000})),
+                "outstanding_call_result": held_end,
+                "outstanding_call_failed_at_death": held_failed,
                 "retained_object_calls": stale,
                 "recovered_record": recovered,
-                "client_finished": recovered_client,
-            });
+                "client_finished": finished,
+            }));
             let fresh_shell = matches!((before, after), (Some(b), Some(a)) if b != a);
-            if spanning_failed && fresh_shell && recovered.is_some() {
+            if held_failed && fresh_shell && recovered.is_some() {
                 correlated = true;
-            }
-            attempts.push(entry);
-            if correlated {
                 break;
             }
             std::thread::sleep(Duration::from_secs(3));
@@ -705,7 +762,7 @@ mod imp {
         );
         assert!(
             correlated,
-            "no attempt caught a UIA call outstanding at Explorer's death and then recovered; see evidence"
+            "no attempt held a UIA call outstanding until Explorer's death and then recovered; see evidence"
         );
     }
 
