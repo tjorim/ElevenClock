@@ -275,7 +275,7 @@ pub fn run(
                     } else {
                         HWND_NOTOPMOST
                     };
-                    if SetWindowPos(
+                    if let Err(error) = SetWindowPos(
                         window.hwnd,
                         Some(target),
                         0,
@@ -283,9 +283,11 @@ pub fn run(
                         0,
                         0,
                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-                    )
-                    .is_err()
-                    {
+                    ) {
+                        let _ = observations.try_send(format!(
+                            "Taskbar-band placement failed: 0x{:08X}",
+                            error.code().0 as u32
+                        ));
                         continue;
                     }
                 }

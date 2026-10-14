@@ -184,7 +184,7 @@ mod experiment {
                     | "primary-reject"
             )
         {
-            return Err("Development usage: overlay_spike evidence.json seconds primary|all|primary-win-n|all-win-n".into());
+            return Err("Development usage: overlay_spike evidence.json seconds primary|all|primary-win-n|all-win-n|primary-keyboard|all-keyboard|primary-reject".into());
         }
         let duration: u64 = args[1].parse()?;
         if !(1..=300).contains(&duration) {
