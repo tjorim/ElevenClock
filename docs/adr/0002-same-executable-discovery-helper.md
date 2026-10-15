@@ -8,7 +8,7 @@ implemented and reviewed for `clock-app` before downstream use.
 ## Decision
 
 Blocking shell and UI Automation work runs in a short-lived *helper process* that is
-the app's own executable started with one private marker (`--mainspring-discovery-helper
+the app's own executable started with one private marker (`--elevenclock-rs-discovery-helper
 <generation>`, parsed only by `instance::Role`). The app never calls UIA or enumerates
 Explorer's children on its UI thread, and never claims a COM call can be cancelled:
 the only cancellation is terminating the process and observing its exit.

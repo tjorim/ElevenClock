@@ -541,7 +541,7 @@ fn tray_icon() -> HICON {
 }
 
 fn start_error(error: windows::core::Error) -> PlatformError {
-    PlatformError::new("Mainspring could not start its clock", error)
+    PlatformError::new("ElevenClock-rs could not start its clock", error)
 }
 
 /// Run the application until Exit. Returns after every overlay, hook, timer,
@@ -641,7 +641,7 @@ fn pump(
         request_exit();
         return Err(start_error(windows::core::Error::new(
             windows::core::HRESULT(0x80004005u32 as i32),
-            "An internal error occurred; Mainspring stopped and the Windows clock is shown.",
+            "An internal error occurred; ElevenClock-rs stopped and the Windows clock is shown.",
         )));
     }
     if EXIT.take() {

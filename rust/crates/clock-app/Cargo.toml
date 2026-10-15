@@ -8,7 +8,7 @@ license-file.workspace = true
 
 # The package keeps its internal name; the shipped executable carries the product name.
 [[bin]]
-name = "mainspring"
+name = "elevenclock-rs"
 path = "src/main.rs"
 
 [target.'cfg(windows)'.dependencies]

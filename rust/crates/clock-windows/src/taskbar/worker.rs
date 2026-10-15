@@ -170,7 +170,7 @@ pub fn run_helper(
         DiscoveryFailure::Unavailable(format!("{what}: {error}"))
     };
     let path = std::env::temp_dir().join(format!(
-        "mainspring-r08-{}-{}.json",
+        "elevenclock-rs-r08-{}-{}.json",
         std::process::id(),
         OUTPUT_SEQUENCE.fetch_add(1, Ordering::Relaxed)
     ));
@@ -290,7 +290,7 @@ impl DiscoveryWorker {
         });
         let worker = Arc::clone(&shared);
         let thread = std::thread::Builder::new()
-            .name("mainspring-discovery".into())
+            .name("elevenclock-rs-discovery".into())
             .spawn(move || worker_loop(&worker, &factory, deadline, &notify))?;
         Ok(Self {
             shared,

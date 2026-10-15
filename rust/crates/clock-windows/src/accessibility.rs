@@ -35,7 +35,7 @@ use windows::{
     core::{Error, HRESULT, IUnknown, IUnknownImpl, Result, implement},
 };
 
-const AUTOMATION_ID: &str = "Mainspring.Clock";
+const AUTOMATION_ID: &str = "ElevenClock-rs.Clock";
 const HELP_TEXT: &str = "Opens the calendar and notifications";
 
 /// State shared with whatever thread UIA calls on.

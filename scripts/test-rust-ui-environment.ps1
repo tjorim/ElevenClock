@@ -215,7 +215,7 @@ try {
 $explorer = $null
 $opened = $null
 try {
-    $before = @(Get-Process -Name mainspring -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+    $before = @(Get-Process -Name elevenclock-rs -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
     $folder = (Resolve-Path 'rust/target/x86_64-pc-windows-msvc/release').Path
     Start-Process explorer.exe -ArgumentList ('"' + $folder + '"')
     $cabinet = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ClassNameProperty, 'CabinetWClass')
@@ -233,7 +233,7 @@ try {
     $deadline = [DateTime]::UtcNow.AddSeconds(15)
     do {
         $items = $explorer.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::ListItem))
-        foreach ($item in $items) { if ($item.Current.Name -in @('mainspring', 'mainspring.exe')) { $file = $item; break } }
+        foreach ($item in $items) { if ($item.Current.Name -in @('elevenclock-rs', 'elevenclock-rs.exe')) { $file = $item; break } }
         if (!$file) { Start-Sleep -Milliseconds 200 }
     } while (!$file -and [DateTime]::UtcNow -lt $deadline)
     if (!$file) { throw 'Executable file item did not load in Explorer' }
@@ -245,10 +245,10 @@ try {
     $deadline = [DateTime]::UtcNow.AddSeconds(15)
     do {
         Start-Sleep -Milliseconds 200
-        $opened = Get-Process -Name mainspring -ErrorAction SilentlyContinue | Where-Object { $_.Id -notin $before } | Select-Object -First 1
+        $opened = Get-Process -Name elevenclock-rs -ErrorAction SilentlyContinue | Where-Object { $_.Id -notin $before } | Select-Object -First 1
         if ($opened) { $opened.Refresh() }
     } while ((!$opened -or $opened.MainWindowHandle -eq 0) -and [DateTime]::UtcNow -lt $deadline)
-    if (!$opened -or $opened.MainWindowTitle -ne 'Mainspring Settings') { throw 'Explorer double-click did not open native Settings' }
+    if (!$opened -or $opened.MainWindowTitle -ne 'ElevenClock-rs Settings') { throw 'Explorer double-click did not open native Settings' }
     # Retain a process handle for exit-code queries on an Explorer-started process.
     $null = $opened.Handle
     if (!$opened.WaitForInputIdle(5000)) { throw 'Prototype did not reach its input loop after double-click' }
@@ -279,7 +279,7 @@ try {
     if (!$again.WaitForExit(15000)) { $again.Kill(); throw 'Second launch did not exit' }
     $deadline = [DateTime]::UtcNow.AddSeconds(10)
     do { Start-Sleep -Milliseconds 100; $opened.Refresh() } while ($opened.MainWindowHandle -eq 0 -and [DateTime]::UtcNow -lt $deadline)
-    if ($opened.MainWindowTitle -ne 'Mainspring Settings') { throw 'Second launch did not focus the existing Settings window' }
+    if ($opened.MainWindowTitle -ne 'ElevenClock-rs Settings') { throw 'Second launch did not focus the existing Settings window' }
     $results.explorerSecondLaunch = 'Second launch exited and the existing process reopened Settings'
     [UiEnvironment]::SendMessageW([UiEnvironment]::GetDlgItem($opened.MainWindowHandle, 1003), 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
     if (!$opened.WaitForExit(10000)) { throw 'Exit did not stop the double-clicked app' }
