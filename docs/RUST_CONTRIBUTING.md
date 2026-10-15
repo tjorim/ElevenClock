@@ -41,9 +41,9 @@ cargo test --manifest-path rust/Cargo.toml --workspace --doc --locked
 cargo build --manifest-path rust/Cargo.toml -p clock-app --release --target x86_64-pc-windows-msvc --locked
 ```
 
-Double-click the resulting `clock-app.exe` for the native
+Double-click the resulting `elevenclock-rs.exe` for the native
 runtime and Settings shell. It has no command suite. Closing Settings keeps the
-clock running in the background; **Exit ElevenClock** quits (R08, see
+clock running in the background; **Exit ElevenClock-rs** quits (R08, see
 [its record](windows-evidence/R08.md)). This is a work in progress with no
 release: the experimental R02 candidate places the clock overlay, and P1 is still
 NO-GO (#23), so expect rough edges.
@@ -159,7 +159,7 @@ Linux, plus the Windows-only DirectWrite/Direct2D `Renderer`/`ClockSurface`; the
 Windows tests in `crates/clock-windows/tests/render_native.rs` need a Windows
 host. `clock-windows::theme` resolves opaque palettes (high contrast first). See
 the [R07 handoff](windows-evidence/R07.md) for the API, resource ownership and the
-unchecked interactive gates. `ELEVENCLOCK_R07_THEME` is a development-only switch
+unchecked interactive gates. `ELEVENCLOCK_RS_R07_THEME` is a development-only switch
 for the overlay harness, not a user setting.
 
 ## R08 runtime development

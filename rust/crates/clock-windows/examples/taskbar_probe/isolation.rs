@@ -93,8 +93,8 @@ mod tests {
     #[test]
     #[ignore = "subprocess fixture invoked only by deadline test"]
     fn stalled_helper() {
-        if std::env::var_os("ELEVENCLOCK_TEST_STALL").is_some() {
-            if let Some(marker) = std::env::var_os("ELEVENCLOCK_TEST_MARKER") {
+        if std::env::var_os("ELEVENCLOCK_RS_TEST_STALL").is_some() {
+            if let Some(marker) = std::env::var_os("ELEVENCLOCK_RS_TEST_MARKER") {
                 std::fs::write(marker, "started").unwrap();
             }
             thread::sleep(Duration::from_secs(30));
@@ -105,7 +105,7 @@ mod tests {
     fn kills_and_reaps_a_stalled_helper_before_replacement() {
         let start = Instant::now();
         let marker = std::env::temp_dir().join(format!(
-            "elevenclock-stall-test-{}-{}",
+            "elevenclock-rs-stall-test-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -114,8 +114,8 @@ mod tests {
         ));
         let mut child = Command::new(std::env::current_exe().unwrap())
             .args(["--exact", "isolation::tests::stalled_helper", "--ignored"])
-            .env("ELEVENCLOCK_TEST_STALL", "1")
-            .env("ELEVENCLOCK_TEST_MARKER", &marker)
+            .env("ELEVENCLOCK_RS_TEST_STALL", "1")
+            .env("ELEVENCLOCK_RS_TEST_MARKER", &marker)
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
@@ -143,7 +143,7 @@ mod tests {
     fn preserves_normal_helper_exit_status() {
         let mut child = Command::new(std::env::current_exe().unwrap())
             .args(["--exact", "isolation::tests::stalled_helper", "--ignored"])
-            .env_remove("ELEVENCLOCK_TEST_STALL")
+            .env_remove("ELEVENCLOCK_RS_TEST_STALL")
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
@@ -160,7 +160,7 @@ mod tests {
     fn rejects_completion_observed_after_deadline() {
         let mut child = Command::new(std::env::current_exe().unwrap())
             .args(["--exact", "isolation::tests::stalled_helper", "--ignored"])
-            .env_remove("ELEVENCLOCK_TEST_STALL")
+            .env_remove("ELEVENCLOCK_RS_TEST_STALL")
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()

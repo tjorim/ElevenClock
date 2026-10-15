@@ -8,7 +8,7 @@
 /// Window class of the hidden top-level host. It must be top level, not
 /// message-only, because `TaskbarCreated`, display, power and setting changes are
 /// broadcast only to top-level windows.
-pub const HOST_CLASS: &str = "ElevenClock.Runtime.Host";
+pub const HOST_CLASS: &str = "ElevenClock-rs.Runtime.Host";
 /// Posted to the host window: open or focus the Settings window.
 pub const WM_SHOW_SETTINGS: u32 = 0x8000 + 2;
 
@@ -33,8 +33,8 @@ impl InstanceNames {
             })
             .collect();
         Self {
-            mutex: format!("Local\\ElevenClock.Instance.{clean}"),
-            window_title: format!("ElevenClock.Host.{clean}"),
+            mutex: format!("Local\\ElevenClock-rs.Instance.{clean}"),
+            window_title: format!("ElevenClock-rs.Host.{clean}"),
         }
     }
 }
@@ -58,7 +58,7 @@ pub enum Role {
     },
 }
 pub const STARTUP_MARKER: &str = "--startup";
-pub const HELPER_MARKER: &str = "--elevenclock-discovery-helper";
+pub const HELPER_MARKER: &str = "--elevenclock-rs-discovery-helper";
 
 impl Role {
     /// Unknown arguments are ignored and never printed: the executable has no

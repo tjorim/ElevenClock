@@ -9,12 +9,12 @@
 //!   as such in the evidence. A `sleep` before COM is never used.
 //! * The production inventory code (`taskbar::uia::inventory`) runs under the
 //!   production supervisor (`taskbar::worker::run_helper`).
-//! * **Real Explorer** scenario (opt-in, `ELEVENCLOCK_UIA_EXPLORER=1`, because it
+//! * **Real Explorer** scenario (opt-in, `ELEVENCLOCK_RS_UIA_EXPLORER=1`, because it
 //!   restarts the user's shell): a client makes continuous UIA calls on the taskbar;
 //!   Explorer is killed while a call is demonstrably outstanding; the call's
 //!   HRESULT, the stale-object result and the fresh recovery are recorded.
 //!
-//! Every result is also written as JSON to `ELEVENCLOCK_EVIDENCE_DIR` when set.
+//! Every result is also written as JSON to `ELEVENCLOCK_RS_EVIDENCE_DIR` when set.
 //! One executable plays every role (runner, provider, clients) via private flags.
 #[cfg(not(windows))]
 fn main() {
@@ -81,7 +81,7 @@ mod imp {
             CreateWindowExW(
                 WS_EX_TOOLWINDOW,
                 w!("STATIC"),
-                w!("elevenclock-uia-fixture"),
+                w!("elevenclock-rs-uia-fixture"),
                 WS_POPUP | WS_VISIBLE,
                 40,
                 40,
@@ -312,7 +312,7 @@ mod imp {
 
     fn evidence(name: &str, value: Value) {
         println!("evidence {name}: {value}");
-        if let Some(dir) = std::env::var_os("ELEVENCLOCK_EVIDENCE_DIR") {
+        if let Some(dir) = std::env::var_os("ELEVENCLOCK_RS_EVIDENCE_DIR") {
             let _ = fs::create_dir_all(&dir);
             let _ = fs::write(
                 Path::new(&dir).join(format!("uia-{name}.json")),
@@ -671,8 +671,8 @@ mod imp {
     // second, and only then is Explorer terminated. This is a deliberate freeze, not
     // a hang Explorer produced on its own, and is labelled that way in the evidence.
     fn real_explorer_restart_correlation() {
-        if std::env::var_os("ELEVENCLOCK_UIA_EXPLORER").is_none() {
-            println!("skipped: set ELEVENCLOCK_UIA_EXPLORER=1 (it restarts the user's shell)");
+        if std::env::var_os("ELEVENCLOCK_RS_UIA_EXPLORER").is_none() {
+            println!("skipped: set ELEVENCLOCK_RS_UIA_EXPLORER=1 (it restarts the user's shell)");
             return;
         }
         let dir = scratch();

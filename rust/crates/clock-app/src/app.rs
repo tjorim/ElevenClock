@@ -41,7 +41,7 @@ fn application(launch: LaunchMode) -> Result<(), PlatformError> {
             if launch == LaunchMode::Interactive && !instance::signal_existing(&names, SIGNAL_WAIT)
             {
                 return Err(PlatformError::message(
-                    "ElevenClock is already running but did not respond",
+                    "ElevenClock-rs is already running but did not respond",
                 ));
             }
             Ok(())

@@ -1,6 +1,6 @@
 # Development-only native smoke harness; never part of the installed app.
 param(
-    [string]$Executable = 'rust/target/x86_64-pc-windows-msvc/release/clock-app.exe',
+    [string]$Executable = 'rust/target/x86_64-pc-windows-msvc/release/elevenclock-rs.exe',
     [string]$OutputDirectory = 'native-evidence',
     [int]$ExpectedDpi = 0,
     [ValidateSet('Window', 'Escape', 'Enter', 'Mnemonic')]
@@ -60,7 +60,7 @@ public static class SettingsNative {
 [SettingsNative]::SetThreadDpiAwarenessContext([IntPtr](-4)) | Out-Null
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 # Processes of this executable that exist before the run (other tests, helpers).
-$baseline = @(Get-Process -Name clock-app -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+$baseline = @(Get-Process -Name elevenclock-rs -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
 $app = Start-Process $Executable -PassThru
 try {
     $deadline = [DateTime]::UtcNow.AddSeconds(15)
@@ -69,7 +69,7 @@ try {
         $app.Refresh()
         if ($app.HasExited) { throw 'Prototype exited before opening Settings' }
     } while ($app.MainWindowHandle -eq 0 -and [DateTime]::UtcNow -lt $deadline)
-    if ($app.MainWindowTitle -ne 'ElevenClock Settings') { throw 'Expected native Settings window' }
+    if ($app.MainWindowTitle -ne 'ElevenClock-rs Settings') { throw 'Expected native Settings window' }
     $window = $app.MainWindowHandle
     $dpi = [SettingsNative]::GetDpiForWindow($window)
     if ($ExpectedDpi -ne 0 -and $dpi -ne $ExpectedDpi) { throw "Actual window DPI $dpi differs from requested $ExpectedDpi" }
@@ -156,7 +156,7 @@ try {
             Start-Sleep -Milliseconds 100
             $app.Refresh()
             if ($app.HasExited) { throw "Application exited while waiting for: $What" }
-            $isOpen = $app.MainWindowHandle -ne 0 -and $app.MainWindowTitle -eq 'ElevenClock Settings'
+            $isOpen = $app.MainWindowHandle -ne 0 -and $app.MainWindowTitle -eq 'ElevenClock-rs Settings'
         } while ($isOpen -ne $Open -and [DateTime]::UtcNow -lt $deadline)
         if ($isOpen -ne $Open) { throw "Timed out waiting for: $What" }
     }
@@ -176,7 +176,7 @@ try {
     if (!$again.WaitForExit(15000)) { $again.Kill(); throw 'Second launch did not exit' }
     if ($again.ExitCode -ne 0) { throw "Second launch exit code $($again.ExitCode)" }
     Wait-Settings $true 'second launch to show Settings in the existing process'
-    $windows = @(Get-Process -Name clock-app -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -eq 'ElevenClock Settings' })
+    $windows = @(Get-Process -Name elevenclock-rs -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -eq 'ElevenClock-rs Settings' })
     if ($windows.Count -ne 1) { throw "Expected one Settings window, found $($windows.Count)" }
     # Exit stops the application and releases everything it started.
     $exit = [SettingsNative]::GetDlgItem($app.MainWindowHandle, 1003)
@@ -187,7 +187,7 @@ try {
     $deadline = [DateTime]::UtcNow.AddSeconds(10)
     do {
         Start-Sleep -Milliseconds 100
-        $left = @(Get-Process -Name clock-app -ErrorAction SilentlyContinue | Where-Object { $_.Id -notin $baseline })
+        $left = @(Get-Process -Name elevenclock-rs -ErrorAction SilentlyContinue | Where-Object { $_.Id -notin $baseline })
     } while ($left.Count -gt 0 -and [DateTime]::UtcNow -lt $deadline)
     if ($left.Count -gt 0) { throw "Processes remained after Exit: $($left.Id -join ',')" }
 } finally {
