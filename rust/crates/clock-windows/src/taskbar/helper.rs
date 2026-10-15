@@ -1,6 +1,6 @@
 //! The private discovery helper role of the app executable (Windows only).
 //!
-//! The parent launches `clock-app.exe` with one fixed private marker and a
+//! The parent launches `tickbar.exe` with one fixed private marker and a
 //! generation (see `instance::Role`), assigns the process to a kill-on-close
 //! job, and only then writes the handshake this function waits for. Without that
 //! handshake the process does nothing and exits: launching the marker by hand

@@ -20,9 +20,9 @@ public static class OverlayEvidence {
     [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern IntPtr FindWindowExW(IntPtr parent,IntPtr after,string cls,string title);
     public static IntPtr FindOverlay() {
         var found=IntPtr.Zero;
-        EnumWindows((window,param)=> {var text=new System.Text.StringBuilder(256);GetClassNameW(window,text,256);if(text.ToString()=="ElevenClock.R03.Overlay") {found=window;return false;}return true;},IntPtr.Zero);
+        EnumWindows((window,param)=> {var text=new System.Text.StringBuilder(256);GetClassNameW(window,text,256);if(text.ToString()=="Tickbar.R03.Overlay") {found=window;return false;}return true;},IntPtr.Zero);
         if(found!=IntPtr.Zero) return found;
-        return FindWindowExW(IntPtr.Zero,IntPtr.Zero,"ElevenClock.R03.Overlay",null);
+        return FindWindowExW(IntPtr.Zero,IntPtr.Zero,"Tickbar.R03.Overlay",null);
     }
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
@@ -43,7 +43,7 @@ public static class OverlayEvidence {
         var window=WindowFromPoint(new Point{X=x,Y=y});uint process;
         GetWindowThreadProcessId(window,out process);
         var text=new System.Text.StringBuilder(256);GetClassNameW(window,text,256);
-        return process==expectedProcess && text.ToString()=="ElevenClock.R03.Overlay" && IsWindowVisible(window);
+        return process==expectedProcess && text.ToString()=="Tickbar.R03.Overlay" && IsWindowVisible(window);
     }
     public static void Press() {
         var down=new Input { Mouse=new Mouse { Flags=2 } };var up=new Input { Mouse=new Mouse { Flags=4 } };
@@ -171,7 +171,7 @@ function Clock-Point($h) {
     if (![OverlayEvidence]::GetWindowRect($h,[ref]$r)) {throw 'Missing overlay rectangle'}
     return @([int](($r.Left+$r.Right)/2),[int](($r.Top+$r.Bottom)/2))
 }
-$p=$null;$fixture=$null;$originalScale=$null;$settings=$null;$oldState=[OverlayEvidence]::TaskbarState();$oldReject=$env:ELEVENCLOCK_R03_REJECT_DISCOVERY
+$p=$null;$fixture=$null;$originalScale=$null;$settings=$null;$oldState=[OverlayEvidence]::TaskbarState();$oldReject=$env:TICKBAR_R03_REJECT_DISCOVERY
 try {
     Capture 'native-baseline'
     $fixture=New-Object Windows.Forms.Form
@@ -329,6 +329,6 @@ try {
     if ($settings) {$settings.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close()}
     [OverlayEvidence]::State($oldState)|Out-Null
     if ($fixture) {$fixture.Close();$fixture.Dispose()}
-    [Environment]::SetEnvironmentVariable('ELEVENCLOCK_R03_REJECT_DISCOVERY',$oldReject,'Process')
+    [Environment]::SetEnvironmentVariable('TICKBAR_R03_REJECT_DISCOVERY',$oldReject,'Process')
     Save-Context
 }

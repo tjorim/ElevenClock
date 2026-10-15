@@ -41,7 +41,7 @@ fn application(launch: LaunchMode) -> Result<(), PlatformError> {
             if launch == LaunchMode::Interactive && !instance::signal_existing(&names, SIGNAL_WAIT)
             {
                 return Err(PlatformError::message(
-                    "ElevenClock is already running but did not respond",
+                    "Tickbar is already running but did not respond",
                 ));
             }
             Ok(())

@@ -239,7 +239,7 @@ impl LocalPreferencesStore {
         let path = PathBuf::from(std::ffi::OsString::from_wide(wide));
         unsafe { CoTaskMemFree(Some(folder.0.cast())) };
         Ok(Self {
-            path: path.join("ElevenClockRust").join("preferences.dat"),
+            path: path.join("Tickbar").join("preferences.dat"),
             recovery_save_allowed: false,
         })
     }
@@ -619,7 +619,7 @@ mod tests {
         assert!(
             store
                 .path
-                .ends_with(Path::new("ElevenClockRust").join("preferences.dat"))
+                .ends_with(Path::new("Tickbar").join("preferences.dat"))
         );
     }
     #[cfg(windows)]

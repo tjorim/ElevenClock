@@ -149,8 +149,8 @@ function Capture-Desktop([string]$Name, $Record) {
 }
 
 $active = $null
-$oldStall = $env:ELEVENCLOCK_R02_SIMULATE_STALL
-$oldMarker = $env:ELEVENCLOCK_R02_STALL_READY
+$oldStall = $env:TICKBAR_R02_SIMULATE_STALL
+$oldMarker = $env:TICKBAR_R02_STALL_READY
 try {
     if ($PrepareHostedDesktop) {
         if ($env:GITHUB_ACTIONS -ne 'true') { throw 'Hosted desktop preparation is restricted to ephemeral GitHub runners' }
@@ -244,9 +244,9 @@ try {
     }
 
     # Fault injection proves OS teardown without claiming COM cancellation.
-    $env:ELEVENCLOCK_R02_SIMULATE_STALL = '1'
+    $env:TICKBAR_R02_SIMULATE_STALL = '1'
     $marker = Join-Path $output 'stall-ready.txt'
-    $env:ELEVENCLOCK_R02_STALL_READY = $marker
+    $env:TICKBAR_R02_STALL_READY = $marker
     $context.results.injectedStalls = @()
     foreach ($iteration in 1..3) {
         Remove-Item $marker -Force -ErrorAction SilentlyContinue
@@ -275,7 +275,7 @@ try {
     throw
 } finally {
     if ($active -and !$active.HasExited) { $active.Kill(); $active.WaitForExit(3000) | Out-Null }
-    [Environment]::SetEnvironmentVariable('ELEVENCLOCK_R02_SIMULATE_STALL', $oldStall, 'Process')
-    [Environment]::SetEnvironmentVariable('ELEVENCLOCK_R02_STALL_READY', $oldMarker, 'Process')
+    [Environment]::SetEnvironmentVariable('TICKBAR_R02_SIMULATE_STALL', $oldStall, 'Process')
+    [Environment]::SetEnvironmentVariable('TICKBAR_R02_STALL_READY', $oldMarker, 'Process')
     Save-Context
 }

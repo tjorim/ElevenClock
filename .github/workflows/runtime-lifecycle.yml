@@ -38,15 +38,15 @@ jobs:
       # progress, P1 still NO-GO), so those counts are evidence, not acceptance.
       - name: Lifecycle, second launch, close-to-background, Exit and Explorer restarts
         shell: pwsh
-        run: ./scripts/test-rust-lifecycle.ps1 -Executable 'rust/target/${{ matrix.target }}/debug/clock-app.exe' -OutputDirectory 'native-evidence/lifecycle' -ObserveOverlays
+        run: ./scripts/test-rust-lifecycle.ps1 -Executable 'rust/target/${{ matrix.target }}/debug/tickbar.exe' -OutputDirectory 'native-evidence/lifecycle' -ObserveOverlays
       # Real UI Automation calls against a controlled provider (hung, killed mid-call,
-      # retained elements) and, with ELEVENCLOCK_UIA_EXPLORER, against real Explorer
+      # retained elements) and, with TICKBAR_UIA_EXPLORER, against real Explorer
       # killed while a taskbar call is outstanding. Evidence JSON is uploaded.
       - name: UIA lifetime evidence (controlled provider and real Explorer restart)
         shell: pwsh
         env:
-          ELEVENCLOCK_UIA_EXPLORER: '1'
-          ELEVENCLOCK_EVIDENCE_DIR: native-evidence/uia
+          TICKBAR_UIA_EXPLORER: '1'
+          TICKBAR_EVIDENCE_DIR: native-evidence/uia
         run: cargo +stable test --manifest-path rust/Cargo.toml -p clock-windows --test uia_lifetime --target ${{ matrix.target }} --locked
       - uses: actions/upload-artifact@v4
         if: always()

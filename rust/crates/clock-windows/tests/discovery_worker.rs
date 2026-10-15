@@ -57,7 +57,7 @@ fn run_fixture(args: &[String]) -> ! {
     let mode = args.first().map_or("", String::as_str);
     let generation: u64 = args.get(1).and_then(|g| g.parse().ok()).unwrap_or(0);
     let extra: u64 = args.get(2).and_then(|g| g.parse().ok()).unwrap_or(0);
-    if let Some(path) = std::env::var_os("ELEVENCLOCK_FIXTURE_PID") {
+    if let Some(path) = std::env::var_os("TICKBAR_FIXTURE_PID") {
         let _ = std::fs::write(path, std::process::id().to_string());
     }
     let out = |text: &str| {
@@ -110,10 +110,7 @@ fn factory(
         let (mode, extra) = plan(generation.0);
         let mut env = Vec::new();
         if let Some(path) = &pid_file {
-            env.push((
-                "ELEVENCLOCK_FIXTURE_PID".into(),
-                path.clone().into_os_string(),
-            ));
+            env.push(("TICKBAR_FIXTURE_PID".into(), path.clone().into_os_string()));
         }
         HelperSpec {
             program: program.clone(),
@@ -212,7 +209,7 @@ fn wait_for_file(path: &PathBuf) -> u32 {
     }
 }
 fn leftover_outputs() -> usize {
-    let prefix = format!("elevenclock-r08-{}-", std::process::id());
+    let prefix = format!("tickbar-r08-{}-", std::process::id());
     std::fs::read_dir(std::env::temp_dir())
         .unwrap()
         .filter_map(Result::ok)

@@ -34,7 +34,7 @@ use windows::{
 /// the loop compares it and repaints from stored state. The callback keeps no
 /// references to loop state.
 pub static REPAINT_EPOCH: AtomicU64 = AtomicU64::new(0);
-const CLASS_NAME: windows::core::PCWSTR = w!("ElevenClock.Overlay");
+const CLASS_NAME: windows::core::PCWSTR = w!("Tickbar.Overlay");
 
 thread_local! {
     /// The button press in progress. Mouse capture makes at most one possible.
@@ -144,7 +144,7 @@ impl Overlay {
             CreateWindowExW(
                 WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
                 CLASS_NAME,
-                w!("ElevenClock"),
+                w!("Tickbar"),
                 WS_POPUP,
                 bounds.left(),
                 bounds.top(),
