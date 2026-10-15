@@ -9,9 +9,9 @@ in main through #17. The old `rust-rewrite-plan` link in R01 no longer resolves.
 ## Toolchains and commands
 
 Rust 2024 on current **stable** only: CI runs one toolchain, and the repository does
-not pin one (no `rust-toolchain.toml`). Workspace `rust-version` (1.90) records the
-compiler the code was last verified against; no CI job checks it, so raise it
-when you use a newer feature rather than treating it as a tested floor. Install
+not pin one (no `rust-toolchain.toml`). Workspace `rust-version` (1.99, the stable release
+current when it was last set) matches what CI builds with; it is not a separately
+tested floor, so raise it when you move to a newer stable. Install
 rustfmt and Clippy. Use `fmt --all` from the repository root so cargo-fmt finds
 this virtual workspace's targets. Release builds require a native Windows host so
 resources cannot be silently omitted during cross-compilation. Linux cross-target
