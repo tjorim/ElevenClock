@@ -1,7 +1,7 @@
 #pragma code_page(65001)
 #include <windows.h>
 1 RT_MANIFEST "resources/app.manifest"
-102 ICON "../../../icon.ico"
+102 ICON "../../../assets/icon.ico"
 101 DIALOGEX 0, 0, 300, 154
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 EXSTYLE WS_EX_APPWINDOW

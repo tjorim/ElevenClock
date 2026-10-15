@@ -9,7 +9,7 @@ fn main() {
     }
     println!("cargo:rerun-if-changed=resources/settings.rc");
     println!("cargo:rerun-if-changed=resources/app.manifest");
-    println!("cargo:rerun-if-changed=../../../icon.ico");
+    println!("cargo:rerun-if-changed=../../../assets/icon.ico");
     #[cfg(windows)]
     embed_resource::compile("resources/settings.rc", embed_resource::NONE)
         .manifest_required()

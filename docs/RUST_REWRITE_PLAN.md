@@ -1,5 +1,7 @@
 # ElevenClock Rust rewrite plan
 
+> Source references to the Python app (`elevenclock/...`, `build.cmd`, `ElevenClock.iss`, `requirements.txt`) point at the baseline commit; those files now live under [`legacy/`](../legacy).
+
 Prepared 2026-10-13. Planning only; no Rust implementation has started.
 
 This overview is supplemented by [the source dissection and implementation

@@ -2,15 +2,15 @@ bug.png
 ElevenClock.exe
 elevenclock_bin/
 ElevenClockBin/
-elevenclock\__init__.spec
-elevenclock\lang\__pycache__\*
+legacy/elevenclock/__init__.spec
+legacy/elevenclock/lang/__pycache__/*
 *.pyc
 *.pyo
 __init__
 ElevenClock.zip
 *.code-workspace
-elevenclock/.vscode/launch.json
-elevenclock/lang/lang_backup*
+legacy/elevenclock/.vscode/launch.json
+legacy/elevenclock/lang/lang_backup*
 
 # generate_release.py
 RELEASE.md
