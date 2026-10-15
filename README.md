@@ -44,10 +44,10 @@ cargo test --manifest-path rust/Cargo.toml --workspace --all-targets --locked
 
 ## License
 
-The checked-in [`LICENSE`](LICENSE) is the GNU General Public License v3. The upstream README
-claims Apache 2.0 while its `LICENSE` file is GPLv3; that discrepancy is unresolved and is
-tracked in the rewrite plan. This project began as a fork of
-[marticliment/ElevenClock](https://github.com/marticliment/ElevenClock) and is not a
-clean-room implementation, so until the licensing question is settled treat the code in this
-repository as derived from the original and distributed under the GPLv3, with the original
-notices retained.
+The checked-in [`LICENSE`](LICENSE) is the GNU General Public License v3. In upstream's history the
+license was Apache 2.0 only in the first commit (2021-09-19), MIT for twelve days, and GPLv3 since
+2022-01-16; the Apache 2.0 sentence in upstream's README was added later (2023-04-10) and is stale.
+This project began as a fork of [marticliment/ElevenClock](https://github.com/marticliment/ElevenClock)
+and is a reimplementation, not a clean-room implementation, so until the licensing question is
+settled in R14 treat the code in this repository as derived from the original and distributed under
+the GPLv3, with the original notices retained.
