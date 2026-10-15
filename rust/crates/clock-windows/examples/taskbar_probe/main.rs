@@ -129,8 +129,8 @@ mod windows_probe {
             }
             // Developer-only fault injection: prove Windows process teardown
             // with a confirmed blocked helper. This is not a simulated UIA result.
-            if std::env::var_os("TICKBAR_R02_SIMULATE_STALL").is_some() {
-                if let Some(path) = std::env::var_os("TICKBAR_R02_STALL_READY") {
+            if std::env::var_os("MAINSPRING_R02_SIMULATE_STALL").is_some() {
+                if let Some(path) = std::env::var_os("MAINSPRING_R02_STALL_READY") {
                     fs::write(path, std::process::id().to_string())?;
                 }
                 std::thread::sleep(Duration::from_secs(60));
@@ -161,7 +161,7 @@ mod windows_probe {
             queue.request(ShellGeneration(generation));
             let request = queue.start().ok_or("Another helper is still active")?;
             let path = std::env::temp_dir().join(format!(
-                "tickbar-r02-{}-{generation}.json",
+                "mainspring-r02-{}-{generation}.json",
                 std::process::id()
             ));
             let file = OpenOptions::new()

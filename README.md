@@ -1,4 +1,4 @@
-# Tickbar
+# Mainspring
 
 A customizable clock for the Windows 11 taskbar, written as a native Windows app in
 Rust. It replaces the taskbar clock with a formatted one on every display, and leaves
@@ -11,9 +11,9 @@ the original clock untouched underneath, so quitting or pausing always brings it
 
 ## Name
 
-Tickbar is the new name of the Rust rewrite of ElevenClock. Documents written before the
+Mainspring is the new name of the Rust rewrite of ElevenClock. Documents written before the
 rename (the rewrite plan, the issue specs and the files under `docs/windows-evidence`)
-still say "ElevenClock"; where they mean the product, read Tickbar, and where they mean the
+still say "ElevenClock"; where they mean the product, read Mainspring, and where they mean the
 Python app, that app is the one in [`legacy/`](legacy). The GitHub repository keeps its
 current name until it is renamed.
 
@@ -21,7 +21,7 @@ current name until it is renamed.
 
 | Path | What it is |
 | --- | --- |
-| [`rust/`](rust) | The Cargo workspace: `clock-core` (portable logic), `clock-windows` (Win32 adapter), `clock-app` (the executable, `tickbar.exe`), `clock-overlay-spike` (development-only prototype) |
+| [`rust/`](rust) | The Cargo workspace: `clock-core` (portable logic), `clock-windows` (Win32 adapter), `clock-app` (the executable, `mainspring.exe`), `clock-overlay-spike` (development-only prototype) |
 | [`docs/`](docs) | Plan, contracts, architecture decisions and per-issue Windows evidence |
 | [`scripts/`](scripts) | Hosted-desktop test harnesses and the dependency-license check |
 | [`assets/`](assets) | Icons used by the build |

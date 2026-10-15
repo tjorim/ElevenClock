@@ -30,7 +30,7 @@ impl fmt::Display for PlatformError {
 impl std::error::Error for PlatformError {}
 impl From<windows::core::Error> for PlatformError {
     fn from(source: windows::core::Error) -> Self {
-        Self::new("Tickbar could not start", source)
+        Self::new("Mainspring could not start", source)
     }
 }
 impl PlatformError {
@@ -51,7 +51,7 @@ impl PlatformError {
             MessageBoxW(
                 None,
                 PCWSTR(text.as_ptr()),
-                w!("Tickbar"),
+                w!("Mainspring"),
                 MB_OK | MB_ICONERROR,
             );
         }

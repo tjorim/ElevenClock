@@ -8,7 +8,7 @@
 /// Window class of the hidden top-level host. It must be top level, not
 /// message-only, because `TaskbarCreated`, display, power and setting changes are
 /// broadcast only to top-level windows.
-pub const HOST_CLASS: &str = "Tickbar.Runtime.Host";
+pub const HOST_CLASS: &str = "Mainspring.Runtime.Host";
 /// Posted to the host window: open or focus the Settings window.
 pub const WM_SHOW_SETTINGS: u32 = 0x8000 + 2;
 
@@ -33,8 +33,8 @@ impl InstanceNames {
             })
             .collect();
         Self {
-            mutex: format!("Local\\Tickbar.Instance.{clean}"),
-            window_title: format!("Tickbar.Host.{clean}"),
+            mutex: format!("Local\\Mainspring.Instance.{clean}"),
+            window_title: format!("Mainspring.Host.{clean}"),
         }
     }
 }
@@ -58,7 +58,7 @@ pub enum Role {
     },
 }
 pub const STARTUP_MARKER: &str = "--startup";
-pub const HELPER_MARKER: &str = "--tickbar-discovery-helper";
+pub const HELPER_MARKER: &str = "--mainspring-discovery-helper";
 
 impl Role {
     /// Unknown arguments are ignored and never printed: the executable has no

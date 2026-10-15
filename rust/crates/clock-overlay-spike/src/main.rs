@@ -151,7 +151,7 @@ mod experiment {
                     let slot = decode(&request["slot"])?;
                     Ok(json!({"action": prototype_interaction::invoke(&slot, request["fallback"].as_bool().unwrap_or(false), request["keyboard_only"].as_bool().unwrap_or(false))?}))
                 } else {
-                    if request["reject"].as_bool().unwrap_or(false) || std::env::var_os("TICKBAR_R03_REJECT_DISCOVERY").is_some() {
+                    if request["reject"].as_bool().unwrap_or(false) || std::env::var_os("MAINSPRING_R03_REJECT_DISCOVERY").is_some() {
                         return Err("Injected unsupported-discovery result; no geometry accepted".into());
                     }
                     Ok(json!({"slots": prototype_interaction::discover(sequence, request["all"].as_bool().unwrap_or(false))?.iter().map(encode).collect::<Vec<_>>()}))

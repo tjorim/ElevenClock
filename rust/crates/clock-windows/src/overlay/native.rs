@@ -74,12 +74,12 @@ static REPAINT_EPOCH: AtomicU64 = AtomicU64::new(0);
 static APPEARANCE_EPOCH: AtomicU64 = AtomicU64::new(0);
 
 /// R03's evidence script verifies coverage by exact black corner pixels, so the
-/// harness paints fixed black/white unless `TICKBAR_R07_THEME` selects a
+/// harness paints fixed black/white unless `MAINSPRING_R07_THEME` selects a
 /// preference (`system`, `light` or `dark`) to exercise live theme/high contrast.
 const HARNESS_TEXT: &str = "2642.2";
 const HARNESS_FONT_PT: u8 = 9;
 fn harness_theme() -> Option<Theme> {
-    match std::env::var("TICKBAR_R07_THEME").ok()?.as_str() {
+    match std::env::var("MAINSPRING_R07_THEME").ok()?.as_str() {
         "system" => Some(Theme::System),
         "light" => Some(Theme::Light),
         "dark" => Some(Theme::Dark),
@@ -202,7 +202,7 @@ pub fn run(
         let class = WNDCLASSW {
             lpfnWndProc: Some(window_proc),
             hInstance: module.into(),
-            lpszClassName: w!("Tickbar.R03.Overlay"),
+            lpszClassName: w!("Mainspring.R03.Overlay"),
             hCursor: LoadCursorW(None, IDC_ARROW)?,
             ..Default::default()
         };

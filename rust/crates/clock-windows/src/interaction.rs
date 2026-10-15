@@ -103,9 +103,9 @@ pub fn menu_items(paused: bool) -> [MenuItem; 3] {
 /// indistinguishable from the original clock.
 pub fn tray_tooltip(paused: bool) -> &'static str {
     if paused {
-        "Tickbar (paused)"
+        "Mainspring (paused)"
     } else {
-        "Tickbar"
+        "Mainspring"
     }
 }
 
@@ -486,7 +486,7 @@ mod tests {
 
     #[test]
     fn tooltip_states_the_mode() {
-        assert_eq!(tray_tooltip(false), "Tickbar");
+        assert_eq!(tray_tooltip(false), "Mainspring");
         assert!(tray_tooltip(true).contains("paused"));
     }
 }

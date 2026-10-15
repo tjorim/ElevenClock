@@ -8,7 +8,7 @@ license-file.workspace = true
 
 # The package keeps its internal name; the shipped executable carries the product name.
 [[bin]]
-name = "tickbar"
+name = "mainspring"
 path = "src/main.rs"
 
 [target.'cfg(windows)'.dependencies]

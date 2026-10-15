@@ -41,7 +41,7 @@ fn application(launch: LaunchMode) -> Result<(), PlatformError> {
             if launch == LaunchMode::Interactive && !instance::signal_existing(&names, SIGNAL_WAIT)
             {
                 return Err(PlatformError::message(
-                    "Tickbar is already running but did not respond",
+                    "Mainspring is already running but did not respond",
                 ));
             }
             Ok(())
