@@ -41,6 +41,9 @@ jobs:
         with:
           workspaces: rust
       - run: cargo test --manifest-path rust/Cargo.toml --workspace --all-targets --locked
+      # The real Windows clipboard, including contention (R11). Ignored by default
+      # because it overwrites the clipboard text while it runs.
+      - run: cargo test --manifest-path rust/Cargo.toml -p clock-windows --test clipboard_native --locked -- --ignored --test-threads=1
       - run: cargo build --manifest-path rust/Cargo.toml -p clock-app --release --target x86_64-pc-windows-msvc --locked
       - name: Check GUI subsystem and linked native resources
         shell: pwsh

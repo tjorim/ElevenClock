@@ -12,7 +12,8 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
-Add-Type @'
+Add-Type -AssemblyName Accessibility
+Add-Type -ReferencedAssemblies @('System.dll', [Accessibility.IAccessible].Assembly.Location) @'
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -81,6 +82,25 @@ public static class SettingsNative {
         var info = new GuiInfo(); info.Size = Marshal.SizeOf(info);
         return GetGUIThreadInfo(thread, ref info) ? info.Focus : IntPtr.Zero;
     }
+    // Alert events (EVENT_SYSTEM_ALERT) are what the app raises so a reader speaks a status
+    // change; this records which window each one came from. Needs a pumping thread.
+    public delegate void WinEventProc(IntPtr hook, uint eventType, IntPtr window, int objectId, int childId, uint thread, uint time);
+    [DllImport("user32.dll")] static extern IntPtr SetWinEventHook(uint min, uint max, IntPtr module, WinEventProc callback, uint process, uint thread, uint flags);
+    static WinEventProc alertCallback;
+    static readonly System.Collections.Generic.List<IntPtr> alerts = new System.Collections.Generic.List<IntPtr>();
+    public static void WatchAlerts(uint process) {
+        alertCallback = (hook, eventType, window, objectId, childId, thread, time) => { lock (alerts) alerts.Add(window); };
+        if (SetWinEventHook(0x0002, 0x0002, IntPtr.Zero, alertCallback, process, 0, 0) == IntPtr.Zero) throw new InvalidOperationException("Could not watch accessibility alerts");
+    }
+    public static int AlertsFrom(IntPtr window) { lock (alerts) { return alerts.FindAll(w => w == window).Count; } }
+    // The classic control's default IAccessible: what Narrator and other readers query.
+    [DllImport("oleacc.dll")] static extern int AccessibleObjectFromWindow(IntPtr window, uint objectId, ref Guid iid, [MarshalAs(UnmanagedType.Interface)] out Accessibility.IAccessible accessible);
+    public static Accessibility.IAccessible Accessible(IntPtr window) {
+        var iid = new Guid("618736E0-3C3D-11CF-810C-00AA00389B71");
+        Accessibility.IAccessible accessible;
+        Marshal.ThrowExceptionForHR(AccessibleObjectFromWindow(window, 0xfffffffc, ref iid, out accessible));
+        return accessible;
+    }
     public static string Text(IntPtr control) {
         var text = new StringBuilder(8192); SendMessageW(control, 0x000D, 8192, text); // WM_GETTEXT
         return text.ToString().Replace("\r\n", "\n");
@@ -112,6 +132,26 @@ function Type-Text([string]$Text) {
 function Click([IntPtr]$Button) { [SettingsNative]::SendMessageW($Button, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null; Start-Sleep -Milliseconds 500 } # BM_CLICK
 function Focused-Id([IntPtr]$Window) { [SettingsNative]::GetDlgCtrlID([SettingsNative]::Focus($Window)) }
 function Assert([bool]$Condition, [string]$Message) { if (-not $Condition) { throw $Message } }
+Add-Type -AssemblyName System.Windows.Forms
+# Let queued out-of-process accessibility events reach this thread's callbacks.
+function Pump([int]$Milliseconds) {
+    $end = [DateTime]::UtcNow.AddMilliseconds($Milliseconds)
+    while ([DateTime]::UtcNow -lt $end) { [Windows.Forms.Application]::DoEvents(); Start-Sleep -Milliseconds 20 }
+}
+function Capture-Window([IntPtr]$Window, [string]$Name) {
+    $rect = New-Object SettingsNative+Rect
+    if (![SettingsNative]::GetWindowRect($Window, [ref]$rect)) { throw 'Could not measure Settings window' }
+    $bitmap = [Drawing.Bitmap]::new(($rect.Right - $rect.Left), ($rect.Bottom - $rect.Top))
+    try {
+        $graphics = [Drawing.Graphics]::FromImage($bitmap)
+        try {
+            $dc = $graphics.GetHdc()
+            try { if (![SettingsNative]::PrintWindow($Window, $dc, 2)) { throw 'Native dialog capture failed' } }
+            finally { $graphics.ReleaseHdc($dc) }
+        } finally { $graphics.Dispose() }
+        $bitmap.Save((Join-Path (Resolve-Path $OutputDirectory) $Name), [Drawing.Imaging.ImageFormat]::Png)
+    } finally { $bitmap.Dispose() }
+}
 
 # --- the current user's preferences are saved and restored around the run ---
 $preferences = Join-Path $env:LOCALAPPDATA 'ElevenClock-rs\preferences.dat'
@@ -225,6 +265,123 @@ try {
     Assert ([SettingsNative]::Text((Control $window 0 1101)) -like 'ElevenClock-rs keeps running*') 'Welcome text must only show once'
     Assert ([SettingsNative]::GetForegroundWindow() -eq $window) 'The second launch must bring Settings to the front'
     $steps.cancel = 'Cancel discarded the draft, the clock kept running and a second launch refocused Settings'
+
+    # 8b. Support (R11): status, a bounded Refresh status, the previewed report, Copy
+    #     diagnostics to the real clipboard, redaction and the bounded local log.
+    Foreground $window
+    1..3 | ForEach-Object { Press 0x22 0x11 }   # Ctrl+PageDown: Appearance, Startup, Support
+    $status = [SettingsNative]::Text((Control $window $PAGE.Support 1501))
+    Assert ($status -like 'ElevenClock-rs version *') "Support status must lead with the version: $status"
+    Assert ($status -match 'Windows 10\.0\.\d+') "Support status must show the Windows build: $status"
+    Assert ($status -match 'Status: ') "Support status must say where replacement stands: $status"
+    $report = [SettingsNative]::Text((Control $window $PAGE.Support 1503))
+    Assert ($report -like 'ElevenClock-rs diagnostics*') "Report preview missing: $report"
+    foreach ($field in 'App version:', 'App commit:', 'Windows:', 'Architecture:', 'Clock replacement:', 'Taskbar discovery:', 'Taskbars:') {
+        Assert ($report.Contains($field)) "Report is missing '$field'"
+    }
+    foreach ($private in @($env:USERNAME, $env:USERPROFILE, 'C:\Users')) {
+        Assert (-not $report.ToLowerInvariant().Contains($private.ToLowerInvariant())) "Report leaks '$private'"
+    }
+    # Layout at the current scale: every Support control lies inside its page and no two
+    # overlap, so nothing is clipped or covered at any DPI (checked at 100-200% in CI).
+    $pageRect = New-Object SettingsNative+Rect
+    [SettingsNative]::GetWindowRect((Control $window 0 $PAGE.Support), [ref]$pageRect) | Out-Null
+    $rects = @{}
+    foreach ($id in 1501, 1502, 1503, 1504, 1505) {
+        $r = New-Object SettingsNative+Rect
+        [SettingsNative]::GetWindowRect((Control $window $PAGE.Support $id), [ref]$r) | Out-Null
+        Assert (($r.Left -ge $pageRect.Left) -and ($r.Top -ge $pageRect.Top) -and ($r.Right -le $pageRect.Right) -and ($r.Bottom -le $pageRect.Bottom)) "Support control $id lies outside its page"
+        $rects[$id] = $r
+    }
+    foreach ($a in $rects.Keys) { foreach ($b in $rects.Keys) {
+        if ($a -lt $b) {
+            $x = $rects[$a]; $y = $rects[$b]
+            $overlap = ($x.Left -lt $y.Right) -and ($y.Left -lt $x.Right) -and ($x.Top -lt $y.Bottom) -and ($y.Top -lt $x.Bottom)
+            Assert (-not $overlap) "Support controls $a and $b overlap"
+        }
+    } }
+    # What a screen reader is given: a name, a role and keyboard focusability. Edits are
+    # named by the label before them; this is the data Narrator speaks, not its speech.
+    $names = [ordered]@{}
+    foreach ($entry in @(@(1501, 'status', 'Status*'), @(1502, 'refresh', 'Refresh status'), @(1503, 'report', 'Report text*'), @(1504, 'copy', 'Copy diagnostics'))) {
+        $accessible = [SettingsNative]::Accessible((Control $window $PAGE.Support $entry[0]))
+        $names[$entry[1]] = $accessible.accName(0)
+        Assert ($names[$entry[1]] -like $entry[2]) "Support $($entry[1]) accessible name was '$($names[$entry[1]])', expected '$($entry[2])'"
+        Assert ((([int]$accessible.accState(0)) -band 0x100000) -ne 0) "Support $($entry[1]) is not keyboard focusable"
+    }
+    $steps.supportAccessibleNames = ($names.GetEnumerator() | ForEach-Object { "$($_.Key)='$($_.Value)'" }) -join '; '
+    # Refresh status answers within the bound and never leaves the dialog busy.
+    $feedback = Control $window $PAGE.Support 1505
+    # Keyboard only: Tab walks status, Refresh, report and Copy; Alt+F presses Refresh.
+    $supportOrder = 1501, 1502, 1503, 1504
+    $actual = @()
+    1..$supportOrder.Count | ForEach-Object { Press 9; $actual += Focused-Id $window }
+    Assert (($actual -join ',') -eq ($supportOrder -join ',')) "Support tab order was $($actual -join ',') but expected $($supportOrder -join ',')"
+    [SettingsNative]::WatchAlerts([uint32]$app.Id)
+    $alertsBefore = [SettingsNative]::AlertsFrom($feedback)
+    Press 70 18
+    $deadline = [DateTime]::UtcNow.AddSeconds(15)
+    while (([SettingsNative]::Text($feedback) -ne 'Status refreshed.') -and [DateTime]::UtcNow -lt $deadline) { Pump 200 }
+    Assert ([SettingsNative]::Text($feedback) -eq 'Status refreshed.') "Refresh status did not finish: '$([SettingsNative]::Text($feedback))'"
+    Pump 300
+    # One alert when the check starts and one when it ends, both from the result line.
+    Assert (([SettingsNative]::AlertsFrom($feedback) - $alertsBefore) -ge 2) 'Refresh status must announce that it started and finished'
+    # Copy diagnostics writes exactly the previewed text, only because it was clicked.
+    $clipboardBefore = Get-Clipboard -Raw
+    $sentinel = "R11 sentinel $([Guid]::NewGuid())"
+    Set-Clipboard -Value $sentinel
+    Start-Sleep -Milliseconds 300
+    Assert ((Get-Clipboard -Raw).Trim() -eq $sentinel) 'Opening and refreshing Support must not touch the clipboard'
+    # Contention: a separate process holds the clipboard open. Copy must fail quickly
+    # with an accessible message, leave the old contents alone and keep the window alive.
+    $flag = Join-Path $env:TEMP "r11-clipboard-held-$([Guid]::NewGuid()).flag"
+    $holderScript = Join-Path $env:TEMP "r11-clipboard-holder-$([Guid]::NewGuid()).ps1"
+    Set-Content -Path $holderScript -Encoding UTF8 -Value @'
+param([string]$Flag)
+Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern bool OpenClipboard(IntPtr owner); [DllImport("user32.dll")] public static extern bool CloseClipboard();' -Name Clip -Namespace Holder
+if (-not [Holder.Clip]::OpenClipboard([IntPtr]::Zero)) { exit 2 }
+Set-Content -Path $Flag -Value 'held'
+Start-Sleep -Seconds 5
+[Holder.Clip]::CloseClipboard() | Out-Null
+'@
+    $holder = Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $holderScript, $flag -PassThru -WindowStyle Hidden
+    try {
+        $deadline = [DateTime]::UtcNow.AddSeconds(15)
+        while (-not (Test-Path $flag) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 100 }
+        Assert (Test-Path $flag) 'The clipboard holder process did not start'
+        $held = [Diagnostics.Stopwatch]::StartNew()
+        Click (Control $window $PAGE.Support 1504)   # includes a 500 ms settle
+        $busy = [SettingsNative]::Text($feedback)
+        Assert ($busy -like 'Diagnostics were not copied. Another program is using the clipboard*') "A held clipboard must be reported: '$busy'"
+        Assert ($busy -like '*Your clipboard was not changed.') "A held clipboard must not be cleared: '$busy'"
+        Assert ($held.Elapsed.TotalSeconds -lt 3) 'Copy blocked the window while the clipboard was held'
+        Assert ([SettingsNative]::IsWindowEnabled((Control $window $PAGE.Support 1504))) 'The window must stay usable while the clipboard is held'
+        $holder.WaitForExit(15000) | Out-Null
+        Assert ((Get-Clipboard -Raw).Trim() -eq $sentinel) 'The old clipboard contents must survive a failed copy'
+    } finally {
+        if (-not $holder.HasExited) { $holder.Kill() }
+        Remove-Item $flag, $holderScript -Force -ErrorAction SilentlyContinue
+    }
+    $report = [SettingsNative]::Text((Control $window $PAGE.Support 1503))
+    $alertsBefore = [SettingsNative]::AlertsFrom($feedback)
+    Click (Control $window $PAGE.Support 1504)
+    Pump 300
+    Assert (([SettingsNative]::AlertsFrom($feedback) - $alertsBefore) -ge 1) 'The copy result must be announced'
+    Assert ([SettingsNative]::Text($feedback) -eq 'Diagnostics copied to the clipboard.') "Copy did not report success: '$([SettingsNative]::Text($feedback))'"
+    $copied = (Get-Clipboard -Raw).Replace("`r`n", "`n")
+    Assert ($copied.TrimEnd() -eq $report.TrimEnd()) 'The clipboard must hold exactly the previewed report'
+    if ($null -ne $clipboardBefore) { Set-Clipboard -Value $clipboardBefore } else { Set-Clipboard -Value $null }
+    # The bounded local log exists, names the start and holds no personal data.
+    $log = Join-Path $env:LOCALAPPDATA 'ElevenClock-rs\logs\elevenclock-rs.log'
+    Assert (Test-Path $log) 'The local log was not created'
+    $logText = Get-Content $log -Raw
+    Assert ($logText -like '*ElevenClock-rs * started*') 'The log must record the start'
+    Assert (-not $logText.ToLowerInvariant().Contains($env:USERNAME.ToLowerInvariant())) 'The log must not contain the user name'
+    Assert ((Get-ChildItem (Split-Path $log) -Filter 'elevenclock-rs*.log' | Measure-Object -Property Length -Maximum).Maximum -le 1MB) 'A log file exceeds 1 MiB'
+    Capture-Window $window 'support.png'
+    [IO.File]::WriteAllText((Join-Path (Resolve-Path $OutputDirectory) 'support-report.txt'), $report)
+    Press 0x22 0x11                # Ctrl+PageDown: back to Date and time
+    $steps.support = 'Support status, previewed report (no user name or paths), bounded Refresh status, exact clipboard copy and bounded log verified'
 
     # 9. Reset stages defaults; nothing is saved until Apply.
     Click (Control $window 0 1104)

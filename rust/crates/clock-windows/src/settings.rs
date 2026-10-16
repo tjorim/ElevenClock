@@ -12,12 +12,16 @@
 //! re-entrancy free (Apply may show a message box and call back into the runtime)
 //! and lets the same loop that serves the clock serve this window.
 use crate::{
+    logging,
     preferences_store::{PreferenceSession, PreferencesStore},
-    runtime::{Input, Platform, Reason, Runtime},
+    runtime::{Diagnostics, Input, Platform, Reason, Runtime},
     settings_model::{ApplyOutcome, FONT_MAX, FONT_MIN, Field, SettingsController, TOKEN_HELP},
+    support::{
+        self, Clipboard, Environment, Progress, RefreshWatch, WindowsClipboard, copy_message,
+    },
 };
 use clock_core::{Monitors, Theme, format::PRESETS};
-use std::{cell::Cell, cell::RefCell, fmt};
+use std::{cell::Cell, cell::RefCell, fmt, time::Instant};
 use windows::{
     Win32::{
         Foundation::{HINSTANCE, HWND, LPARAM, POINT, RECT, WPARAM},
@@ -71,7 +75,13 @@ const ID_FONT_ERROR: i32 = 1305;
 pub const ID_THEME: i32 = 1306;
 
 const ID_STARTUP_INFO: i32 = 1401;
+/// Support page: status text, Refresh status, the report preview, Copy
+/// diagnostics, and the line that says how the last of those went.
 const ID_SUPPORT_INFO: i32 = 1501;
+pub const ID_SUPPORT_REFRESH: i32 = 1502;
+pub const ID_SUPPORT_REPORT: i32 = 1503;
+pub const ID_SUPPORT_COPY: i32 = 1504;
+const ID_SUPPORT_FEEDBACK: i32 = 1505;
 
 const EN_CHANGE: u32 = 0x0300;
 
@@ -382,6 +392,17 @@ pub struct SettingsWindow<S> {
     status: String,
     /// Whether this window opened as the first-run welcome.
     welcome: bool,
+    support: SupportPage,
+}
+
+/// Support page state. The text shown is always derived from one `Diagnostics`
+/// value, so the status and the previewed report cannot disagree.
+struct SupportPage {
+    environment: Environment,
+    /// What the page currently shows; the page is rewritten only when it changes.
+    shown: Option<Diagnostics>,
+    /// A Refresh status that has not been answered yet.
+    refresh: Option<(RefreshWatch, Instant)>,
 }
 
 impl<S: PreferencesStore> SettingsWindow<S> {
@@ -404,6 +425,11 @@ impl<S: PreferencesStore> SettingsWindow<S> {
                 controller: SettingsController::new(session),
                 status: String::new(),
                 welcome: false,
+                support: SupportPage {
+                    environment: support::detect_environment(),
+                    shown: None,
+                    refresh: None,
+                },
             })
         }
     }
@@ -433,6 +459,8 @@ impl<S: PreferencesStore> SettingsWindow<S> {
         }
         self.controller.open();
         self.status.clear();
+        self.support.shown = None;
+        self.support.refresh = None;
         self.welcome = self.controller.first_run();
         // SAFETY: creation parameters are plain integers; resources are in the exe.
         let dialog = unsafe {
@@ -453,6 +481,7 @@ impl<S: PreferencesStore> SettingsWindow<S> {
         }
         self.sync_all(dialog);
         self.refresh(dialog, runtime);
+        self.update_support(dialog, runtime);
         // SAFETY: shows our own window and brings it forward.
         unsafe {
             let _ = ShowWindow(dialog, SW_SHOW);
@@ -539,15 +568,7 @@ impl<S: PreferencesStore> SettingsWindow<S> {
              update adds an opt-in setting here.\n\nUntil then ElevenClock-rs runs only when you \
              start it, for example from the Start menu, and nothing starts automatically.",
         );
-        set_text(
-            control(dialog, PAGE_SUPPORT, ID_SUPPORT_INFO),
-            &format!(
-                "ElevenClock-rs version {}\n\nStatus and a way to copy diagnostics will be added \
-                 here in a later update.\n\nChoosing Exit removes the ElevenClock-rs clock and \
-                 shows the Windows clock again. The Windows clock itself is never changed.",
-                env!("CARGO_PKG_VERSION")
-            ),
-        );
+        // The Support controls are filled by `update_support` from live diagnostics.
         let intro = if self.welcome {
             "Welcome to ElevenClock-rs. Choose how the clock looks, then select OK. ElevenClock-rs \
              keeps running when you close this window; use its clock or tray menu to exit."
@@ -662,6 +683,91 @@ impl<S: PreferencesStore> SettingsWindow<S> {
         }
     }
 
+    /// Say how the last Support action went, and have assistive technology read it.
+    fn support_feedback(&self, dialog: HWND, message: &str) {
+        let feedback = control(dialog, PAGE_SUPPORT, ID_SUPPORT_FEEDBACK);
+        set_text(feedback, message);
+        announce(feedback);
+    }
+
+    /// Keep the Support page current: finish a pending Refresh status, and rewrite
+    /// the status and report when the diagnostics changed. Cheap when nothing did.
+    fn update_support<P: Platform>(&mut self, dialog: HWND, runtime: &Runtime<P>) {
+        let diagnostics = runtime.diagnostics();
+        let mut finished = None;
+        if let Some((watch, started)) = self.support.refresh {
+            finished = match watch.progress(&diagnostics, started.elapsed()) {
+                Progress::Waiting => None,
+                Progress::Done => Some("Status refreshed."),
+                Progress::TimedOut => Some(
+                    "Checking the taskbars took too long. Showing the last known status. \
+                     Choose Refresh status to try again.",
+                ),
+            };
+            if finished.is_some() {
+                self.support.refresh = None;
+            }
+        }
+        if self.support.shown.as_ref() != Some(&diagnostics) {
+            let page = |id| control(dialog, PAGE_SUPPORT, id);
+            set_text(
+                page(ID_SUPPORT_INFO),
+                &support::status_text(&self.support.environment, &diagnostics),
+            );
+            set_text(
+                page(ID_SUPPORT_REPORT),
+                &support::report(&self.support.environment, &diagnostics, support::now_utc()),
+            );
+            // What was last copied no longer matches the preview.
+            if self.support.shown.is_some() && finished.is_none() && self.support.refresh.is_none()
+            {
+                set_text(page(ID_SUPPORT_FEEDBACK), "");
+            }
+            self.support.shown = Some(diagnostics);
+        }
+        if let Some(message) = finished {
+            self.support_feedback(dialog, message);
+        }
+    }
+
+    /// Refresh status: ask for a fresh, bounded discovery. The window stays
+    /// responsive; `update_support` shows the answer when it arrives.
+    fn start_refresh<P: Platform>(&mut self, dialog: HWND, runtime: &mut Runtime<P>) {
+        if self.support.refresh.is_some() {
+            self.support_feedback(dialog, "Still checking the taskbars.");
+            return;
+        }
+        let watch = RefreshWatch::start(&runtime.diagnostics());
+        self.support.refresh = Some((watch, Instant::now()));
+        runtime.refresh_status();
+        self.support_feedback(dialog, "Checking the taskbars...");
+        self.update_support(dialog, runtime);
+    }
+
+    /// Copy diagnostics: put exactly the previewed text on the clipboard, only
+    /// because the user chose to.
+    fn copy_report(&mut self, dialog: HWND) {
+        let report = get_text(control(dialog, PAGE_SUPPORT, ID_SUPPORT_REPORT));
+        let result = WindowsClipboard::new(dialog).set_text(&report);
+        match result {
+            Ok(()) => logging::log("diagnostics copied to the clipboard"),
+            Err(error) => logging::log(&format!(
+                "diagnostics were not copied ({:?}, clipboard cleared: {})",
+                error.fault, error.replaced
+            )),
+        }
+        self.support_feedback(dialog, &copy_message(result));
+    }
+
+    /// Call after the runtime has handled the pending work: shows a new discovery
+    /// answer on the Support page and ends a Refresh status that has waited long
+    /// enough.
+    pub fn refresh_support<P: Platform>(&mut self, runtime: &Runtime<P>) {
+        if let Some(dialog) = open_dialog() {
+            self.update_support(dialog, runtime);
+        }
+    }
+
     /// Call after every message: handles what the window procedures queued.
     pub fn service<P: Platform>(&mut self, runtime: &mut Runtime<P>) -> Result<(), PlatformError> {
         for event in take_events() {
@@ -709,6 +815,8 @@ impl<S: PreferencesStore> SettingsWindow<S> {
                     crate::runtime::native::request_exit();
                     self.finish(dialog);
                 }
+                (ID_SUPPORT_REFRESH, _) => self.start_refresh(dialog, runtime),
+                (ID_SUPPORT_COPY, _) => self.copy_report(dialog),
                 (ID_PRESET, code) if code == CBN_SELCHANGE => {
                     let selected = send(control(dialog, PAGE_DATE, ID_PRESET), CB_GETCURSEL, 0, 0);
                     // "Custom format" (the last entry) changes nothing.
@@ -794,6 +902,7 @@ impl<S: PreferencesStore> SettingsWindow<S> {
                 self.focus_problem(dialog, runtime, now);
             }
             ApplyOutcome::NotSaved(message) => {
+                logging::log(&format!("settings were not saved: {message}"));
                 self.status = format!("Settings were not saved. {message}");
                 self.refresh(dialog, runtime);
             }

@@ -3,6 +3,8 @@
 
 #[cfg(windows)]
 mod app;
+#[cfg(windows)]
+mod logging;
 
 #[cfg(windows)]
 fn main() -> std::process::ExitCode {

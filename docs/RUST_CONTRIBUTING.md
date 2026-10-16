@@ -179,3 +179,23 @@ There is no feature flag or support gate for overlays: the experimental candidat
 always used, after geometric validation of its rectangle.
 Hosted lifecycle evidence: `scripts/test-rust-lifecycle.ps1` via
 [runtime-lifecycle.yml](../.github/workflows/runtime-lifecycle.yml).
+
+## R11 support and logging development
+
+`clock-windows::support` (status wording, the diagnostics report, redaction, the
+bounded Refresh wait) and `clock-windows::logging` (the 1 MiB x 3 rotating log) are
+portable and tested on any host. Only the Windows build lookup and the clipboard are
+Windows-only (`support/native.rs`). The report is plain text for people, with no schema
+and no command that prints it; change its wording freely, but keep it free of user names,
+paths and window titles (`support/tests.rs` has the golden text and the redaction cases).
+Write only what a state transition means into the log, never per tick or repaint.
+
+The real-clipboard tests overwrite the clipboard text while they run (and restore it), so
+they are ignored by default; CI runs them on its Windows runner:
+
+```sh
+cargo test --manifest-path rust/Cargo.toml -p clock-windows --test clipboard_native --locked -- --ignored --test-threads=1
+```
+
+See the [R11 record](windows-evidence/R11.md) for behaviour, limits and the unchecked
+desktop gates.

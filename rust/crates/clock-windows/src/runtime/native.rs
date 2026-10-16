@@ -702,6 +702,8 @@ fn pump<S: PreferencesStore>(
     if SHOW_SETTINGS.take() {
         settings.show_or_focus(runtime)?;
     }
+    // Last, so the Support page shows what the work above just changed.
+    settings.refresh_support(runtime);
     Ok(())
 }
 

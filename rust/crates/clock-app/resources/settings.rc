@@ -73,12 +73,19 @@ BEGIN
     EDITTEXT 1401, 4, 17, 316, 60, ES_MULTILINE | ES_READONLY | WS_VSCROLL | WS_TABSTOP
 END
 
-// Page 4: Support (reserved for status and diagnostics).
+// Page 4: Support. Status, an explicit Refresh, the exact report that Copy
+// diagnostics puts on the clipboard (selectable), and the result of the last
+// refresh or copy in a line that is announced to screen readers.
 114 DIALOGEX 0, 0, 324, 208
 STYLE DS_SETFONT | DS_CONTROL | WS_CHILD
 EXSTYLE WS_EX_CONTROLPARENT
 FONT 9, "Segoe UI"
 BEGIN
-    LTEXT "Support &information:", -1, 4, 6, 120, 10
-    EDITTEXT 1501, 4, 17, 316, 60, ES_MULTILINE | ES_READONLY | WS_VSCROLL | WS_TABSTOP
+    LTEXT "&Status:", -1, 4, 4, 60, 10
+    EDITTEXT 1501, 4, 15, 316, 52, ES_MULTILINE | ES_READONLY | WS_VSCROLL | WS_TABSTOP
+    PUSHBUTTON "Re&fresh status", 1502, 4, 70, 70, 14, WS_TABSTOP
+    LTEXT "Report &text that Copy diagnostics will copy:", -1, 4, 90, 316, 10
+    EDITTEXT 1503, 4, 101, 316, 70, ES_MULTILINE | ES_READONLY | WS_VSCROLL | WS_TABSTOP
+    PUSHBUTTON "Copy &diagnostics", 1504, 4, 175, 80, 14, WS_TABSTOP
+    LTEXT "", 1505, 4, 192, 316, 14
 END
