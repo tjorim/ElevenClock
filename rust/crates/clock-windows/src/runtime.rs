@@ -57,6 +57,9 @@ pub(crate) mod overlay_window;
 pub const TOPOLOGY_SETTLE: Duration = Duration::from_millis(250);
 /// Longest wait between discovery retries after repeated failures.
 pub const RETRY_CAP: Duration = Duration::from_secs(60);
+/// Successful shell inventories can precede usable clock controls during startup.
+/// Retry four times (2, 4, 8, 16 seconds), then leave unsupported layouts alone.
+pub const UNVERIFIED_RETRIES: u32 = 4;
 
 /// Explorer process identity. A PID alone can be reused, so creation time is part
 /// of the identity, exactly as in R02/R03's native epoch checks.
@@ -301,6 +304,7 @@ pub struct Runtime<P: Platform> {
     poll_due: Option<Duration>,
     refresh_not_before: Duration,
     retry: Retry,
+    unverified_retry: Retry,
     discovery_completed: u64,
     logged: Logged,
     last_failure: Option<DiscoveryFailure>,
@@ -331,6 +335,7 @@ impl<P: Platform> Runtime<P> {
             poll_due: None,
             refresh_not_before: Duration::ZERO,
             retry: Retry::default(),
+            unverified_retry: Retry::default(),
             discovery_completed: 0,
             logged: Logged::default(),
             last_failure: None,
@@ -534,6 +539,7 @@ impl<P: Platform> Runtime<P> {
             return;
         }
         logging::log("status refresh requested");
+        self.unverified_retry.reset();
         self.topology_changed();
         self.rearm_poll();
     }
@@ -543,6 +549,7 @@ impl<P: Platform> Runtime<P> {
     fn signal(&mut self, signal: Signal) {
         match signal {
             Signal::TopologyChanged => {
+                self.unverified_retry.reset();
                 self.topology_changed();
                 self.observe_all();
             }
@@ -627,6 +634,7 @@ impl<P: Platform> Runtime<P> {
             self.topology_dirty = false;
             self.settle_due = None;
             self.retry.reset();
+            self.unverified_retry.reset();
             self.dispatch(Event::ExplorerLost);
         }
     }
@@ -642,9 +650,13 @@ impl<P: Platform> Runtime<P> {
         }
         if !self.discovery_disabled
             && self.in_flight.is_none()
-            && self.retry.due.is_some_and(|due| due <= now)
+            && [self.retry.due, self.unverified_retry.due]
+                .into_iter()
+                .flatten()
+                .any(|due| due <= now)
         {
             self.retry.due = None;
+            self.unverified_retry.due = None;
             self.dispatch(Event::TopologyChanged);
         }
         let changed = self.observe_all();
@@ -659,7 +671,10 @@ impl<P: Platform> Runtime<P> {
     fn rearm_poll(&mut self) {
         let now = self.platform.monotonic();
         let mut delay = self.transition.interval();
-        for due in [self.settle_due, self.retry.due].into_iter().flatten() {
+        for due in [self.settle_due, self.retry.due, self.unverified_retry.due]
+            .into_iter()
+            .flatten()
+        {
             delay = delay.min(due.saturating_sub(now).max(Duration::from_millis(10)));
         }
         let desired = now + delay;
@@ -771,6 +786,9 @@ impl<P: Platform> Runtime<P> {
             self.discovery_disabled = true;
             self.last_failure = Some(DiscoveryFailure::TeardownFailed);
             self.in_flight = None;
+            self.retry.due = None;
+            self.unverified_retry.reset();
+            self.settle_due = None;
             let generation = self.state().generation();
             self.accept(generation, Vec::new());
             return;
@@ -797,12 +815,27 @@ impl<P: Platform> Runtime<P> {
             Ok(snapshots) => {
                 self.last_failure = None;
                 self.retry.reset();
+                let unverified = snapshots.iter().any(|snapshot| {
+                    (self.state().preferences().monitors() == Monitors::All || snapshot.primary)
+                        && snapshot.clock_rect.is_none()
+                        && snapshot.visibility == TaskbarVisibility::Visible
+                        && snapshot.monitor_rect.contains(snapshot.taskbar_rect)
+                });
+                if unverified {
+                    if self.unverified_retry.failures < UNVERIFIED_RETRIES {
+                        let now = self.platform.monotonic();
+                        self.unverified_retry.failed(now);
+                    }
+                } else {
+                    self.unverified_retry.reset();
+                }
                 self.accept(generation, snapshots);
                 if std::mem::take(&mut self.topology_dirty) {
                     self.topology_changed();
                 }
             }
             Err(failure) => {
+                self.unverified_retry.due = None;
                 if failure == DiscoveryFailure::TeardownFailed {
                     self.discovery_disabled = true;
                 }

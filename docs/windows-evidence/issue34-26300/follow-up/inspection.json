@@ -1,0 +1,353 @@
+{
+  "capturedUtc": "2026-10-16T19:08:48.3928811Z",
+  "windows": [
+    {
+      "Handle": 5636792,
+      "Process": 8024,
+      "Class": "ElevenClock-rs.Overlay",
+      "Visible": true,
+      "Bounds": {
+        "Left": 2454,
+        "Top": 672,
+        "Right": 2524,
+        "Bottom": 720
+      }
+    },
+    {
+      "Handle": 1377046,
+      "Process": 11744,
+      "Class": "Shell_SecondaryTrayWnd",
+      "Visible": true,
+      "Bounds": {
+        "Left": 1280,
+        "Top": 672,
+        "Right": 2560,
+        "Bottom": 720
+      }
+    },
+    {
+      "Handle": 787070,
+      "Process": 8024,
+      "Class": "ElevenClock-rs.Overlay",
+      "Visible": true,
+      "Bounds": {
+        "Left": 1166,
+        "Top": 672,
+        "Right": 1236,
+        "Bottom": 720
+      }
+    },
+    {
+      "Handle": 786644,
+      "Process": 11744,
+      "Class": "Shell_TrayWnd",
+      "Visible": true,
+      "Bounds": {
+        "Left": 0,
+        "Top": 672,
+        "Right": 1280,
+        "Bottom": 720
+      }
+    }
+  ],
+  "taskbars": [
+    {
+      "primary": true,
+      "taskbar": {
+        "bottom": 720,
+        "left": 0,
+        "right": 1280,
+        "top": 672
+      },
+      "clock": {
+        "bottom": 720,
+        "left": 1166,
+        "right": 1236,
+        "top": 672
+      },
+      "overlayHits": 247,
+      "samples": 247,
+      "firstMiss": null,
+      "neighbours": [
+        {
+          "class": "SystemTray.NormalButton",
+          "rect": {
+            "bottom": 720,
+            "left": 1026,
+            "right": 1058,
+            "top": 672
+          },
+          "x": 1042,
+          "y": 696,
+          "hit": {
+            "Handle": 1574010,
+            "Process": 11744,
+            "Class": "TrayNotifyWnd",
+            "Visible": true,
+            "Bounds": {
+              "Left": 1026,
+              "Top": 672,
+              "Right": 1280,
+              "Bottom": 720
+            }
+          },
+          "nativeHits": 117,
+          "samples": 117,
+          "overlapsClock": false
+        },
+        {
+          "class": "SystemTray.NormalButton",
+          "rect": {
+            "bottom": 720,
+            "left": 1058,
+            "right": 1102,
+            "top": 672
+          },
+          "x": 1080,
+          "y": 696,
+          "hit": {
+            "Handle": 1574010,
+            "Process": 11744,
+            "Class": "TrayNotifyWnd",
+            "Visible": true,
+            "Bounds": {
+              "Left": 1026,
+              "Top": 672,
+              "Right": 1280,
+              "Bottom": 720
+            }
+          },
+          "nativeHits": 156,
+          "samples": 156,
+          "overlapsClock": false
+        },
+        {
+          "class": "SystemTray.AccentButton",
+          "rect": {
+            "bottom": 720,
+            "left": 1106,
+            "right": 1130,
+            "top": 672
+          },
+          "x": 1118,
+          "y": 696,
+          "hit": {
+            "Handle": 1574010,
+            "Process": 11744,
+            "Class": "TrayNotifyWnd",
+            "Visible": true,
+            "Bounds": {
+              "Left": 1026,
+              "Top": 672,
+              "Right": 1280,
+              "Bottom": 720
+            }
+          },
+          "nativeHits": 91,
+          "samples": 91,
+          "overlapsClock": false
+        },
+        {
+          "class": "SystemTray.OmniButtonRight",
+          "rect": {
+            "bottom": 720,
+            "left": 1134,
+            "right": 1158,
+            "top": 672
+          },
+          "x": 1146,
+          "y": 696,
+          "hit": {
+            "Handle": 1574010,
+            "Process": 11744,
+            "Class": "TrayNotifyWnd",
+            "Visible": true,
+            "Bounds": {
+              "Left": 1026,
+              "Top": 672,
+              "Right": 1280,
+              "Bottom": 720
+            }
+          },
+          "nativeHits": 91,
+          "samples": 91,
+          "overlapsClock": false
+        },
+        {
+          "class": "SystemTray.OmniButtonRight",
+          "rect": {
+            "bottom": 720,
+            "left": 1240,
+            "right": 1264,
+            "top": 672
+          },
+          "x": 1252,
+          "y": 696,
+          "hit": {
+            "Handle": 1574010,
+            "Process": 11744,
+            "Class": "TrayNotifyWnd",
+            "Visible": true,
+            "Bounds": {
+              "Left": 1026,
+              "Top": 672,
+              "Right": 1280,
+              "Bottom": 720
+            }
+          },
+          "nativeHits": 91,
+          "samples": 91,
+          "overlapsClock": false
+        },
+        {
+          "class": "SystemTray.ShowDesktopButton",
+          "rect": {
+            "bottom": 720,
+            "left": 1268,
+            "right": 1280,
+            "top": 672
+          },
+          "x": 1274,
+          "y": 696,
+          "hit": {
+            "Handle": 1574010,
+            "Process": 11744,
+            "Class": "TrayNotifyWnd",
+            "Visible": true,
+            "Bounds": {
+              "Left": 1026,
+              "Top": 672,
+              "Right": 1280,
+              "Bottom": 720
+            }
+          },
+          "nativeHits": 52,
+          "samples": 52,
+          "overlapsClock": false
+        }
+      ],
+      "corners": [
+        {
+          "x": 1167,
+          "y": 673,
+          "rgb": [
+            243,
+            243,
+            243
+          ]
+        },
+        {
+          "x": 1234,
+          "y": 673,
+          "rgb": [
+            243,
+            243,
+            243
+          ]
+        },
+        {
+          "x": 1167,
+          "y": 718,
+          "rgb": [
+            243,
+            243,
+            243
+          ]
+        },
+        {
+          "x": 1234,
+          "y": 718,
+          "rgb": [
+            243,
+            243,
+            243
+          ]
+        }
+      ]
+    },
+    {
+      "primary": false,
+      "taskbar": {
+        "bottom": 720,
+        "left": 1280,
+        "right": 2560,
+        "top": 672
+      },
+      "clock": {
+        "bottom": 720,
+        "left": 2454,
+        "right": 2524,
+        "top": 672
+      },
+      "overlayHits": 247,
+      "samples": 247,
+      "firstMiss": null,
+      "neighbours": [
+        {
+          "class": "SystemTray.OmniButtonRight",
+          "rect": {
+            "bottom": 720,
+            "left": 2528,
+            "right": 2552,
+            "top": 672
+          },
+          "x": 2540,
+          "y": 696,
+          "hit": {
+            "Handle": 1049768,
+            "Process": 11744,
+            "Class": "MSTaskListWClass",
+            "Visible": true,
+            "Bounds": {
+              "Left": 1328,
+              "Top": 672,
+              "Right": 2560,
+              "Bottom": 720
+            }
+          },
+          "nativeHits": 91,
+          "samples": 91,
+          "overlapsClock": false
+        }
+      ],
+      "corners": [
+        {
+          "x": 2455,
+          "y": 673,
+          "rgb": [
+            243,
+            243,
+            243
+          ]
+        },
+        {
+          "x": 2522,
+          "y": 673,
+          "rgb": [
+            243,
+            243,
+            243
+          ]
+        },
+        {
+          "x": 2455,
+          "y": 718,
+          "rgb": [
+            243,
+            243,
+            243
+          ]
+        },
+        {
+          "x": 2522,
+          "y": 718,
+          "rgb": [
+            243,
+            243,
+            243
+          ]
+        }
+      ]
+    }
+  ]
+}

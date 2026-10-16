@@ -745,6 +745,83 @@ fn late_secondary_taskbar_after_explorer_restart_is_discovered_without_an_event(
 }
 
 #[test]
+fn visible_unverified_clock_after_explorer_startup_recovers_without_an_event() {
+    let mut runtime = runtime(Monitors::All);
+    discover(&mut runtime, 0, vec![bar(0, 1, true), bar(0, 2, true)]);
+    runtime.handle(Input::Signal(Signal::TaskbarCreated));
+    discover(&mut runtime, 1, vec![bar(1, 1, true), bar(1, 2, false)]);
+    take(&mut runtime);
+    advance(&mut runtime, RECOVERY_POLL);
+    assert_eq!(requests(&take(&mut runtime)), vec![1]);
+    discover(&mut runtime, 1, vec![bar(1, 1, true), bar(1, 2, true)]);
+    assert_eq!(
+        runtime.state().overlay_state(key(1, 2)),
+        OverlayState::Visible
+    );
+    assert!(runtime.unverified_retry.due.is_none());
+    take(&mut runtime);
+    for _ in 0..5 {
+        advance(&mut runtime, RECOVERY_POLL);
+    }
+    assert!(requests(&take(&mut runtime)).is_empty());
+}
+
+#[test]
+fn fatal_worker_shutdown_cancels_a_pending_unverified_retry() {
+    let mut runtime = runtime(Monitors::All);
+    discover(&mut runtime, 0, vec![bar(0, 1, false)]);
+    assert!(runtime.unverified_retry.due.is_some());
+    runtime.topology_changed();
+    advance(&mut runtime, TOPOLOGY_SETTLE);
+    runtime.handle(Input::Discovery(DiscoveryReport {
+        generation: ShellGeneration(0),
+        shell: runtime.shell,
+        outcome: Err(DiscoveryFailure::TeardownFailed),
+    }));
+    assert!(runtime.unverified_retry.due.is_none());
+    take(&mut runtime);
+    advance(&mut runtime, RETRY_CAP);
+    let calls = take(&mut runtime);
+    assert!(requests(&calls).is_empty());
+    assert!(calls.contains(&Call::Poll(RECOVERY_POLL)));
+}
+
+#[test]
+fn unsupported_visible_clocks_have_only_four_settling_retries() {
+    let mut runtime = runtime(Monitors::All);
+    discover(&mut runtime, 0, vec![bar(0, 1, false)]);
+    take(&mut runtime);
+    for attempt in 0..UNVERIFIED_RETRIES {
+        let delay = RECOVERY_POLL * (1 << attempt);
+        let due = runtime.unverified_retry.due.unwrap();
+        assert_eq!(due - runtime.platform.mono, delay);
+        advance(&mut runtime, delay);
+        assert_eq!(requests(&take(&mut runtime)), vec![0]);
+        discover(&mut runtime, 0, vec![bar(0, 1, false)]);
+        assert!(runtime.platform.overlays.is_empty());
+        take(&mut runtime);
+    }
+    assert!(runtime.unverified_retry.due.is_none());
+    for _ in 0..5 {
+        advance(&mut runtime, RETRY_CAP);
+    }
+    assert!(requests(&take(&mut runtime)).is_empty());
+}
+
+#[test]
+fn parked_or_unselected_unverified_clocks_do_not_start_settling_retries() {
+    let mut runtime = runtime(Monitors::Primary);
+    discover(&mut runtime, 0, vec![bar(0, 1, true), bar(0, 2, false)]);
+    assert!(runtime.unverified_retry.due.is_none());
+    runtime.handle(Input::Signal(Signal::TopologyChanged));
+    advance(&mut runtime, TOPOLOGY_SETTLE);
+    let mut parked = bar(0, 1, false);
+    parked.taskbar_rect = rect(0, 1078, 1920, 48);
+    discover(&mut runtime, 0, vec![parked]);
+    assert!(runtime.unverified_retry.due.is_none());
+}
+
+#[test]
 fn inventory_mismatch_after_failed_discovery_respects_backoff() {
     let mut runtime = runtime(Monitors::All);
     runtime.platform.inventory_changed = true;

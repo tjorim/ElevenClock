@@ -236,3 +236,12 @@ See the [capture and run record](../windows-evidence/issue34-26300/README.md).
 Independent secondary reveal, Explorer restart, physical-hardware checks,
 independent hit-target review and human ADR review remain open in
 [#34](https://github.com/tjorim/ElevenClock-rs/issues/34).
+
+The [independent follow-up](../windows-evidence/issue34-26300/follow-up/README.md)
+later verified secondary reveal twice and settled visual/native pointer coverage
+on both displays, including neighbour exclusion. It also recorded ten failed
+Explorer recovery samples and a timed-out dense UIA identity experiment. Visible,
+selected, on-monitor clocks that remain unverified after a successful batch now
+get four bounded settling retries (2, 4, 8, 16 seconds); unsupported layouts do
+not create an endless discovery loop. This did not make the repeated Explorer
+test pass, so that acceptance item and P1 remain open.

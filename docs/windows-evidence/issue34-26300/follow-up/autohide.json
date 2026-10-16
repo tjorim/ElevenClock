@@ -1,0 +1,111 @@
+{
+  "appProcess": 8024,
+  "originalState": 0,
+  "attempts": [
+    {
+      "primary": false,
+      "repeat": 1,
+      "bothParkedBeforeReveal": true,
+      "shownAfterMs": 138.7706,
+      "overlayHit": true,
+      "sampleAfterMs": 165.3085,
+      "captureAfterMs": 707.1206,
+      "pointer": {
+        "X": 1920,
+        "Y": 719
+      },
+      "corners": [
+        {
+          "x": 2455,
+          "y": 673,
+          "rgb": [
+            243,
+            243,
+            243
+          ]
+        },
+        {
+          "x": 2522,
+          "y": 673,
+          "rgb": [
+            243,
+            243,
+            243
+          ]
+        },
+        {
+          "x": 2455,
+          "y": 718,
+          "rgb": [
+            243,
+            243,
+            243
+          ]
+        },
+        {
+          "x": 2522,
+          "y": 718,
+          "rgb": [
+            243,
+            243,
+            243
+          ]
+        }
+      ],
+      "otherTaskbarShown": 0
+    },
+    {
+      "primary": false,
+      "repeat": 2,
+      "bothParkedBeforeReveal": true,
+      "shownAfterMs": 120.1423,
+      "overlayHit": true,
+      "sampleAfterMs": 120.7508,
+      "captureAfterMs": 595.5313,
+      "pointer": {
+        "X": 1920,
+        "Y": 719
+      },
+      "corners": [
+        {
+          "x": 2455,
+          "y": 673,
+          "rgb": [
+            243,
+            243,
+            243
+          ]
+        },
+        {
+          "x": 2522,
+          "y": 673,
+          "rgb": [
+            243,
+            243,
+            243
+          ]
+        },
+        {
+          "x": 2455,
+          "y": 718,
+          "rgb": [
+            243,
+            243,
+            243
+          ]
+        },
+        {
+          "x": 2522,
+          "y": 718,
+          "rgb": [
+            243,
+            243,
+            243
+          ]
+        }
+      ],
+      "otherTaskbarShown": 0
+    }
+  ],
+  "restored": true
+}

@@ -1,0 +1,43 @@
+{
+  "appProcess": 8024,
+  "originalState": 0,
+  "attempts": [
+    {
+      "primary": true,
+      "repeat": 1,
+      "bothParkedBeforeReveal": true,
+      "shownAfterMs": null,
+      "overlayHit": false,
+      "sampleAfterMs": 20048.1813,
+      "otherTaskbarShown": 0
+    },
+    {
+      "primary": false,
+      "repeat": 1,
+      "bothParkedBeforeReveal": true,
+      "shownAfterMs": 125.0001,
+      "overlayHit": true,
+      "sampleAfterMs": 1251.5867,
+      "otherTaskbarShown": 0
+    },
+    {
+      "primary": true,
+      "repeat": 2,
+      "bothParkedBeforeReveal": true,
+      "shownAfterMs": null,
+      "overlayHit": false,
+      "sampleAfterMs": 20094.4968,
+      "otherTaskbarShown": 0
+    },
+    {
+      "primary": false,
+      "repeat": 2,
+      "bothParkedBeforeReveal": true,
+      "shownAfterMs": 126.66,
+      "overlayHit": true,
+      "sampleAfterMs": 127.6087,
+      "otherTaskbarShown": 0
+    }
+  ],
+  "restored": true
+}

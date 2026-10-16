@@ -17,6 +17,7 @@ provenance is made from the version string alone.
   `taskbar_probe` development example, with auto-hide off. Both inventories were
   complete: no UIA failures, no truncation. This retains class/automation-ID,
   parent, rectangle and timing data; it contains no localized window titles.
+  The task-list button's workspace-path AppID is explicitly redacted.
 - `runtime-transitions.log`: application transition-log excerpt spanning the
   initial runtime patch and the subsequent secondary-selector fix.
 
@@ -77,7 +78,12 @@ native x64 release build passed after the secondary-layout change. The earlier
 runtime regressions and workspace tests passed as recorded in the lifecycle
 document; sandbox-denied registry tests passed when rerun outside the sandbox.
 
-**P1 remains NO-GO.** Still needed: independent visual/hit-target review of clock,
+The later [independent follow-up](follow-up/README.md) completes the secondary
+reveal and settled visual/native-hit checks on this configuration, but records
+failed Explorer recovery samples and a timed-out dense UIA identity experiment.
+It also records the guest's actual sleep/privilege limitations.
+
+**P1 remains NO-GO.** At the end of this initial run, still needed: independent visual/hit-target review of clock,
 bell, Show Desktop and neighbours; a secondary auto-hide reveal and recovery;
 two-display Explorer restart repetition; live DPI coverage; and the physical
 sleep/resume, hotplug and mixed-DPI checks, manual time change and human ADR review
