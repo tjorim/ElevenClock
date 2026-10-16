@@ -2,7 +2,7 @@
 
 Status: **local packaging, hosted lifecycle, and a partial standard-account GUI
 walkthrough passed; release blocked**. Clean-machine runtime, standard-account
-uninstall/update/rollback and actual Windows logon remain unverified.
+uninstall/rollback and actual Windows logon remain unverified.
 See [release instructions](../releasing.md) for build and ownership contracts.
 
 ## Local session, 2026-10-16
@@ -166,3 +166,21 @@ claimed. A second development candidate (`585ad4df18cc`, executable SHA256
 has been prepared for the next lifecycle
 steps; it is not necessary to wait for a published supported release to test
 development-build update/rollback mechanics. No release-gate boolean was changed.
+
+### Update between two development builds
+
+The user clicked Install on the second candidate and the wizard reached Finish.
+An independent installed-file hash read matched the prepared second executable:
+`f9c99ec5d9d4af5201fcf55f2f1b035b0697a3961e821fd7ddba3db5821f84b1`.
+The app then launched from the installed directory without a console, retained
+the saved ISO-week preset/format, and Support showed `585ad4df18cc+modified`.
+The primary clock was active; the secondary remained unverified as before.
+The updated app exited through Settings before preparing uninstall testing.
+
+[Update completed](packaging-desktop/update-completed.png) and
+[updated Support](packaging-desktop/updated-support.png) capture the result.
+This verifies replacement and launch across two distinct **development builds**,
+both package version 0.1.0. It does not prove cross-version preference migration
+or rollback. Those remain separate checks. The original ISO-week private data
+was retained; its pre-uninstall SHA256 is
+`9b2ba72f50c74dc947212e44b137eef9ab69a25f278dae2571231b4e0a631526`.
