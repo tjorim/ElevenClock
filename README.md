@@ -15,10 +15,10 @@ the original clock untouched underneath, so quitting or pausing always brings it
 
 ElevenClock-rs is the Rust rewrite of [ElevenClock](https://github.com/marticliment/ElevenClock)
 for Windows 11, begun as a fork of it. The `-rs` suffix is the usual marker for a Rust port.
-It is a separate program from the original: the Python app it replaces lives on, frozen, in
+It is an independent project maintained by tjorim; affiliation with or endorsement
+by the original ElevenClock project is not claimed. The Python app it replaces lives on, frozen, in
 [`legacy/`](legacy), and documents written during the rewrite (the plan, the issue specs and
-`docs/windows-evidence`) say "ElevenClock" for either, depending on context. The GitHub
-repository keeps its current name until it is renamed.
+`docs/windows-evidence`) say "ElevenClock" for either, depending on context.
 
 ## Repository layout
 
@@ -61,3 +61,6 @@ The [provenance record](docs/windows-evidence/licensing-provenance.md) documents
 the owner's statement that no Python implementation code was used in the Rust
 implementation, the technical comparison, and the Apache 2.0 decision. Product-name
 review and the remaining release gates are still open.
+
+The [name and listing review](docs/windows-evidence/product-name-and-listings.md)
+records the separate package identities, draft listing copy and remaining name checks.

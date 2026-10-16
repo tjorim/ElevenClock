@@ -102,7 +102,11 @@ The release guide already links the correction on issue #15.
 Still required before distribution:
 
 - Product name/listing review (Store, distinct winget identity and trademark
-  search). No listing, package ID or name approval is claimed here.
+  search): the [preliminary review](product-name-and-listings.md) records existing
+  listings, proposed `tjorim.ElevenClockRs`, actual trademark searches and their
+  limits. Similar-name assessment and the owner name decision remain open.
+  The owner selected GitHub releases first, winget later; Store reservation is
+  outside the current release plan. No listing or name approval is claimed.
 - Review matching source, dependency/toolchain and installer/ZIP notices for
   the chosen release. Existing third-party notices remain in place.
 
