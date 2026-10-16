@@ -1,4 +1,4 @@
-# R13 Windows acceptance gates
+# Windows acceptance gates (R13)
 
 Status: **started, not passed.** One partial session on one machine. The release gate
 stays **open**: most of the matrix, both performance runs and the soak have not been run.
