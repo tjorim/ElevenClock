@@ -62,5 +62,32 @@ fixture process cannot run UIA. There is no build flag or runtime gate.
   rather than accumulate, and kill-on-close bounds it by the parent's lifetime.
 * Temporary files live in the per-user temp directory under a PID-prefixed name; a
   crash can leave one file (not data of value). A startup sweep is not implemented.
-* A genuinely blocked UIA provider has only been exercised through a controlled
-  provider (see the R08 evidence record), not through stock Explorer.
+* A blocked provider is exercised through a controlled window whose UI thread does
+  not pump messages. Explorer is deliberately suspended to hold a UIA call in
+  flight before termination; this is not a naturally occurring Explorer hang.
+
+## Measured COM behaviour (issue #35, 2026-10-16)
+
+[Hosted lifecycle run 38839269796](https://github.com/tjorim/ElevenClock-rs/actions/runs/38839269796)
+at PR #33 head `c0c2541139e9e51040fe38e9c34c5cc2e52963d8` passed the UIA lifetime
+step on Server 2025 x64 and Windows 11 ARM64, both native and emulated x64.
+The [retained logs and measurements](../windows-evidence/uia-lifetime-hosted/README.md)
+separate real UIA observations from fixture/scripted generation-rejection tests.
+
+* The production inventory against the blocked window reached the test's 4 s
+  deadline in 4.015–4.018 s; one helper was spawned and its exit observed on each
+  target. This supports process termination as the bound, not a COM timeout.
+  The runtime's 5 s deadline and 1 s teardown limit are unchanged.
+* Terminating the controlled provider during `ElementFromHandle` returned `S_OK`
+  on all three targets. A successful HRESULT cannot establish provider liveness.
+* Explorer calls held for 507–508 ms returned `0x8000FFFF` after termination;
+  retained-object calls failed with `0x80040201`. Fresh clients recovered against
+  a different shell identity. Keep generation and shell-identity validation even
+  when a call succeeds; never reuse COM objects across a generation.
+* All three hosted shells needed the harness's manual Explorer start after its
+  45 s observation window. These results do not establish automatic shell
+  restart timing or physical-desktop overlay recovery (issue #34).
+
+No lifetime assumption or timeout needs changing from these measurements.
+Explicit error-returning provider modes and malformed/stale geometry injection
+remain optional, unimplemented extensions in issue #35's corrected scope.

@@ -35,6 +35,7 @@ release gate is in `windows-evidence/`.
 | Topic | File | Raw artifacts |
 | --- | --- | --- |
 | Taskbar discovery | [`discovery.md`](windows-evidence/discovery.md) | [`discovery-hosted/`](windows-evidence/discovery-hosted) |
+| UIA/COM lifetime and Explorer restart | [`uia-lifetime-hosted/README.md`](windows-evidence/uia-lifetime-hosted/README.md) | Per-target CI step logs and extracted evidence in the same folder |
 | Overlay feasibility and recovery | [`overlay-spike.md`](windows-evidence/overlay-spike.md) | [`overlay-hosted/`](windows-evidence/overlay-hosted), [`overlay-recovery-hosted/`](windows-evidence/overlay-recovery-hosted) |
 | Native Settings foundation (DPI, high contrast, keyboard) | [`settings-foundation.md`](windows-evidence/settings-foundation.md) | [`settings-foundation-matrix/`](windows-evidence/settings-foundation-matrix) |
 | Packaging and installer lifecycle | [`packaging.md`](windows-evidence/packaging.md) | `native-evidence/packaging/` (generated CI artifact) |
