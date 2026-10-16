@@ -7,6 +7,7 @@ Docs for the Rust rewrite of ElevenClock (`ElevenClock-rs`). The legacy Python a
 | --- | --- | --- |
 | [`contributing.md`](contributing.md) | Workspace layout, commands, CI and the contracts contributors must keep | The workflow changes |
 | [`dependencies.md`](dependencies.md), [`dependency-notices/`](dependency-notices) | Dependency policy and bundled third-party notices | A dependency is added, removed or updated |
+| [`releasing.md`](releasing.md) | Native x64 packaging, installer ownership and release gates | Packaging changes |
 | [`design/`](design) | How each part behaves and why: the interfaces, states and limits a reader needs | The behaviour changes |
 | [`adr/`](adr) | Architecture decisions that were weighed and settled | A decision is made or superseded |
 | [`windows-evidence/`](windows-evidence) | Dated records from real Windows runs: environments, screenshots, measurements, and the acceptance results (`acceptance.md`) | A new run happens. Never edited to say something that was not observed |
@@ -36,6 +37,7 @@ release gate is in `windows-evidence/`.
 | Taskbar discovery | [`discovery.md`](windows-evidence/discovery.md) | [`discovery-hosted/`](windows-evidence/discovery-hosted) |
 | Overlay feasibility and recovery | [`overlay-spike.md`](windows-evidence/overlay-spike.md) | [`overlay-hosted/`](windows-evidence/overlay-hosted), [`overlay-recovery-hosted/`](windows-evidence/overlay-recovery-hosted) |
 | Native Settings foundation (DPI, high contrast, keyboard) | [`settings-foundation.md`](windows-evidence/settings-foundation.md) | [`settings-foundation-matrix/`](windows-evidence/settings-foundation-matrix) |
+| Packaging and installer lifecycle | [`packaging.md`](windows-evidence/packaging.md) | `native-evidence/packaging/` (generated CI artifact) |
 
 Screenshots used by a design file live next to it, in [`design/images/`](design/images).
 

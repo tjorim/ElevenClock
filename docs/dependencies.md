@@ -27,6 +27,9 @@ The repository LICENSE, Python code and existing icon notices are preserved.
 The inherited license-file points at that existing LICENSE; it does not assert
 that the README/LICENSE conflict has been resolved or rebrand the project.
 R14 must establish the applicable GPL/asset obligations before distribution.
+The [packaging workflow](releasing.md) now includes the original inventory and
+toolchain notices in unsigned development candidates, plus matching vendored
+source. Distribution remains blocked by #32 and the Windows acceptance gates.
 CI uploads test evidence (screenshots, JSON, logs) and one runnable development
 build (`elevenclock-dev-x64`) for testing; neither is a release package or installer.
 

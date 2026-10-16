@@ -35,3 +35,6 @@ sign.cmd.lnk
 
 # Rust build output
 rust/target/
+dist/
+native-evidence/
+__pycache__/

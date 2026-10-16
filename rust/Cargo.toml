@@ -10,6 +10,11 @@ publish = false
 # Repository licensing/asset notices are retained; R14 resolves the existing conflict.
 license-file = "../LICENSE"
 
+[profile.release]
+# Retain matching PDBs as separate development artifacts, never in the installer.
+debug = "line-tables-only"
+strip = "none"
+
 [workspace.dependencies]
 clock-core = { path = "crates/clock-core" }
 clock-windows = { path = "crates/clock-windows" }

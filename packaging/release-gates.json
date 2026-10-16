@@ -1,0 +1,14 @@
+{
+  "licensing": {
+    "passed": false,
+    "evidence": "https://github.com/tjorim/ElevenClock-rs/issues/32"
+  },
+  "windows_acceptance": {
+    "passed": false,
+    "evidence": "docs/windows-evidence/acceptance.md"
+  },
+  "clean_standard_account": {
+    "passed": false,
+    "evidence": "docs/windows-evidence/packaging.md"
+  }
+}

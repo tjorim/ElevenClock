@@ -57,6 +57,9 @@ of Explorer or interactive UI compatibility. See the [manual gate](windows-evide
 
 ## Boundaries and ownership
 
+For the unsigned x64 installer/ZIP workflow, source/notices/checksum companions and
+disposable-account lifecycle harness, see [releasing.md](releasing.md).
+
 Dependency direction: app → windows → core and app → core. Core has only
 platform-independent chrono datetime values; its graph contains no Windows crate.
 App/core forbid unsafe. `clock-windows` compiles native code only on Windows and
