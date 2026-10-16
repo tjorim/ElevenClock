@@ -37,10 +37,23 @@ jobs:
       - name: Prepare locked dependency cache (including source-only targets)
         run: cargo fetch --manifest-path rust/Cargo.toml --locked
       - name: Install pinned development compiler
-        run: choco install innosetup --version=6.7.3 --yes --no-progress
+        shell: pwsh
+        run: |
+          # Use the upstream release: this version is not available in Chocolatey.
+          $download = Join-Path $env:RUNNER_TEMP 'innosetup-6.7.3.exe'
+          Invoke-WebRequest 'https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe' -OutFile $download
+          $expected = '9c73c3bae7ed48d44112a0f48e66742c00090bdb5bef71d9d3c056c66e97b732'
+          if ((Get-FileHash -LiteralPath $download -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) {
+            throw 'Inno Setup compiler download checksum mismatch'
+          }
+          $compilerDir = Join-Path $env:RUNNER_TEMP 'InnoSetup6'
+          $arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CURRENTUSER', "/DIR=`"$compilerDir`"")
+          $installer = Start-Process -FilePath $download -ArgumentList $arguments -PassThru -Wait -WindowStyle Hidden
+          if ($installer.ExitCode -ne 0) { throw "Compiler installation failed: $($installer.ExitCode)" }
+          if (!(Test-Path -LiteralPath "$compilerDir/ISCC.exe")) { throw 'Inno Setup compiler missing after installation' }
       - name: Build unsigned development candidate (distribution remains gated)
         shell: pwsh
-        run: ./scripts/package-rust-release.ps1
+        run: ./scripts/package-rust-release.ps1 -Iscc "$env:RUNNER_TEMP/InnoSetup6/ISCC.exe"
       - name: Installer and portable lifecycle (disposable hosted account)
         shell: powershell
         run: ./scripts/test-rust-installer.ps1 -DisposableAccount
