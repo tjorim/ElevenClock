@@ -1,11 +1,19 @@
 //! R03 helper-only UIA experiment. No COM object or HWND leaves this process.
 use crate::overlay::ExperimentSlot;
-use crate::taskbar::{geometry::validate_candidate, probe};
+use crate::taskbar::{
+    candidate::{self, CandidateElement},
+    geometry::validate_candidate,
+    probe,
+};
 use clock_core::ShellGeneration;
 use windows::{
     Win32::{Foundation::POINT, System::Com::*, UI::Accessibility::*},
     core::{Interface, Result},
 };
+
+/// Split (`OmniButtonLeft`) and merged (`OmniButton`) clock buttons; see
+/// [`candidate`] for which one a desktop exposes.
+const CLOCK_CLASSES: [&str; 2] = ["SystemTray.OmniButtonLeft", "SystemTray.OmniButton"];
 
 struct Apartment;
 impl Drop for Apartment {
@@ -31,7 +39,7 @@ unsafe fn clock_at(
         let walker = automation.RawViewWalker()?;
         let mut node = automation.ElementFromPoint(point)?;
         for _ in 0..16 {
-            if node.CurrentClassName()? == "SystemTray.OmniButtonLeft"
+            if CLOCK_CLASSES.contains(&node.CurrentClassName()?.to_string().as_str())
                 && node.CurrentControlType()? == UIA_ButtonControlTypeId
                 && node.CurrentProcessId()? as u32 == slot.shell_pid
                 && !node.CurrentIsOffscreen()?.as_bool()
@@ -64,32 +72,39 @@ pub fn discover(generation: u64, all: bool) -> Result<Vec<ExperimentSlot>> {
         if record.uia.truncated || !record.uia.failures.is_empty() {
             return Err(rejected());
         }
-        let candidates: Vec<_> = record
+        // The production selector decides the clock (split or merged layout);
+        // the spike then only adds its independent hit sampling.
+        let elements: Vec<_> = record
+            .uia
+            .elements
+            .iter()
+            .map(|e| CandidateElement {
+                parent: e.parent,
+                automation_id: e.automation_id.clone(),
+                class: e.class.clone(),
+                control_type: e.control_type,
+                process_id: e.process_id,
+                offscreen: e.offscreen,
+                rect: e.rect,
+            })
+            .collect();
+        let selected = candidate::select(
+            &elements,
+            record.shell_pid,
+            !record.native_inventory_incomplete,
+        )
+        .ok_or_else(rejected)?;
+        if !selected.exclusions_complete {
+            return Err(rejected());
+        }
+        let clock = selected.rect;
+        let (index, candidate) = record
             .uia
             .elements
             .iter()
             .enumerate()
-            .filter(|(i, e)| {
-                e.class == "SystemTray.OmniButtonLeft"
-                    && e.control_type == 50000
-                    && !e.offscreen
-                    && e.process_id as u32 == record.shell_pid
-                    && ["TimeInnerTextBlock", "DateInnerTextBlock"]
-                        .iter()
-                        .all(|id| {
-                            record
-                                .uia
-                                .elements
-                                .iter()
-                                .any(|c| c.parent == Some(*i) && c.automation_id == *id)
-                        })
-            })
-            .collect();
-        if candidates.len() != 1 {
-            return Err(rejected());
-        }
-        let (index, candidate) = candidates[0];
-        let clock = candidate.rect.ok_or_else(rejected)?;
+            .find(|(_, e)| CLOCK_CLASSES.contains(&e.class.as_str()) && e.rect == Some(clock))
+            .ok_or_else(rejected)?;
         let neighbors: Vec<_> = record
             .uia
             .elements
@@ -102,16 +117,6 @@ pub fn discover(generation: u64, all: bool) -> Result<Vec<ExperimentSlot>> {
                     && !e.offscreen
             })
             .collect();
-        if !neighbors
-            .iter()
-            .any(|(_, e)| e.class == "SystemTray.OmniButtonRight")
-            || !neighbors
-                .iter()
-                .any(|(_, e)| e.class == "SystemTray.ShowDesktopButton")
-            || neighbors.iter().any(|(_, e)| e.rect.is_none())
-        {
-            return Err(rejected());
-        }
         let adjacent: Vec<_> = neighbors.iter().filter_map(|(_, e)| e.rect).collect();
         validate_candidate(s, ShellGeneration(generation), clock, &adjacent, true)
             .map_err(|_| rejected())?;

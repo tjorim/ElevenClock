@@ -1,0 +1,195 @@
+{
+  "nativeArchitecture": 12,
+  "os": "Microsoft Windows 11 Enterprise",
+  "displays": [
+    {
+      "device": "\\\\.\\DISPLAY1",
+      "primary": true,
+      "left": 0,
+      "top": 0,
+      "width": 1024,
+      "height": 768
+    }
+  ],
+  "source": "2ae216fcc294b2e3b2c489962504ad33b4979ed3",
+  "build": "26200",
+  "ubr": 9457,
+  "probeTarget": "x86_64-pc-windows-msvc",
+  "executableSha256": "26AC60702E5E4D475EBF8077DD8EE5303DF49B16F159A48F469526AC666FE2E6",
+  "results": {
+    "coverageCaptures": [
+      {
+        "name": "primary-visible",
+        "rect": [
+          910,
+          720,
+          984,
+          768
+        ],
+        "nativeHitOwnedByPrototype": true,
+        "fourOpaqueCorners": true
+      },
+      {
+        "name": "all-visible",
+        "rect": [
+          910,
+          720,
+          984,
+          768
+        ],
+        "nativeHitOwnedByPrototype": true,
+        "fourOpaqueCorners": true
+      },
+      {
+        "name": "autohide-shown",
+        "rect": [
+          910,
+          720,
+          984,
+          768
+        ],
+        "nativeHitOwnedByPrototype": true,
+        "fourOpaqueCorners": true
+      },
+      {
+        "name": "before-unsupported",
+        "rect": [
+          910,
+          720,
+          984,
+          768
+        ],
+        "nativeHitOwnedByPrototype": true,
+        "fourOpaqueCorners": true
+      },
+      {
+        "name": "explorer-recovered",
+        "rect": [
+          910,
+          720,
+          984,
+          768
+        ],
+        "nativeHitOwnedByPrototype": true,
+        "fourOpaqueCorners": true
+      },
+      {
+        "name": "dpi-125",
+        "rect": [
+          881,
+          708,
+          973,
+          768
+        ],
+        "nativeHitOwnedByPrototype": true,
+        "fourOpaqueCorners": true
+      },
+      {
+        "name": "dpi-restored",
+        "rect": [
+          910,
+          720,
+          984,
+          768
+        ],
+        "nativeHitOwnedByPrototype": true,
+        "fourOpaqueCorners": true
+      }
+    ],
+    "failedCriteria": [],
+    "nonactivation": {
+      "passed": true,
+      "extendedStyles": 134217864,
+      "foregroundStayedOnFixture": true
+    },
+    "fullscreenHidden": true,
+    "calendar": {
+      "actions": [
+        "uia_invoke_once"
+      ],
+      "oneAction": true,
+      "noStuckKeys": true,
+      "visualAcceptance": "Pending screenshot inspection"
+    },
+    "forcedTermination": {
+      "noRemainingProcesses": true,
+      "nativeHitClass": "Shell_TrayWnd",
+      "nativeHitProcess": 7120
+    },
+    "keyboardCalendar": {
+      "actions": [
+        "win_n_once"
+      ],
+      "oneAction": true,
+      "noStuckKeys": true,
+      "separateClickFromUia": true,
+      "visualAcceptance": "Pending screenshot inspection"
+    },
+    "allDisplays": {
+      "availableDisplays": 1,
+      "claimedMixedDpi": false
+    },
+    "autoHide": {
+      "hidden": true,
+      "shown": true
+    },
+    "unsupported": {
+      "noOverlay": true,
+      "removalAfterLiveCoverage": true,
+      "nativeExplorerMutation": false,
+      "injectedRejection": true
+    },
+    "neighbors": [
+      {
+        "class": "SystemTray.OmniButtonRight",
+        "hitClass": "Shell_TrayWnd",
+        "hitProcess": 7120,
+        "point": [
+          896,
+          744
+        ]
+      },
+      {
+        "class": "SystemTray.OmniButtonRight",
+        "hitClass": "Shell_TrayWnd",
+        "hitProcess": 7120,
+        "point": [
+          998,
+          744
+        ]
+      },
+      {
+        "class": "SystemTray.ShowDesktopButton",
+        "hitClass": "Shell_TrayWnd",
+        "hitProcess": 7120,
+        "point": [
+          1018,
+          744
+        ]
+      }
+    ],
+    "explorerRestart": {
+      "oldPids": [
+        7120
+      ],
+      "newPids": [
+        6800
+      ],
+      "lossHides": true,
+      "recovered": true,
+      "failure": null
+    },
+    "dpiChange": {
+      "before": 96,
+      "after": 120,
+      "actualSettingsSelection": true,
+      "mixedDpi": false
+    }
+  },
+  "limitations": [
+    "No production selector or P1 GO",
+    "Stock native x64 and mixed-DPI repetitions remain in #21",
+    "Screenshots require inspection; API success alone does not prove calendar visibility"
+  ],
+  "status": "hosted_checks_passed_visual_review_and_desktop_variants_pending"
+}

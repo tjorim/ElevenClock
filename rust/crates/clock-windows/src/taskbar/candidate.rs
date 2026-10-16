@@ -1,5 +1,5 @@
 //! The R02 *experimental* clock candidate, as a pure function over a UIA
-//! inventory (experimental: P1 is NO-GO, see #23).
+//! inventory (experimental: P1 is NO-GO, see #21).
 //!
 //! This reproduces what the hosted captures recorded and R03's spike used: a
 //! visible XAML `SystemTray.OmniButtonLeft` button owned by the shell whose

@@ -46,7 +46,7 @@ runtime and Settings shell. It has no command suite. Closing Settings keeps the
 clock running in the background; **Exit ElevenClock-rs** quits (R08, see
 [its record](windows-evidence/R08.md)). This is a work in progress with no
 release: the experimental R02 candidate places the clock overlay, and P1 is still
-NO-GO (#23), so expect rough edges.
+NO-GO (#21), so expect rough edges.
 `rust-ci.yml` checks the GUI subsystem, embedded manifest, native launch/close
 and forward/reverse dialog focus. Its development harness captures the actual
 dialog and records runner OS/build/DPI as prototype evidence. The environment
@@ -147,10 +147,10 @@ and the R02 production-selector gate remain unchanged. Build/run parameters,
 actual hosted results and the P1 no-go are in
 [overlay evidence](windows-evidence/overlay-spike.md). The hosted workflow uses
 real native/UIA hits, screenshots, input and shell/display transitions; positive
-window flags alone do not prove opaque coverage or calendar access. R03 recovery
-failures and the calendar strategy are tracked in #23; #4 closes the prototype
-and evidence milestone. Only unavailable stock-x64/mixed-DPI variants belong in
-#21. P1 remains NO-GO and P3 stays blocked pending both follow-ups.
+window flags alone do not prove opaque coverage or calendar access. #23 fixed the
+R03 recovery failure (overlays are created in the taskbar's band) and settled
+the calendar strategy (one deliberate Win+N); #4 closed the prototype milestone.
+P1 remains NO-GO and P3 stays blocked only on the stock-x64/mixed-DPI gate in #21.
 
 ## R07 rendering development
 
