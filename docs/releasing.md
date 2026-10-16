@@ -7,6 +7,12 @@ standard-account installation/runtime validation. A closed tracker is not eviden
 that its acceptance matrix passed. Actual results are in the
 [packaging evidence record](windows-evidence/packaging.md).
 
+The packaging implementation in #15 can close when PR #45 merges. Remaining
+clean-machine, fresh-account, real-logon and packaging ownership validation is
+explicitly handed to [#47](https://github.com/tjorim/ElevenClock-rs/issues/47).
+Licensing remains in #32 and R13 acceptance in #46. This separates implementation
+tracking from release acceptance; all three distribution gates remain blocked.
+
 ## Build and artifacts
 
 On native Windows with MSVC/SDK, stable Rust, Python 3.11+ (development only) and

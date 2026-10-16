@@ -74,6 +74,14 @@ the run. No release gate was changed by this hosted pass.
 
 ## Open evidence
 
+These remaining packaging checks are tracked by
+[#47](https://github.com/tjorim/ElevenClock-rs/issues/47), following the explicit
+handoff from #15 / PR #45. Licensing stays in #32 and R13 acceptance in #46.
+Closing the implementation issue does not mark these checks passed or change any
+release gate. Suitable hosted/custom environments remain the first choice for
+feasible variants; actual logon and absent-runtime evidence require the stated
+account/machine conditions.
+
 - [x] Hosted workflow results: installer logs, hashes, installed/portable Settings
       checks, Settings captures and Support report retained in run 38893516999.
 - [ ] Clean stock Windows 11 x64 **non-administrator account**: record exact OS/app

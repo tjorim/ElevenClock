@@ -9,6 +9,6 @@
   },
   "clean_standard_account": {
     "passed": false,
-    "evidence": "docs/windows-evidence/packaging.md"
+    "evidence": "https://github.com/tjorim/ElevenClock-rs/issues/47"
   }
 }
