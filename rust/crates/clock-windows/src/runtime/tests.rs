@@ -81,6 +81,9 @@ struct Fake {
     create_error: bool,
     calendar: CalendarOutcome,
     menu_choice: Option<MenuCommand>,
+    /// Slot width the fake renderer needs; `None` means it cannot measure.
+    fit_needs_width: Option<i32>,
+    fit_calls: Vec<(PixelSize, u32, u8)>,
 }
 impl Fake {
     fn new() -> Self {
@@ -97,6 +100,8 @@ impl Fake {
             create_error: false,
             calendar: CalendarOutcome::Sent,
             menu_choice: None,
+            fit_needs_width: None,
+            fit_calls: Vec::new(),
         }
     }
 }
@@ -163,6 +168,34 @@ impl Platform for Fake {
     }
     fn hide(&mut self, key: TaskbarKey) {
         self.calls.push(Call::Hide(key));
+    }
+    fn plan_fit(
+        &mut self,
+        _: &ClockText,
+        _: &WorstCase,
+        region: PixelSize,
+        dpi: u32,
+        font_pt: u8,
+    ) -> Option<Result<Fit, RenderError>> {
+        let needs = self.fit_needs_width?;
+        self.fit_calls.push((region, dpi, font_pt));
+        let required = PixelSize {
+            width: needs,
+            height: region.height,
+        };
+        Some(Ok(if needs > region.width {
+            Fit::Overflow(Overflow {
+                required,
+                available: region,
+            })
+        } else {
+            Fit::Fits(crate::render::Layout {
+                font_px: 12.0,
+                padding_px: 4,
+                region,
+                required,
+            })
+        }))
     }
     fn open_calendar(&mut self, key: TaskbarKey) -> CalendarOutcome {
         self.calls.push(Call::OpenCalendar(key));
@@ -1158,4 +1191,84 @@ fn pause_survives_explorer_restart() {
             .iter()
             .all(|k| k.generation.0 == 0)
     );
+}
+
+// ---- Settings fit checks (R10) -------------------------------------------
+
+fn fit_format() -> CompiledFormat {
+    CompiledFormat::parse("%H:%M\n%g%V.%u").unwrap()
+}
+
+#[test]
+fn settings_fit_check_measures_only_selected_taskbars_with_a_known_clock_slot() {
+    let mut runtime = runtime(Monitors::All);
+    // id 3 has no proven clock rectangle, so there is nothing to measure there.
+    let mut unknown = bar(0, 2, false);
+    unknown.key = key(0, 3);
+    discover(
+        &mut runtime,
+        0,
+        vec![bar(0, 1, true), bar(0, 2, true), unknown],
+    );
+    runtime.platform.fit_needs_width = Some(150);
+    let now = wall("2026-10-13T09:15:00+02:00");
+
+    let primary = runtime.check(&fit_format(), 9, Monitors::Primary, now);
+    assert_eq!(primary.len(), 1);
+    assert!(primary[0].primary);
+    assert_eq!(primary[0].overflow.required.width, 150);
+    assert_eq!(primary[0].overflow.available.width, 100);
+
+    let all = runtime.check(&fit_format(), 14, Monitors::All, now);
+    assert_eq!(
+        all.iter().map(|p| p.primary).collect::<Vec<_>>(),
+        [true, false]
+    );
+    // Each taskbar is measured at its own DPI and with the draft's font size.
+    let calls = &runtime.platform.fit_calls;
+    assert_eq!(
+        calls[1..],
+        [
+            (
+                PixelSize {
+                    width: 100,
+                    height: 48
+                },
+                96,
+                14
+            ),
+            (
+                PixelSize {
+                    width: 100,
+                    height: 48
+                },
+                144,
+                14
+            )
+        ]
+    );
+}
+
+#[test]
+fn settings_fit_check_reports_nothing_when_it_fits_or_cannot_measure() {
+    let mut runtime = runtime(Monitors::All);
+    discover(&mut runtime, 0, vec![bar(0, 1, true)]);
+    let now = wall("2026-10-13T09:15:00+02:00");
+    // A platform that cannot measure never blocks Apply.
+    assert!(
+        runtime
+            .check(&fit_format(), 9, Monitors::All, now)
+            .is_empty()
+    );
+    runtime.platform.fit_needs_width = Some(100);
+    assert!(
+        runtime
+            .check(&fit_format(), 9, Monitors::All, now)
+            .is_empty()
+    );
+    // Before discovery there are no slots at all.
+    let mut fresh = Runtime::new(Fake::new(), prefs(Monitors::All));
+    fresh.platform.fit_needs_width = Some(1_000);
+    assert!(fresh.check(&fit_format(), 9, Monitors::All, now).is_empty());
+    assert!(fresh.platform.fit_calls.is_empty());
 }

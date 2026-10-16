@@ -1,18 +1,84 @@
 #pragma code_page(65001)
 #include <windows.h>
+#include <commctrl.h>
+
+// Control ids are shared with crates/clock-windows/src/settings.rs.
 1 RT_MANIFEST "resources/app.manifest"
 102 ICON "../../../assets/icon.ico"
-101 DIALOGEX 0, 0, 300, 154
-STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+
+// The Settings window. Dialog units follow the dialog font, so everything scales
+// with the display (the manifest declares per-monitor DPI v2). The tab strip is only
+// as tall as its tabs; the four page dialogs below are placed over the hidden 1106
+// anchor, so no control overlaps another and tab order is simply document order.
+101 DIALOGEX 0, 0, 340, 312
+STYLE DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX
 EXSTYLE WS_EX_APPWINDOW
 CAPTION "ElevenClock-rs Settings"
 FONT 9, "Segoe UI"
 BEGIN
-    LTEXT "ElevenClock-rs — Settings prototype", -1, 12, 12, 276, 14
-    LTEXT "ElevenClock-rs keeps running after you close this window. Choose Exit to stop it; the Windows clock is never changed.", -1, 12, 34, 276, 26
-    LTEXT "&Appearance:", -1, 12, 65, 70, 12
-    COMBOBOX 1001, 88, 62, 190, 60, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    LTEXT "Theme choices are a feasibility preview; preferences are not saved.", 1002, 12, 88, 276, 24
-    PUSHBUTTON "E&xit ElevenClock-rs", 1003, 12, 124, 90, 18, WS_TABSTOP
-    DEFPUSHBUTTON "&Close", IDCANCEL, 218, 124, 60, 18, WS_TABSTOP
+    LTEXT "", 1101, 8, 8, 324, 24
+    CONTROL "", 1100, "SysTabControl32", WS_TABSTOP | TCS_TABS, 8, 34, 324, 16
+    LTEXT "", 1106, 8, 52, 324, 208, NOT WS_VISIBLE
+    LTEXT "", 1102, 8, 266, 324, 18
+    PUSHBUTTON "E&xit ElevenClock-rs", 1003, 8, 290, 84, 14, WS_TABSTOP
+    PUSHBUTTON "&Reset to defaults", 1104, 98, 290, 72, 14, WS_TABSTOP
+    DEFPUSHBUTTON "OK", IDOK, 176, 290, 50, 14, WS_TABSTOP
+    PUSHBUTTON "&Cancel", IDCANCEL, 230, 290, 50, 14, WS_TABSTOP
+    PUSHBUTTON "&Apply", 1105, 284, 290, 48, 14, WS_TABSTOP
+END
+
+// Page 1: Date and time.
+111 DIALOGEX 0, 0, 324, 208
+STYLE DS_SETFONT | DS_CONTROL | WS_CHILD
+EXSTYLE WS_EX_CONTROLPARENT
+FONT 9, "Segoe UI"
+BEGIN
+    LTEXT "&Preset:", -1, 4, 6, 44, 10
+    COMBOBOX 1201, 52, 4, 268, 100, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT "&Format (press Enter for a second line):", -1, 4, 22, 316, 10
+    EDITTEXT 1202, 4, 33, 316, 26, ES_MULTILINE | ES_WANTRETURN | ES_AUTOVSCROLL | WS_VSCROLL | WS_TABSTOP
+    LTEXT "", 1203, 4, 61, 316, 18
+    LTEXT "Pre&view:", -1, 4, 82, 60, 10
+    EDITTEXT 1204, 4, 93, 316, 46, ES_MULTILINE | ES_READONLY | WS_VSCROLL | WS_TABSTOP
+    LTEXT "&Tokens:", -1, 4, 142, 60, 10
+    EDITTEXT 1205, 4, 153, 316, 52, ES_MULTILINE | ES_READONLY | WS_VSCROLL | WS_TABSTOP
+END
+
+// Page 2: Appearance.
+112 DIALOGEX 0, 0, 324, 208
+STYLE DS_SETFONT | DS_CONTROL | WS_CHILD
+EXSTYLE WS_EX_CONTROLPARENT
+FONT 9, "Segoe UI"
+BEGIN
+    GROUPBOX "Show the clock on", -1, 4, 4, 316, 44
+    AUTORADIOBUTTON "&Primary display only", 1301, 12, 17, 300, 12, WS_GROUP | WS_TABSTOP
+    AUTORADIOBUTTON "A&ll displays", 1302, 12, 31, 300, 12
+    LTEXT "Font &size (pt):", -1, 4, 58, 62, 10, WS_GROUP
+    EDITTEXT 1303, 68, 56, 36, 14, ES_NUMBER | ES_AUTOHSCROLL
+    CONTROL "", 1304, "msctls_updown32", UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_AUTOBUDDY | UDS_ARROWKEYS | UDS_NOTHOUSANDS, 104, 56, 10, 14
+    LTEXT "6 to 24 pt", -1, 120, 58, 80, 10
+    LTEXT "", 1305, 4, 74, 316, 20
+    LTEXT "Clock &theme:", -1, 4, 102, 62, 10
+    COMBOBOX 1306, 68, 100, 120, 60, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT "The theme applies to the clock on the taskbar. This window follows your Windows colors and contrast settings.", -1, 4, 118, 316, 20
+END
+
+// Page 3: Startup (reserved for the opt-in login startup control).
+113 DIALOGEX 0, 0, 324, 208
+STYLE DS_SETFONT | DS_CONTROL | WS_CHILD
+EXSTYLE WS_EX_CONTROLPARENT
+FONT 9, "Segoe UI"
+BEGIN
+    LTEXT "&Startup:", -1, 4, 6, 60, 10
+    EDITTEXT 1401, 4, 17, 316, 60, ES_MULTILINE | ES_READONLY | WS_VSCROLL | WS_TABSTOP
+END
+
+// Page 4: Support (reserved for status and diagnostics).
+114 DIALOGEX 0, 0, 324, 208
+STYLE DS_SETFONT | DS_CONTROL | WS_CHILD
+EXSTYLE WS_EX_CONTROLPARENT
+FONT 9, "Segoe UI"
+BEGIN
+    LTEXT "Support &information:", -1, 4, 6, 120, 10
+    EDITTEXT 1501, 4, 17, 316, 60, ES_MULTILINE | ES_READONLY | WS_VSCROLL | WS_TABSTOP
 END

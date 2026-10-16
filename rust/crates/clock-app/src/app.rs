@@ -8,7 +8,7 @@ use clock_windows::{
     PlatformError,
     instance::{self, Acquired, LaunchMode, Role},
     preferences_store::{
-        LocalPreferencesStore, MemoryPreferencesStore, PreferenceSession, PreferencesStore,
+        LocalPreferencesStore, PreferenceSession, PreferencesStore, UnavailableStore,
     },
     runtime::native::run,
     taskbar::helper,
@@ -47,11 +47,11 @@ fn application(launch: LaunchMode) -> Result<(), PlatformError> {
             Ok(())
         }
         Acquired::Primary(guard) => {
-            // Unreadable app data must not stop the clock: run with defaults.
-            // Settings reports the problem and offers recovery (R10).
+            // An unresolvable data folder must not stop the clock: run with defaults.
+            // Every save then fails visibly in Settings rather than being lost.
             match LocalPreferencesStore::new() {
                 Ok(store) => start(store, launch, &guard),
-                Err(_) => start(MemoryPreferencesStore::default(), launch, &guard),
+                Err(_) => start(UnavailableStore, launch, &guard),
             }
         }
     }

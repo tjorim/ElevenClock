@@ -19,7 +19,7 @@ use crate::{
     instance::{HOST_CLASS, InstanceGuard, LaunchMode, WM_SHOW_SETTINGS},
     interaction::{self, CalendarOutcome, Interaction, MenuCommand, ScreenPoint, WM_INTERACTION},
     preferences_store::{PreferenceSession, PreferencesStore},
-    render::{PaintOutcome, PaintRequest, RenderError, Renderer, WorstCase},
+    render::{Fit, PaintOutcome, PaintRequest, PixelSize, RenderError, Renderer, WorstCase},
     settings::{PlatformError, SettingsWindow},
     taskbar::{
         probe::{current_shell, physical_rect},
@@ -30,7 +30,7 @@ use crate::{
 };
 use chrono::{DateTime, FixedOffset};
 use clock_core::{
-    PhysicalRect, ShellGeneration, TaskbarKey, TaskbarSnapshot, ValidatedPreferences,
+    ClockText, PhysicalRect, ShellGeneration, TaskbarKey, TaskbarSnapshot, ValidatedPreferences,
 };
 use std::{
     cell::Cell,
@@ -336,6 +336,19 @@ impl Platform for NativePlatform {
             overlay.hide();
         }
     }
+    fn plan_fit(
+        &mut self,
+        current: &ClockText,
+        worst_case: &WorstCase,
+        region: PixelSize,
+        dpi: u32,
+        font_pt: u8,
+    ) -> Option<Result<Fit, RenderError>> {
+        Some(
+            self.renderer
+                .plan_fit(current, worst_case, region, dpi, font_pt),
+        )
+    }
     fn open_calendar(&mut self, _key: TaskbarKey) -> CalendarOutcome {
         // One keystroke batch on the UI thread, no COM, no retry (R03 evidence).
         interaction::send_win_n()
@@ -551,7 +564,10 @@ pub fn run<S: PreferencesStore>(
     launch: LaunchMode,
     instance: &InstanceGuard,
 ) -> Result<ExitReason, PlatformError> {
-    let settings = SettingsWindow::new()?;
+    // The runtime starts from the saved value; Settings keeps the session so that
+    // Apply persists through it.
+    let initial = session.active().clone();
+    let mut settings = SettingsWindow::new(session)?;
     let host = HostWindow::create(&instance.names().window_title).map_err(start_error)?;
     let renderer = Renderer::new().map_err(|e| start_error(render_error(e)))?;
     let class = OverlayClass::register().map_err(start_error)?;
@@ -592,10 +608,10 @@ pub fn run<S: PreferencesStore>(
         paint_state: None,
         repaint_epoch: REPAINT_EPOCH.load(Ordering::Relaxed),
     };
-    let mut runtime = Runtime::new(platform, session.active().clone());
+    let mut runtime = Runtime::new(platform, initial);
     runtime.start();
     if launch == LaunchMode::Interactive {
-        settings.show_or_focus()?;
+        settings.show_or_focus(&mut runtime)?;
     }
 
     let mut message = MSG::default();
@@ -612,7 +628,7 @@ pub fn run<S: PreferencesStore>(
                 DispatchMessageW(&message);
             }
         }
-        if let Err(error) = pump(&mut runtime, &settings) {
+        if let Err(error) = pump(&mut runtime, &mut settings) {
             break Err(error);
         }
         if runtime.is_finished() {
@@ -632,9 +648,9 @@ pub fn run<S: PreferencesStore>(
 
 /// Convert recorded flags and queued signals into runtime inputs, outside any
 /// callback. Returns an error only for an internal fault (a panic in a callback).
-fn pump(
+fn pump<S: PreferencesStore>(
     runtime: &mut Runtime<NativePlatform>,
-    settings: &SettingsWindow,
+    settings: &mut SettingsWindow<S>,
 ) -> Result<(), PlatformError> {
     if PANICKED.take() {
         // Fail closed: the clock overlay is removed, the native clock remains.
@@ -644,6 +660,8 @@ fn pump(
             "An internal error occurred; ElevenClock-rs stopped and the Windows clock is shown.",
         )));
     }
+    // Settings first: its Exit button sets the flag handled just below.
+    settings.service(runtime)?;
     if EXIT.take() {
         runtime.handle(Input::Quit);
         return Ok(());
@@ -682,7 +700,7 @@ fn pump(
     }
     runtime.platform_mut().repaint_invalidated();
     if SHOW_SETTINGS.take() {
-        settings.show_or_focus()?;
+        settings.show_or_focus(runtime)?;
     }
     Ok(())
 }

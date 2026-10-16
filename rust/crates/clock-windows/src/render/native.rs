@@ -150,6 +150,31 @@ impl Renderer {
             _ui_thread: PhantomData,
         }
     }
+    /// Would `current` and every worst-case line fit a slot of `region` at `dpi`?
+    /// The same measurement the overlay surfaces make, without a window.
+    pub fn plan_fit(
+        &self,
+        current: &ClockText,
+        worst_case: &WorstCase,
+        region: PixelSize,
+        dpi: u32,
+        font_pt: u8,
+    ) -> Result<Fit, RenderError> {
+        let font_px = font_size_px(font_pt, dpi).ok_or(RenderError::InvalidScale)?;
+        let format = self.text_format(font_px)?;
+        let mut measurer = DirectWriteMeasurer {
+            renderer: self,
+            format: &format,
+        };
+        plan_fit(
+            &mut measurer,
+            current,
+            worst_case,
+            region,
+            padding_px(dpi),
+            font_px,
+        )
+    }
     fn text_format(&self, font_px: f32) -> Result<IDWriteTextFormat, RenderError> {
         // SAFETY: `family_wide` is NUL-terminated and outlives the call.
         let format = unsafe {

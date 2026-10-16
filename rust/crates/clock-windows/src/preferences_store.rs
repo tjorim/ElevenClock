@@ -157,6 +157,22 @@ impl PreferencesStore for MemoryPreferencesStore {
     }
 }
 
+/// Stand-in when the per-user data folder cannot be resolved. The clock still runs
+/// with defaults; Settings can show them, but every save fails visibly instead of
+/// appearing to succeed and being lost at the next start.
+pub struct UnavailableStore;
+impl PreferencesStore for UnavailableStore {
+    fn load(&self) -> Result<StoredPreferences, StoreError> {
+        Ok(StoredPreferences::default())
+    }
+    fn save(&mut self, _: &StoredPreferences) -> Result<(), StoreError> {
+        Err(StoreError::Io(io::Error::other("data folder unavailable")))
+    }
+    fn preserve_for_recovery(&mut self) -> Result<(), StoreError> {
+        Err(StoreError::Io(io::Error::other("data folder unavailable")))
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Document {
@@ -396,6 +412,16 @@ mod tests {
             font_size_pt: 24,
             ..Preferences::default()
         }
+    }
+    #[test]
+    fn unavailable_store_runs_on_defaults_and_fails_every_save_visibly() {
+        let mut session = PreferenceSession::open(UnavailableStore);
+        assert!(session.load_error().is_none());
+        assert_eq!(session.active().font_size_pt(), 9);
+        let error = session.apply(changed()).unwrap_err();
+        assert!(matches!(error, StoreError::Io(_)));
+        assert_eq!(session.active().font_size_pt(), 9);
+        assert!(session.recover(changed()).is_err());
     }
     #[test]
     fn first_save_replacement_and_first_run() {
