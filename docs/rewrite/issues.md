@@ -4,8 +4,8 @@ Revised 2026-10-13 for a native Windows GUI product. All issues are open and una
 
 Tracker: [#1 — Native taskbar clock rewrite](https://github.com/tjorim/ElevenClock/issues/1).
 
-Read [the source dissection and contracts](RUST_REWRITE_DISSECTION.md) before implementing an issue.
-The [scope overview](RUST_REWRITE_PLAN.md) defines retained features and datetime semantics.
+Read [the source dissection and contracts](dissection.md) before implementing an issue.
+The [scope overview](plan.md) defines retained features and datetime semantics.
 
 Normal use is entirely through the Windows app: Start menu launch, native Settings,
 live preview, in-app Support and opt-in startup. Storage encoding is private.
@@ -115,4 +115,4 @@ flowchart TD
 - Branch from `rust-rewrite` after prerequisite PRs are merged; one issue per PR. R01 creates that integration branch with these planning documents.
 - Every issue contains source locations, owned files, scope, non-goals, test instructions, acceptance checkboxes and handoff requirements.
 - Keep shared contracts stable. Report missing environment access instead of fabricating manual results.
-- The JSON [issue specifications](rewrite-issue-specs.json) are the current planning snapshot; GitHub issue discussion/acceptance state is authoritative after dispatch.
+- The JSON [issue specifications](issue-specs.json) are the current planning snapshot; GitHub issue discussion/acceptance state is authoritative after dispatch.

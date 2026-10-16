@@ -11,7 +11,7 @@ stay unchecked at the end.
 Settings → **Support** (reachable by `Ctrl+PageDown` or the tab strip) replaces the R10
 placeholder:
 
-![Support page](R11/support-page.png)
+![Support page](images/diagnostics/support-page.png)
 
 | Control | Behaviour |
 | --- | --- |
@@ -37,7 +37,7 @@ Settings' main status line does.
 
 ## The report
 
-[A real sample](R11/sample-report.txt), produced by the harness on the machine above:
+[A real sample](images/diagnostics/sample-report.txt), produced by the harness on the machine above:
 
 ```text
 ElevenClock-rs diagnostics

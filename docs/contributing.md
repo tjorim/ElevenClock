@@ -44,7 +44,7 @@ cargo build --manifest-path rust/Cargo.toml -p clock-app --release --target x86_
 Double-click the resulting `elevenclock-rs.exe` for the native
 runtime and Settings shell. It has no command suite. Closing Settings keeps the
 clock running in the background; **Exit ElevenClock-rs** quits (R08, see
-[its record](windows-evidence/R08.md)). This is a work in progress with no
+[its record](design/lifecycle.md)). This is a work in progress with no
 release: the experimental R02 candidate places the clock overlay, and P1 is still
 NO-GO (#21), so expect rough edges.
 `rust-ci.yml` checks the GUI subsystem, embedded manifest, native launch/close
@@ -53,7 +53,7 @@ dialog and records runner OS/build/DPI as prototype evidence. The environment
 harness uses actual Windows high contrast and Display Scale selections at
 100/125/150/200%, restoring the original settings; it never injects DPI messages
 or uses a private DPI setter. It is not evidence
-of Explorer or interactive UI compatibility. See the [manual gate](windows-evidence/R01.md).
+of Explorer or interactive UI compatibility. See the [manual gate](windows-evidence/settings-foundation.md).
 
 ## Boundaries and ownership
 
@@ -64,7 +64,7 @@ owns FFI. On Linux the app is a no-op build stub, not a supported product.
 
 `clock-core::model` defines physical-pixel rectangles with checked signed edges,
 transient generation-scoped taskbar keys, discovery snapshots, rendered text,
-cadence and event/effect values. See [contracts](RUST_REWRITE_DISSECTION.md#4-target-boundaries-and-interfaces).
+cadence and event/effect values. See [contracts](rewrite/dissection.md#4-target-boundaries-and-interfaces).
 R02 owns snapshot validation: a Some clock rect means proven clock-only bounds;
 DPI must be nonzero, clock/taskbar must fit the monitor, and adjacent controls
 must be excluded. Unknown visibility/geometry must not produce overlays.
@@ -75,7 +75,7 @@ or serializer freezes that later decision. R06 owns reducer state;
 PreferencesApplied carries R05 committed validated preferences. ThemeChanged
 carries a resolved appearance revision;
 FullscreenChanged carries a generation-scoped taskbar key and boolean. See
-[R06 effect contract](RUST_STATE.md) for integration and timer semantics.
+[R06 effect contract](design/state-and-scheduling.md) for integration and timer semantics.
 Time events use one DateTime<FixedOffset> snapshot per update; it is not a stored
 timezone rule. Discovery responses and all overlay effects carry ShellGeneration;
 R06 must discard stale responses and destroy old-generation overlays on loss.
@@ -158,7 +158,7 @@ P1 remains NO-GO and P3 stays blocked only on the stock-x64/mixed-DPI gate in #2
 Linux, plus the Windows-only DirectWrite/Direct2D `Renderer`/`ClockSurface`; the
 Windows tests in `crates/clock-windows/tests/render_native.rs` need a Windows
 host. `clock-windows::theme` resolves opaque palettes (high contrast first). See
-the [R07 handoff](windows-evidence/R07.md) for the API, resource ownership and the
+the [R07 handoff](design/rendering.md) for the API, resource ownership and the
 unchecked interactive gates. `ELEVENCLOCK_RS_R07_THEME` is a development-only switch
 for the overlay harness, not a user setting.
 
@@ -197,7 +197,7 @@ they are ignored by default; CI runs them on its Windows runner:
 cargo test --manifest-path rust/Cargo.toml -p clock-windows --test clipboard_native --locked -- --ignored --test-threads=1
 ```
 
-See the [R11 record](windows-evidence/R11.md) for behaviour, limits and the unchecked
+See the [R11 record](design/diagnostics.md) for behaviour, limits and the unchecked
 desktop gates.
 
 ## R12 login startup development
@@ -215,5 +215,5 @@ each test removes, so they run with the normal suite. `scripts/test-rust-setting
 saves, clears and restores the current user's real `ElevenClockRust` value around its
 Startup step.
 
-See the [R12 record](windows-evidence/R12.md) for the owned value, the uninstall contract
+See the [R12 record](design/startup.md) for the owned value, the uninstall contract
 and the unchecked manual logon and standard-account gates.

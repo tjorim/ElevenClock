@@ -3,7 +3,7 @@
 Status: **runtime, lifecycle, supervision and tests implemented; the interactive and
 Explorer-correlated gates below are unchecked.** The authoring environment was Linux;
 Windows code was type-checked for `x86_64-pc-windows-msvc` only. **P1 remains
-NO-GO** ([overlay evidence](overlay-spike.md), [#21](https://github.com/tjorim/ElevenClock/issues/21),
+NO-GO** ([overlay evidence](../windows-evidence/overlay-spike.md), [#21](https://github.com/tjorim/ElevenClock/issues/21),
 [#23](https://github.com/tjorim/ElevenClock/issues/23)), but the project is a work in
 progress with no release, so there is **no support gate**: the R02 experimental
 candidate always places the clock after geometric validation. A failed, late or stale
@@ -189,7 +189,7 @@ restarts with process/thread/handle accounting. Its development-overlay step is
 * A DPI change that leaves the physical clock rectangle identical does not repaint
   (the reducer has no event for it); a real DPI change moves the rectangle.
 * The overlay does not forward clicks; clock actions, the menu, tray icon and UIA
-  element are [R09](R09.md).
+  element are [R09](interaction.md).
 * Auto-hide classification (partly off-monitor = hidden; fully on-monitor but
   different = relocated) is a documented heuristic awaiting real-shell evidence.
 * Hook coverage and the 2 s poll are the only defence if an event is missed; hook

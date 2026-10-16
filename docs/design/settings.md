@@ -19,12 +19,12 @@ One window, four pages (a tab strip; `Ctrl+Tab`, `Ctrl+Shift+Tab` and
 | --- | --- |
 | Date and time | Preset list (from `clock_core::format::PRESETS`, plus *Custom format*), multi-line format editor, live preview, token help |
 | Appearance | Primary display only / All displays, font size 6–24 pt with spin buttons, clock theme System / Light / Dark |
-| Startup | The opt-in login-startup checkbox, added by R12 ([record](R12.md)). It is the Windows registration itself, not a stored preference, so nothing can drift from the OS-owned state |
+| Startup | The opt-in login-startup checkbox, added by R12 ([record](startup.md)). It is the Windows registration itself, not a stored preference, so nothing can drift from the OS-owned state |
 | Support | Reserved for R11: version and a pointer; the page is a read-only text field so it is reachable by keyboard and readers |
 
 Buttons: **Exit ElevenClock-rs**, **Reset to defaults**, **OK**, **Cancel**, **Apply**.
 
-![First launch](R10/first-run.png)
+![First launch](images/settings/first-run.png)
 
 ### Flow
 
@@ -35,9 +35,9 @@ Buttons: **Exit ElevenClock-rs**, **Reset to defaults**, **OK**, **Cancel**, **A
 | **OK** | Apply, then close. With no changes it simply closes |
 | **Cancel**, Esc, the close button, `Alt+C` | Discard the draft and close. The clock keeps running |
 | **Reset to defaults** | Stage the defaults in the controls. Nothing is saved until Apply; Cancel drops them |
-| Save fails | "Settings were not saved. … Your previous settings are preserved." The live clock is unchanged, the draft stays editable, the window stays open and Apply can simply be retried ([capture](R10/save-failed.png)) |
-| Invalid draft | Apply refuses, says so, moves the keyboard to the first problem and selects the offending token ([capture](R10/invalid-format.png)) |
-| Damaged saved data | A notice at the bottom; defaults are shown. Apply asks for confirmation, keeps a copy of the damaged data, then saves ([notice](R10/damaged-notice.png), [confirmation](R10/recover-damaged.png)). Declining changes nothing |
+| Save fails | "Settings were not saved. … Your previous settings are preserved." The live clock is unchanged, the draft stays editable, the window stays open and Apply can simply be retried ([capture](images/settings/save-failed.png)) |
+| Invalid draft | Apply refuses, says so, moves the keyboard to the first problem and selects the offending token ([capture](images/settings/invalid-format.png)) |
+| Damaged saved data | A notice at the bottom; defaults are shown. Apply asks for confirmation, keeps a copy of the damaged data, then saves ([notice](images/settings/damaged-notice.png), [confirmation](images/settings/recover-damaged.png)). Declining changes nothing |
 | Saved data from a newer version | Everything is disabled and the notice says saving is turned off; the data is never overwritten |
 | First launch | Welcome text; first-run completion is stored internally when the window is dismissed. Later launches show the normal text. A login-style start never opens Settings |
 | Launch while running / tray or clock menu **Settings** | The running instance shows or focuses the one window. An already-open window keeps its unsaved edits |
@@ -56,7 +56,7 @@ week-year each belongs to, so the difference between `%g` (ISO week-year) and `%
 | Fri 1 Jan 2027 (ISO week-year 2026, week 53) | 2653.5 | 2753.5 |
 | Mon 4 Jan 2027 (ISO week-year 2027, week 1) | 2701.1 | 2701.1 |
 
-![Calendar-year preset](R10/calendar-year-preset.png)
+![Calendar-year preset](images/settings/calendar-year-preset.png)
 
 The token help beside the editor lists every directive the core accepts (a test
 compares it with `format::DIRECTIVES`) and explains that `%G`/`%g` are the year the
@@ -73,7 +73,7 @@ ISO week belongs to. Two-line formats show `line 1 ↵ line 2`.
 | font `30`, `5`, empty, `abc` | "Font size must be between 6 and 24 pt." | Under the font size |
 | does not fit | "This does not fit the clock space on the primary taskbar (needs 94 × 40 px, 70 × 48 px available) and a secondary taskbar (…). Use a shorter format or a smaller font size." | Under the format **and** under the font size |
 
-![Fit message](R10/font-does-not-fit.png)
+![Fit message](images/settings/font-does-not-fit.png)
 
 **Fit** is measured, not guessed: `Runtime` hands the draft to the same DirectWrite
 measurement the overlay surface uses (`Renderer::plan_fit`), against the clock slot

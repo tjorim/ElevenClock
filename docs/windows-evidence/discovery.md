@@ -19,14 +19,14 @@ milestone does not satisfy this gate.
 passed all three jobs on feature commit `0eebd3a18e128551ed686cbffe362004b081b4a8`;
 checked-out PR merge revision `d05e9e4a75ecd8fdbf6c30b28fe8e287b97726f6`.
 Original structured output, contexts and original/annotated screenshots are
-retained under [R02-hosted](R02-hosted/). Text fixtures normalize line endings and
+retained under [discovery-hosted](discovery-hosted/). Text fixtures normalize line endings and
 omit the UTF-8 BOM; values are unchanged. Artifact archives retain original bytes.
 
 | Actual OS | Native CPU / probe | Exact build + UBR | Image | Evidence |
 | --- | --- | --- | --- | --- |
-| Windows Server 2025 Datacenter | x64 / native x64 | **26100.33438** | win25-vs2026 20260925.250.1 | [Context](R02-hosted/server-x64/context.json), [artifact](https://github.com/tjorim/ElevenClock/actions/runs/38508357876/artifacts/11868418708) |
-| Windows 11 Enterprise | ARM64 / native ARM64 | **26200.9457** | win11-vs2026-arm64 20261004.176.1 | [Context](R02-hosted/windows11-arm-native/context.json), [artifact](https://github.com/tjorim/ElevenClock/actions/runs/38508357876/artifacts/11868578593) |
-| Windows 11 Enterprise | ARM64 / emulated x64 | **26200.9457** | win11-vs2026-arm64 20261004.176.1 | [Context](R02-hosted/windows11-arm-x64-emulated/context.json), [artifact](https://github.com/tjorim/ElevenClock/actions/runs/38508357876/artifacts/11868224228) |
+| Windows Server 2025 Datacenter | x64 / native x64 | **26100.33438** | win25-vs2026 20260925.250.1 | [Context](discovery-hosted/server-x64/context.json), [artifact](https://github.com/tjorim/ElevenClock/actions/runs/38508357876/artifacts/11868418708) |
+| Windows 11 Enterprise | ARM64 / native ARM64 | **26200.9457** | win11-vs2026-arm64 20261004.176.1 | [Context](discovery-hosted/windows11-arm-native/context.json), [artifact](https://github.com/tjorim/ElevenClock/actions/runs/38508357876/artifacts/11868578593) |
+| Windows 11 Enterprise | ARM64 / emulated x64 | **26200.9457** | win11-vs2026-arm64 20261004.176.1 | [Context](discovery-hosted/windows11-arm-x64-emulated/context.json), [artifact](https://github.com/tjorim/ElevenClock/actions/runs/38508357876/artifacts/11868224228) |
 
 Each desktop had **one 1024×768 display at 96 DPI**. The two Windows 11 rows are
 the same OS build and CPU architecture, with different probe binaries. They are
@@ -81,19 +81,19 @@ button rectangles did not overlap the candidate. These numbers are **observation
 not runtime constants**. Provider rectangles have not yet been independently
 proven to exhaust every adjacent hit target on the required configurations.
 
-[Server geometry observations](R02-hosted/server-x64/candidate-observations.json),
-[native ARM observations](R02-hosted/windows11-arm-native/candidate-observations.json)
-and [emulated x64 observations](R02-hosted/windows11-arm-x64-emulated/candidate-observations.json)
+[Server geometry observations](discovery-hosted/server-x64/candidate-observations.json),
+[native ARM observations](discovery-hosted/windows11-arm-native/candidate-observations.json)
+and [emulated x64 observations](discovery-hosted/windows11-arm-x64-emulated/candidate-observations.json)
 record containment, sibling bounds and the explicit unsupported-selector gate.
 Original screenshots were inspected; their clock, notification and Show Desktop
 areas match the recorded candidate locations. Annotated screenshots label raw
 UIA indices (`U<number>`), not accepted overlay positions.
 
-![Windows 11 actual desktop capture](R02-hosted/windows11-arm-native/baseline-original.png)
+![Windows 11 actual desktop capture](discovery-hosted/windows11-arm-native/baseline-original.png)
 
-[Annotated native ARM capture](R02-hosted/windows11-arm-native/baseline-inventory.png),
-[Server original](R02-hosted/server-x64/baseline-original.png) and
-[emulated x64 original](R02-hosted/windows11-arm-x64-emulated/baseline-original.png).
+[Annotated native ARM capture](discovery-hosted/windows11-arm-native/baseline-inventory.png),
+[Server original](discovery-hosted/server-x64/baseline-original.png) and
+[emulated x64 original](discovery-hosted/windows11-arm-x64-emulated/baseline-original.png).
 
 ## Actual failures and resulting fixes
 
@@ -101,7 +101,7 @@ The initial ARM image opened a profile privacy/setup page covering Explorer.
 UIA returned only a root element. The initial diagnostic harness incorrectly
 counted any taskbar inventory as successful desktop evidence; it now requires
 an actual clock subtree. The original negative capture is retained in
-[negative-emulated-startup](R02-hosted/negative-emulated-startup/).
+[negative-emulated-startup](discovery-hosted/negative-emulated-startup/).
 
 The ephemeral-host preparation completes a known setup process using guarded
 native Enter gestures, records its owner/actions, and waits for a real clock

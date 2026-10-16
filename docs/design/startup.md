@@ -27,7 +27,7 @@ already running (the existing per-user mutex).
 
 Settings → **Startup**:
 
-![Startup page](R12/startup-page.png)
+![Startup page](images/startup/startup-page.png)
 
 | Control | Behaviour |
 | --- | --- |

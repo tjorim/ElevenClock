@@ -15,7 +15,7 @@ ran PR head `f099956c764fb3fe414705239fe47102011a4183` (checkout/merge revision
 `2ae216fcc294b2e3b2c489962504ad33b4979ed3`) on the same three hosted profiles
 and builds as the original run. **All three jobs passed with no failed criteria.**
 Contexts, JSON and representative original captures are retained in
-[R03-recovery-hosted](R03-recovery-hosted/). Run artifacts expire after 14 days:
+[overlay-recovery-hosted](overlay-recovery-hosted/). Run artifacts expire after 14 days:
 [Server](https://github.com/tjorim/ElevenClock-rs/actions/runs/38856440637/artifacts/12027935010),
 [ARM64 native](https://github.com/tjorim/ElevenClock-rs/actions/runs/38856440637/artifacts/12026404494),
 [ARM64 emulated x64](https://github.com/tjorim/ElevenClock-rs/actions/runs/38856440637/artifacts/12027287858).
@@ -55,15 +55,15 @@ inserted directly above the taskbar in its own band.
 | Calendar | **Pass for deliberate Win+N**: one action, released keys, native notifications/calendar flyout visible in every `calendar-keyboard` capture. UIA Invoke again reported success without a visible flyout and is not accepted |
 | Initial coverage, nonactivation, fullscreen, auto-hide, neighbors, forced termination, injected rejection | **Pass**, as in the original run |
 
-![Server opaque coverage after Explorer restart](R03-recovery-hosted/server-x64/explorer-recovered.png)
+![Server opaque coverage after Explorer restart](overlay-recovery-hosted/server-x64/explorer-recovered.png)
 
-[ARM64 native recovered](R03-recovery-hosted/windows11-arm-native/explorer-recovered.png),
-[ARM64 emulated recovered](R03-recovery-hosted/windows11-arm-x64-emulated/explorer-recovered.png),
-[Server DPI restored](R03-recovery-hosted/server-x64/dpi-restored.png),
-[ARM64 DPI restored](R03-recovery-hosted/windows11-arm-native/dpi-restored.png), and
-Win+N captures for [Server](R03-recovery-hosted/server-x64/calendar-keyboard.png),
-[ARM64 native](R03-recovery-hosted/windows11-arm-native/calendar-keyboard.png) and
-[ARM64 emulated](R03-recovery-hosted/windows11-arm-x64-emulated/calendar-keyboard.png)
+[ARM64 native recovered](overlay-recovery-hosted/windows11-arm-native/explorer-recovered.png),
+[ARM64 emulated recovered](overlay-recovery-hosted/windows11-arm-x64-emulated/explorer-recovered.png),
+[Server DPI restored](overlay-recovery-hosted/server-x64/dpi-restored.png),
+[ARM64 DPI restored](overlay-recovery-hosted/windows11-arm-native/dpi-restored.png), and
+Win+N captures for [Server](overlay-recovery-hosted/server-x64/calendar-keyboard.png),
+[ARM64 native](overlay-recovery-hosted/windows11-arm-native/calendar-keyboard.png) and
+[ARM64 emulated](overlay-recovery-hosted/windows11-arm-x64-emulated/calendar-keyboard.png)
 are original captures.
 
 **Limitations of this follow-up.**
@@ -90,16 +90,16 @@ executed feature commit `59049385bf0e735dc7e884eb3c7e073bac529e72`; checkout/mer
 revision **`b10847f66a3d4260d970d59341dd56a97942b145`**. Each profile's retained
 context records the actual source, executable SHA-256, build/UBR, native CPU and
 probe target. JSON values and representative original PNGs are retained in
-[R03-hosted](R03-hosted/). Artifact archives contain every original capture and
+[overlay-hosted](overlay-hosted/). Artifact archives contain every original capture and
 R02 desktop-preparation output. Git normalizes context JSON line endings; values
 are unchanged and archives retain original bytes. Images have not been synthesized
 or edited.
 
 | Actual OS | Native CPU / prototype | Exact build + UBR | Context and complete archive |
 | --- | --- | --- | --- |
-| Windows Server 2025 Datacenter | x64 / native x64 | **26100.33438** | [Context](R03-hosted/server-x64/context.json), [archive](https://github.com/tjorim/ElevenClock/actions/runs/38525901613/artifacts/11875971463) |
-| Windows 11 Enterprise | ARM64 / native ARM64 | **26200.9457** | [Context](R03-hosted/windows11-arm-native/context.json), [archive](https://github.com/tjorim/ElevenClock/actions/runs/38525901613/artifacts/11875204553) |
-| Windows 11 Enterprise | ARM64 / emulated x64 | **26200.9457** | [Context](R03-hosted/windows11-arm-x64-emulated/context.json), [archive](https://github.com/tjorim/ElevenClock/actions/runs/38525901613/artifacts/11876365625) |
+| Windows Server 2025 Datacenter | x64 / native x64 | **26100.33438** | [Context](overlay-hosted/server-x64/context.json), [archive](https://github.com/tjorim/ElevenClock/actions/runs/38525901613/artifacts/11875971463) |
+| Windows 11 Enterprise | ARM64 / native ARM64 | **26200.9457** | [Context](overlay-hosted/windows11-arm-native/context.json), [archive](https://github.com/tjorim/ElevenClock/actions/runs/38525901613/artifacts/11875204553) |
+| Windows 11 Enterprise | ARM64 / emulated x64 | **26200.9457** | [Context](overlay-hosted/windows11-arm-x64-emulated/context.json), [archive](https://github.com/tjorim/ElevenClock/actions/runs/38525901613/artifacts/11876365625) |
 
 All images had one **1024×768 display**. Actual scale changed through Windows
 Settings from **96 to 120 DPI (100% to 125%)**. Both Windows 11 profiles restored
@@ -135,23 +135,23 @@ claiming a universal Windows compatibility result. UIA errors/stalls and retaine
 provider-object validation remain R09/#9 work; process teardown does not prove
 COM cancellation.
 
-![Native ARM opaque clock-only coverage](R03-hosted/windows11-arm-native/primary-visible.png)
+![Native ARM opaque clock-only coverage](overlay-hosted/windows11-arm-native/primary-visible.png)
 
-![Separate deliberate Win+N native UI](R03-hosted/windows11-arm-native/calendar-keyboard.png)
+![Separate deliberate Win+N native UI](overlay-hosted/windows11-arm-native/calendar-keyboard.png)
 
-[UIA no-flyout capture](R03-hosted/windows11-arm-native/calendar-after-click.png),
-[fullscreen](R03-hosted/windows11-arm-native/fullscreen-hidden.png),
-[auto-hide hidden](R03-hosted/windows11-arm-native/autohide-hidden.png),
-[auto-hide shown](R03-hosted/windows11-arm-native/autohide-shown.png),
-[125% opaque coverage](R03-hosted/windows11-arm-native/dpi-125.png),
-[96-DPI restored](R03-hosted/windows11-arm-native/dpi-restored.png),
-[forced termination](R03-hosted/windows11-arm-native/forced-termination-native.png),
-[unsupported removal](R03-hosted/windows11-arm-native/unsupported-native.png),
-[quick-settings click](R03-hosted/windows11-arm-native/neighbor-1.png),
-[bell click](R03-hosted/windows11-arm-native/neighbor-2.png),
-[Show Desktop](R03-hosted/windows11-arm-native/neighbor-3.png),
-[Explorer loss](R03-hosted/windows11-arm-native/explorer-loss.png),
-and [failed recovery](R03-hosted/windows11-arm-native/explorer-recovery-failure.png)
+[UIA no-flyout capture](overlay-hosted/windows11-arm-native/calendar-after-click.png),
+[fullscreen](overlay-hosted/windows11-arm-native/fullscreen-hidden.png),
+[auto-hide hidden](overlay-hosted/windows11-arm-native/autohide-hidden.png),
+[auto-hide shown](overlay-hosted/windows11-arm-native/autohide-shown.png),
+[125% opaque coverage](overlay-hosted/windows11-arm-native/dpi-125.png),
+[96-DPI restored](overlay-hosted/windows11-arm-native/dpi-restored.png),
+[forced termination](overlay-hosted/windows11-arm-native/forced-termination-native.png),
+[unsupported removal](overlay-hosted/windows11-arm-native/unsupported-native.png),
+[quick-settings click](overlay-hosted/windows11-arm-native/neighbor-1.png),
+[bell click](overlay-hosted/windows11-arm-native/neighbor-2.png),
+[Show Desktop](overlay-hosted/windows11-arm-native/neighbor-3.png),
+[Explorer loss](overlay-hosted/windows11-arm-native/explorer-loss.png),
+and [failed recovery](overlay-hosted/windows11-arm-native/explorer-recovery-failure.png)
 are original captures. Screenshot inspection confirms initial coverage, native
 keyboard UI and native fallback. Quick-settings capture shows its loading panel;
 complete settings-panel functionality is not asserted from that single frame.
