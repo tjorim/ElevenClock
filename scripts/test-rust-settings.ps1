@@ -12,8 +12,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
-Add-Type -AssemblyName Accessibility
-Add-Type -ReferencedAssemblies @('System.dll', [Accessibility.IAccessible].Assembly.Location) @'
+Add-Type @'
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -87,20 +86,28 @@ public static class SettingsNative {
     public delegate void WinEventProc(IntPtr hook, uint eventType, IntPtr window, int objectId, int childId, uint thread, uint time);
     [DllImport("user32.dll")] static extern IntPtr SetWinEventHook(uint min, uint max, IntPtr module, WinEventProc callback, uint process, uint thread, uint flags);
     static WinEventProc alertCallback;
-    static readonly System.Collections.Generic.List<IntPtr> alerts = new System.Collections.Generic.List<IntPtr>();
+    static readonly IntPtr[] alerts = new IntPtr[4096];
+    static int alertCount;
     public static void WatchAlerts(uint process) {
-        alertCallback = (hook, eventType, window, objectId, childId, thread, time) => { lock (alerts) alerts.Add(window); };
+        alertCallback = (hook, eventType, window, objectId, childId, thread, time) => { lock (alerts) { if (alertCount < alerts.Length) alerts[alertCount++] = window; } };
         if (SetWinEventHook(0x0002, 0x0002, IntPtr.Zero, alertCallback, process, 0, 0) == IntPtr.Zero) throw new InvalidOperationException("Could not watch accessibility alerts");
     }
-    public static int AlertsFrom(IntPtr window) { lock (alerts) { return alerts.FindAll(w => w == window).Count; } }
+    public static int AlertsFrom(IntPtr window) { lock (alerts) { int n = 0; for (int i = 0; i < alertCount; i++) if (alerts[i] == window) n++; return n; } }
     // The classic control's default IAccessible: what Narrator and other readers query.
-    [DllImport("oleacc.dll")] static extern int AccessibleObjectFromWindow(IntPtr window, uint objectId, ref Guid iid, [MarshalAs(UnmanagedType.Interface)] out Accessibility.IAccessible accessible);
-    public static Accessibility.IAccessible Accessible(IntPtr window) {
+    // Read through IDispatch so no extra assembly reference is needed.
+    [DllImport("oleacc.dll")] static extern int AccessibleObjectFromWindow(IntPtr window, uint objectId, ref Guid iid, [MarshalAs(UnmanagedType.IDispatch)] out object accessible);
+    static object AccessibleOf(IntPtr window) {
         var iid = new Guid("618736E0-3C3D-11CF-810C-00AA00389B71");
-        Accessibility.IAccessible accessible;
+        object accessible;
         Marshal.ThrowExceptionForHR(AccessibleObjectFromWindow(window, 0xfffffffc, ref iid, out accessible));
         return accessible;
     }
+    static object AccessibleProperty(IntPtr window, string name) {
+        var accessible = AccessibleOf(window);
+        return accessible.GetType().InvokeMember(name, System.Reflection.BindingFlags.GetProperty, null, accessible, new object[] { 0 });
+    }
+    public static string AccessibleName(IntPtr window) { return (string)AccessibleProperty(window, "accName"); }
+    public static int AccessibleState(IntPtr window) { return Convert.ToInt32(AccessibleProperty(window, "accState")); }
     public static string Text(IntPtr control) {
         var text = new StringBuilder(8192); SendMessageW(control, 0x000D, 8192, text); // WM_GETTEXT
         return text.ToString().Replace("\r\n", "\n");
@@ -304,10 +311,10 @@ try {
     # named by the label before them; this is the data Narrator speaks, not its speech.
     $names = [ordered]@{}
     foreach ($entry in @(@(1501, 'status', 'Status*'), @(1502, 'refresh', 'Refresh status'), @(1503, 'report', 'Report text*'), @(1504, 'copy', 'Copy diagnostics'))) {
-        $accessible = [SettingsNative]::Accessible((Control $window $PAGE.Support $entry[0]))
-        $names[$entry[1]] = $accessible.accName(0)
+        $handle = Control $window $PAGE.Support $entry[0]
+        $names[$entry[1]] = [SettingsNative]::AccessibleName($handle)
         Assert ($names[$entry[1]] -like $entry[2]) "Support $($entry[1]) accessible name was '$($names[$entry[1]])', expected '$($entry[2])'"
-        Assert ((([int]$accessible.accState(0)) -band 0x100000) -ne 0) "Support $($entry[1]) is not keyboard focusable"
+        Assert (([SettingsNative]::AccessibleState($handle) -band 0x100000) -ne 0) "Support $($entry[1]) is not keyboard focusable"
     }
     $steps.supportAccessibleNames = ($names.GetEnumerator() | ForEach-Object { "$($_.Key)='$($_.Value)'" }) -join '; '
     # Refresh status answers within the bound and never leaves the dialog busy.
