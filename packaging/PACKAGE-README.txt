@@ -25,9 +25,13 @@ system DLL imports are listed in runtime-dependencies.json. A clean Windows 11
 standard-account run without developer runtimes is still required before release.
 No elevated prerequisite installer is run.
 
-LICENSE.txt retains GPLv3. The inherited icon is credited to ElevenClock / Marti
-Climent and Xavier Delugo (legacy/README.md); asset and naming review remains
-open in https://github.com/tjorim/ElevenClock-rs/issues/32. No relicensing is implied.
+LICENSE.txt contains Apache License 2.0 for the independently authored Rust
+implementation and original application artwork. Inherited Python code and
+imagery appear only under legacy/ in the source companion, with GPLv3 in
+legacy/LICENSE and original credits to Marti Climent and Xavier Delugo.
+They are not part of the installed application or portable binary payload.
+The owner decision and remaining product-name review are recorded in
+docs/windows-evidence/licensing-provenance.md in the matching source (#32).
 THIRD-PARTY-NOTICES.txt and RUST-COPYRIGHT.html retain dependency/toolchain notices.
 Matching source, vendored Cargo dependencies, provenance and SHA256 checksums
 accompany this candidate as separate artifacts. Keep them together.

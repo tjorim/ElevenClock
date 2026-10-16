@@ -168,7 +168,7 @@ def prepare(out, mode):
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(file, target)
         source_hashes[relative] = digest(file)
-    # GPL corresponding-source companion: include locked dependency sources and
+    # Matching-source companion: include locked dependency sources and
     # Cargo's exact offline replacement config, rather than only a GitHub URL.
     config = run("cargo", "vendor", "--manifest-path", "rust/Cargo.toml", "--locked", "--offline", "--versioned-dirs", str(source / "vendor"))
     # Cargo emits an absolute path; make the source archive relocatable.

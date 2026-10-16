@@ -38,6 +38,8 @@ release gate is in `windows-evidence/`.
 | Overlay feasibility and recovery | [`overlay-spike.md`](windows-evidence/overlay-spike.md) | [`overlay-hosted/`](windows-evidence/overlay-hosted), [`overlay-recovery-hosted/`](windows-evidence/overlay-recovery-hosted) |
 | Native Settings foundation (DPI, high contrast, keyboard) | [`settings-foundation.md`](windows-evidence/settings-foundation.md) | [`settings-foundation-matrix/`](windows-evidence/settings-foundation-matrix) |
 | Packaging and installer lifecycle | [`packaging.md`](windows-evidence/packaging.md) | `native-evidence/packaging/` (generated CI artifact) |
+| Licensing provenance and artwork | [`licensing-provenance.md`](windows-evidence/licensing-provenance.md) | [`assets/`](../assets), [`legacy/media/`](../legacy/media) |
+| Product name and listing review | [`product-name-and-listings.md`](windows-evidence/product-name-and-listings.md) | Linked public listings and trademark search outcomes |
 
 Screenshots used by a design file live next to it, in [`design/images/`](design/images).
 

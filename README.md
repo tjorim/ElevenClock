@@ -1,5 +1,7 @@
 # ElevenClock-rs
 
+![ElevenClock-rs icon](assets/icon.png)
+
 A customizable clock for the Windows 11 taskbar, written as a native Windows app in
 Rust. It replaces the taskbar clock with a formatted one on every display, and leaves
 the original clock untouched underneath, so quitting or pausing always brings it back.
@@ -13,10 +15,10 @@ the original clock untouched underneath, so quitting or pausing always brings it
 
 ElevenClock-rs is the Rust rewrite of [ElevenClock](https://github.com/marticliment/ElevenClock)
 for Windows 11, begun as a fork of it. The `-rs` suffix is the usual marker for a Rust port.
-It is a separate program from the original: the Python app it replaces lives on, frozen, in
+It is an independent project maintained by tjorim; affiliation with or endorsement
+by the original ElevenClock project is not claimed. The Python app it replaces lives on, frozen, in
 [`legacy/`](legacy), and documents written during the rewrite (the plan, the issue specs and
-`docs/windows-evidence`) say "ElevenClock" for either, depending on context. The GitHub
-repository keeps its current name until it is renamed.
+`docs/windows-evidence`) say "ElevenClock" for either, depending on context.
 
 ## Repository layout
 
@@ -25,8 +27,7 @@ repository keeps its current name until it is renamed.
 | [`rust/`](rust) | The Cargo workspace: `clock-core` (portable logic), `clock-windows` (Win32 adapter), `clock-app` (the executable, `elevenclock-rs.exe`), `clock-overlay-spike` (development-only prototype) |
 | [`docs/`](docs) | Plan, contracts, architecture decisions and per-issue Windows evidence |
 | [`scripts/`](scripts) | Hosted-desktop test harnesses and the dependency-license check |
-| [`assets/`](assets) | Icons used by the build |
-| [`media/`](media) | Images (banner, screenshots) |
+| [`assets/`](assets) | Original icon source and generated Windows icons |
 | [`legacy/`](legacy) | The original Python/Qt app, kept as a reference until the rewrite no longer needs it, then removed |
 | [`.github/workflows/`](.github/workflows) | CI for the Rust workspace and the hosted Windows checks |
 
@@ -47,10 +48,19 @@ cargo test --manifest-path rust/Cargo.toml --workspace --all-targets --locked
 Native x64 installer/ZIP candidate packaging and the remaining distribution gates
 are documented in [the release guide](docs/releasing.md).
 
-The checked-in [`LICENSE`](LICENSE) is the GNU General Public License v3. In upstream's history the
-license was Apache 2.0 only in the first commit (2021-09-19), MIT for twelve days, and GPLv3 since
-2022-01-16; the Apache 2.0 sentence in upstream's README was added later (2023-04-10) and is stale.
-This project began as a fork of [marticliment/ElevenClock](https://github.com/marticliment/ElevenClock)
-and is a reimplementation, not a clean-room implementation, so until the licensing question is
-settled in R14 treat the code in this repository as derived from the original and distributed under
-the GPLv3, with the original notices retained.
+The independently authored Rust implementation, its new supporting tooling and
+[original application artwork](assets/README.md) are licensed under
+[Apache License 2.0](LICENSE). Copyright 2026 ElevenClock-rs contributors.
+
+The inherited Python application and upstream imagery under [`legacy/`](legacy)
+retain [GPLv3](legacy/LICENSE) and their original notices. Third-party dependencies
+and copied notices retain their respective licenses. The upstream README's Apache
+sentence is historical and does not change the legacy code's GPLv3 license.
+
+The [provenance record](docs/windows-evidence/licensing-provenance.md) documents
+the owner's statement that no Python implementation code was used in the Rust
+implementation, the technical comparison, and the Apache 2.0 decision. Product-name
+review and the remaining release gates are still open.
+
+The [name and listing review](docs/windows-evidence/product-name-and-listings.md)
+records the separate package identities, draft listing copy and remaining name checks.

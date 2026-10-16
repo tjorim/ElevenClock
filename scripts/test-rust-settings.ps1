@@ -309,6 +309,9 @@ try {
     Press 9; Assert ((Focused-Id $window) -eq 1402) 'Tab from the page tabs must reach the startup checkbox'
     Press 9; Assert ((Focused-Id $window) -eq 1401) 'Tab must then reach the startup status'
     Press 9 0x10; Assert ((Focused-Id $window) -eq 1402) 'Shift+Tab must return to the startup checkbox'
+    # A fresh account may have no login-startup values, so Windows need not have
+    # created the Run key yet. The harness writes its neighbour before the app does.
+    if (-not (Test-Path $runKey)) { New-Item -Path $runKey -Force | Out-Null }
     Set-ItemProperty -Path $runKey -Name $neighbour -Value '"C:\Neighbour\app.exe" /quiet'
     Press 0x20                                  # Space on the focused checkbox
     Start-Sleep -Milliseconds 500

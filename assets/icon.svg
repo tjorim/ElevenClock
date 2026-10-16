@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title">
+  <title id="title">ElevenClock-rs clock above a taskbar</title>
+  <!-- Original geometric artwork for ElevenClock-rs, 2026. Apache-2.0. -->
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="#172b42"/>
+  <circle cx="128" cy="110" r="76" fill="#f5f3e9"/>
+  <path d="M128 48v10 M190 110h-10 M128 172v-10 M66 110h10" fill="none" stroke="#172b42" stroke-width="8" stroke-linecap="round"/>
+  <path d="M128 110l-22-38 M128 110l40-23" fill="none" stroke="#cc4b29" stroke-width="13" stroke-linecap="round"/>
+  <circle cx="128" cy="110" r="8" fill="#cc4b29"/>
+  <path d="M64 213h128" fill="none" stroke="#64d8cb" stroke-width="14" stroke-linecap="round"/>
+</svg>

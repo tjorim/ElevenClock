@@ -50,9 +50,11 @@ detail, with all supported preferences available through the UI.
   renders formatted time. Around line 799 its default click action is Win+N.
 - `elevenclock/tools.py:166` combines Python strftime with arithmetic/time-offset
   expressions. The rewrite will retain plain formatting, not this expression DSL.
-- README says Apache 2.0, but the checked-in LICENSE contains GPL v3. Preserve
-  the LICENSE and attribution; resolve conflicting notices before distribution.
-  A language rewrite does not by itself justify changing the fork's license.
+- Upstream's stale README says Apache 2.0, but LICENSE has been GPLv3 since
+  `4b8de83` (2022-01-16). Preserve GPL and attribution under `legacy/`.
+  On 2026-10-16 the owner confirmed no Python implementation code was used in
+  the new implementation and selected Apache 2.0 for the original Rust code
+  and artwork. See the provenance record for #32; product-name review remains open.
 
 ## Proposed release scope
 
@@ -77,8 +79,8 @@ system time nor changes global Windows date-format settings.
 The supported end-user installation is **per-user and requires no administrator
 rights**. A system-wide install is out of scope for v1.
 
-- Default executable location: `%LOCALAPPDATA%\Programs\ElevenClockRust`.
-- Private preferences/logs: `%LOCALAPPDATA%\ElevenClockRust`, separate from binaries.
+- Default executable location: `%LOCALAPPDATA%\Programs\ElevenClock-rs`.
+- Private preferences/logs: `%LOCALAPPDATA%\ElevenClock-rs`, separate from binaries.
 - Start menu shortcut: current user's Programs folder, resolved through Windows Known Folders.
 - Installer/uninstaller: ordinary-user execution with no UAC elevation prompt.
   For Inno Setup use `PrivilegesRequired=lowest` and no elevation override;

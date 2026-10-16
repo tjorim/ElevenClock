@@ -2,7 +2,7 @@
 
 R01 uses `windows` 0.61 for documented Win32 controls and safe boundary types,
 `chrono` 0.4 with only `std` for datetime contracts, and build-only
-`embed-resource` 3 for the dialog, existing icon and DPI-v2 manifest. Optional
+`embed-resource` 3 for the dialog, application icon and DPI-v2 manifest. Optional
 serialization, logging and error dependencies belong to their owning issues.
 No command parser, async runtime or web UI runtime is required.
 
@@ -23,10 +23,12 @@ inventory on updates. SPDX metadata is not a substitute for shipping attribution
 The inventory script is development-only. Release packaging must retain applicable
 notices and satisfy the selected terms for each dependency.
 
-The repository LICENSE, Python code and existing icon notices are preserved.
-The inherited license-file points at that existing LICENSE; it does not assert
-that the README/LICENSE conflict has been resolved or rebrand the project.
-R14 must establish the applicable GPL/asset obligations before distribution.
+The root LICENSE and workspace metadata declare Apache 2.0 for the original Rust
+implementation. The [owner decision and provenance record](windows-evidence/licensing-provenance.md)
+explain that scope. Python code and inherited artwork remain under `legacy/`,
+with their original GPLv3 license in `legacy/LICENSE`; the active icon is
+[original Apache-licensed artwork](../assets/README.md). Dependency licenses and
+original notices are unchanged. Product-name review in #32 remains open.
 The [packaging workflow](releasing.md) now includes the original inventory and
 toolchain notices in unsigned development candidates, plus matching vendored
 source. Distribution remains blocked by #32 and the Windows acceptance gates.
