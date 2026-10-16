@@ -8,6 +8,10 @@
 //! locale-independent properties: never a localized Name, an ordinal or an offset.
 //! Passing it proves nothing about hit targets on untested configurations, which
 //! is why it stays experimental until P1 is a GO.
+//!
+//! A stock x64 desktop (build 26200.9457, #21) instead exposes one merged
+//! `SystemTray.OmniButton` with the same time/date children and Show Desktop as
+//! its neighbour; see [`Layout`].
 use clock_core::PhysicalRect;
 
 /// The inventory fields the selection needs; native types convert into this.
@@ -33,6 +37,15 @@ pub struct Candidate {
 
 const BUTTON: i32 = 50000;
 
+/// Recorded tray layouts. Hosted captures split the clock (`OmniButtonLeft`)
+/// from the bell (`OmniButtonRight`); stock x64 build 26200.9457 has a single
+/// `OmniButton` holding only the time and date, next to Show Desktop.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Layout {
+    SplitClock,
+    MergedClock,
+}
+
 pub fn select(
     elements: &[CandidateElement],
     shell_pid: u32,
@@ -43,15 +56,34 @@ pub fn select(
             .iter()
             .any(|c| c.parent == Some(parent) && c.automation_id == id)
     };
-    let mut found = elements.iter().enumerate().filter(|(index, e)| {
-        e.class == "SystemTray.OmniButtonLeft"
-            && e.control_type == BUTTON
+    // A merged clock button may later host other glyphs; accept it only while
+    // its visible content is exactly the time and date text.
+    let only_clock_text = |parent: usize| {
+        elements
+            .iter()
+            .filter(|c| c.parent == Some(parent) && !c.offscreen)
+            .all(|c| {
+                matches!(
+                    c.automation_id.as_str(),
+                    "TimeInnerTextBlock" | "DateInnerTextBlock"
+                )
+            })
+    };
+    let mut found = elements.iter().enumerate().filter_map(|(index, e)| {
+        let layout = match e.class.as_str() {
+            "SystemTray.OmniButtonLeft" => Layout::SplitClock,
+            "SystemTray.OmniButton" => Layout::MergedClock,
+            _ => return None,
+        };
+        (e.control_type == BUTTON
             && !e.offscreen
             && u32::try_from(e.process_id) == Ok(shell_pid)
-            && has_child(*index, "TimeInnerTextBlock")
-            && has_child(*index, "DateInnerTextBlock")
+            && has_child(index, "TimeInnerTextBlock")
+            && has_child(index, "DateInnerTextBlock")
+            && (layout == Layout::SplitClock || only_clock_text(index)))
+        .then_some((index, e, layout))
     });
-    let (index, candidate) = found.next()?;
+    let (index, candidate, layout) = found.next()?;
     if found.next().is_some() {
         return None; // Ambiguous: never pick one.
     }
@@ -65,8 +97,12 @@ pub fn select(
         .map(|(_, e)| e)
         .collect();
     let has_class = |class: &str| neighbours.iter().any(|e| e.class == class);
-    if !has_class("SystemTray.OmniButtonRight") || !has_class("SystemTray.ShowDesktopButton") {
-        return None; // The bell/Show Desktop anchors must be present to trust adjacency.
+    // The bell/Show Desktop anchors must be present to trust adjacency. A merged
+    // clock button has no separate bell; Show Desktop is still required.
+    if (layout == Layout::SplitClock && !has_class("SystemTray.OmniButtonRight"))
+        || !has_class("SystemTray.ShowDesktopButton")
+    {
+        return None;
     }
     let measurable = neighbours.iter().all(|e| e.rect.is_some());
     Some(Candidate {
@@ -181,6 +217,87 @@ mod tests {
         let mut unmeasured = tray();
         unmeasured[2].rect = None;
         assert_eq!(select(&unmeasured, 1234, true), None);
+    }
+
+    /// Stock x64 build 26200.9457 at 120 DPI (#21): taskbar [0,1140,1920,1200];
+    /// a merged clock button [1813..1900] then Show Desktop [1905..1920].
+    fn merged_tray() -> Vec<CandidateElement> {
+        vec![
+            element(None, "", "Shell_TrayWnd", r(0, 1140, 1920, 60)), // 0
+            element(
+                Some(0),
+                "SystemTrayIcon",
+                "SystemTray.OmniButtonRight",
+                r(1773, 1140, 30, 60),
+            ), // 1
+            element(
+                Some(0),
+                "SystemTrayIcon",
+                "SystemTray.OmniButton",
+                r(1813, 1140, 87, 60),
+            ), // 2
+            element(
+                Some(2),
+                "TimeInnerTextBlock",
+                "TextBlock",
+                r(1818, 1149, 78, 20),
+            ),
+            element(
+                Some(2),
+                "DateInnerTextBlock",
+                "TextBlock",
+                r(1818, 1169, 78, 20),
+            ),
+            element(
+                Some(0),
+                "SystemTrayIcon",
+                "SystemTray.ShowDesktopButton",
+                r(1905, 1140, 15, 60),
+            ), // 5
+        ]
+    }
+
+    #[test]
+    fn selects_a_merged_clock_button_next_to_show_desktop() {
+        let found = select(&merged_tray(), 1234, true).unwrap();
+        assert_eq!(Some(found.rect), r(1813, 1140, 87, 60));
+        assert!(found.exclusions_complete);
+        assert!(found.adjacent.contains(&r(1905, 1140, 15, 60).unwrap()));
+        // A merged button has no separate bell to anchor on.
+        let mut no_neighbour_bell = merged_tray();
+        no_neighbour_bell[1].class = "SystemTray.NormalButton".into();
+        assert!(select(&no_neighbour_bell, 1234, true).is_some());
+    }
+
+    #[test]
+    fn refuses_merged_buttons_with_other_content_or_missing_anchor() {
+        // A visible glyph (for example a bell) inside the merged button.
+        let mut with_glyph = merged_tray();
+        with_glyph.push(element(
+            Some(2),
+            "InnerTextBlock",
+            "TextBlock",
+            r(1880, 1160, 20, 20),
+        ));
+        assert_eq!(select(&with_glyph, 1234, true), None);
+        // The same glyph offscreen does not count as content.
+        with_glyph.last_mut().unwrap().offscreen = true;
+        assert!(select(&with_glyph, 1234, true).is_some());
+        let mut no_desktop = merged_tray();
+        no_desktop.remove(5);
+        assert_eq!(select(&no_desktop, 1234, true), None);
+        // Split and merged candidates together are ambiguous.
+        let mut both = merged_tray();
+        let left = both.len();
+        both.push(element(
+            Some(0),
+            "SystemTrayIcon",
+            "SystemTray.OmniButtonLeft",
+            r(1700, 1140, 60, 60),
+        ));
+        both.push(element(Some(left), "TimeInnerTextBlock", "TextBlock", None));
+        both.push(element(Some(left), "DateInnerTextBlock", "TextBlock", None));
+        assert_eq!(select(&both, 1234, true), None);
     }
 
     #[test]
