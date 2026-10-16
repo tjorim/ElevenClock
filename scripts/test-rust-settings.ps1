@@ -346,6 +346,7 @@ try {
     Assert ((Focused-Id $window) -eq 1402) 'Keyboard focus must stay on the page after Repair'
     Assert ((Startup-Text) -like 'ElevenClock-rs starts when you sign in*') "Repaired status was: $(Startup-Text)"
     # Windows' own startup list can switch the entry off; the page says so and can undo it.
+    if (-not (Test-Path $approvedKey)) { New-Item -Path $approvedKey -Force | Out-Null }  # absent on a clean account
     Set-ItemProperty -Path $approvedKey -Name $startupName -Type Binary -Value ([byte[]](3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
     Show-Startup-Page
     Assert ((Startup-Checked) -eq 0) 'An entry Windows switched off must not show as on'
