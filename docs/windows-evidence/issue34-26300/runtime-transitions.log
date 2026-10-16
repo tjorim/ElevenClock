@@ -1,0 +1,47 @@
+2026-10-16T18:33:02Z ElevenClock-rs 0.1.0 started
+2026-10-16T18:33:04Z secondary taskbar 1: Windows clock in use: ElevenClock-rs could not verify where the Windows clock is on this taskbar, so it leaves the Windows clock alone. This Windows version may not be supported yet
+2026-10-16T18:33:04Z primary taskbar 2: clock replaced
+2026-10-16T18:34:36Z primary taskbar 2: clock hidden for now: the taskbar is hidden
+2026-10-16T18:34:39Z taskbar 1: gone
+2026-10-16T18:34:39Z taskbar 2: gone
+2026-10-16T18:34:39Z taskbar discovery failed (1 in a row): Taskbar discovery stopped unexpectedly (Some(4)).
+2026-10-16T18:34:41Z secondary taskbar 1: Windows clock in use: ElevenClock-rs could not verify where the Windows clock is on this taskbar, so it leaves the Windows clock alone. This Windows version may not be supported yet
+2026-10-16T18:34:41Z primary taskbar 2: Windows clock in use: ElevenClock-rs could not verify where the Windows clock is on this taskbar, so it leaves the Windows clock alone. This Windows version may not be supported yet
+2026-10-16T18:34:41Z taskbar discovery recovered
+2026-10-16T18:35:29Z primary taskbar 2: clock replaced
+2026-10-16T18:36:05Z primary taskbar 2: clock hidden for now: the taskbar is hidden
+2026-10-16T18:36:27Z primary taskbar 2: clock replaced
+2026-10-16T18:36:29Z taskbar 1: gone
+2026-10-16T18:36:29Z taskbar 2: gone
+2026-10-16T18:36:29Z taskbar discovery failed (1 in a row): Taskbar discovery stopped unexpectedly (Some(4)).
+2026-10-16T18:36:32Z secondary taskbar 1: Windows clock in use: ElevenClock-rs could not verify where the Windows clock is on this taskbar, so it leaves the Windows clock alone. This Windows version may not be supported yet
+2026-10-16T18:36:32Z primary taskbar 2: clock replaced
+2026-10-16T18:36:32Z taskbar discovery recovered
+2026-10-16T18:38:48Z taskbar 1: gone
+2026-10-16T18:38:48Z taskbar 2: gone
+2026-10-16T18:38:48Z ElevenClock-rs stopped
+2026-10-16T18:39:30Z ElevenClock-rs 0.1.0 started
+2026-10-16T18:39:32Z secondary taskbar 1: not used: this display is not selected in Settings (Appearance)
+2026-10-16T18:39:32Z primary taskbar 2: clock replaced
+2026-10-16T18:40:06Z secondary taskbar 1: clock replaced
+2026-10-16T18:40:37Z primary taskbar 2: clock hidden for now: the taskbar is hidden
+2026-10-16T18:40:40Z secondary taskbar 1: clock hidden for now: the taskbar is hidden
+2026-10-16T18:40:40Z taskbar 1: gone
+2026-10-16T18:40:40Z taskbar 2: gone
+2026-10-16T18:40:40Z taskbar discovery failed (1 in a row): Taskbar discovery stopped unexpectedly (Some(4)).
+2026-10-16T18:40:43Z secondary taskbar 1: Windows clock in use: ElevenClock-rs could not verify where the Windows clock is on this taskbar, so it leaves the Windows clock alone. This Windows version may not be supported yet
+2026-10-16T18:40:43Z primary taskbar 2: Windows clock in use: ElevenClock-rs could not verify where the Windows clock is on this taskbar, so it leaves the Windows clock alone. This Windows version may not be supported yet
+2026-10-16T18:40:43Z taskbar discovery recovered
+2026-10-16T18:40:48Z primary taskbar 2: clock replaced
+2026-10-16T18:41:03Z primary taskbar 2: clock hidden for now: the taskbar is hidden
+2026-10-16T18:42:45Z primary taskbar 2: clock replaced
+2026-10-16T18:42:47Z taskbar 1: gone
+2026-10-16T18:42:47Z taskbar 2: gone
+2026-10-16T18:42:47Z taskbar discovery failed (1 in a row): Taskbar discovery stopped unexpectedly (Some(4)).
+2026-10-16T18:42:50Z secondary taskbar 1: clock replaced
+2026-10-16T18:42:50Z primary taskbar 2: clock replaced
+2026-10-16T18:42:50Z taskbar discovery recovered
+2026-10-16T18:43:14Z secondary taskbar 1: not used: this display is not selected in Settings (Appearance)
+2026-10-16T18:43:19Z taskbar 1: gone
+2026-10-16T18:43:19Z taskbar 2: gone
+2026-10-16T18:43:19Z ElevenClock-rs stopped

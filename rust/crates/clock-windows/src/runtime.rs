@@ -138,6 +138,11 @@ pub trait Platform {
     fn request_discovery(&mut self, generation: ShellGeneration);
     /// Make discovery metadata (DPI, shell epoch) available to overlay effects.
     fn note_taskbars(&mut self, snapshots: &[TaskbarSnapshot]);
+    /// Cheap native window inventory only (no UI Automation). Detect taskbars
+    /// created after a partial discovery, including late secondary taskbars.
+    fn taskbar_inventory_changed(&mut self) -> bool {
+        false
+    }
     fn observe(&mut self, taskbar: &TaskbarSnapshot) -> Observation;
     fn create_overlay(&mut self, key: TaskbarKey, bounds: PhysicalRect) -> Result<(), String>;
     fn set_bounds(&mut self, key: TaskbarKey, bounds: PhysicalRect) -> Result<(), String>;
@@ -537,7 +542,10 @@ impl<P: Platform> Runtime<P> {
 
     fn signal(&mut self, signal: Signal) {
         match signal {
-            Signal::TopologyChanged => self.topology_changed(),
+            Signal::TopologyChanged => {
+                self.topology_changed();
+                self.observe_all();
+            }
             Signal::AppearanceMaybeChanged => self.appearance_changed(),
             Signal::TimeChanged => {
                 let now = self.platform.local_now();
@@ -667,12 +675,30 @@ impl<P: Platform> Runtime<P> {
     /// Returns whether anything changed (drives transition polling).
     fn observe_all(&mut self) -> bool {
         let mut changed = false;
+        let inventory_changed = self.platform.taskbar_inventory_changed();
         let mut relocated: Vec<(u64, Option<PhysicalRect>)> = Vec::new();
         let snapshots: Vec<_> = self.snapshots.values().cloned().collect();
         for snapshot in snapshots {
             let key = snapshot.key;
             let observation = self.platform.observe(&snapshot);
-            match shell::classify(&snapshot, &observation) {
+            let placement = shell::classify(&snapshot, &observation);
+            if matches!(placement, Placement::Gone | Placement::Relocated) {
+                // Geometry is no longer trustworthy. Release the native clock
+                // immediately, rather than covering it until discovery finishes.
+                let reported = self
+                    .reported
+                    .entry(key)
+                    .or_insert((snapshot.visibility, false));
+                if reported.0 != TaskbarVisibility::Unknown {
+                    reported.0 = TaskbarVisibility::Unknown;
+                    self.dispatch(Event::VisibilityChanged {
+                        key,
+                        visibility: TaskbarVisibility::Unknown,
+                    });
+                    changed = true;
+                }
+            }
+            match placement {
                 // A vanished taskbar may be momentary (Explorer is rebuilding) or
                 // its monitor was unplugged; a moved one is somewhere the snapshot
                 // does not describe. Both mean "rediscover".
@@ -690,6 +716,13 @@ impl<P: Platform> Runtime<P> {
                         .copied()
                         .unwrap_or((snapshot.visibility, false));
                     if visibility != reported_visibility {
+                        // A parked discovery has no validated clock rectangle.
+                        // Even if its bounds did not move, a reveal needs a fresh
+                        // measurement; never extrapolate an offscreen candidate.
+                        if visibility == TaskbarVisibility::Visible && snapshot.clock_rect.is_none()
+                        {
+                            relocated.push((key.id.0, observation.rect));
+                        }
                         self.reported.insert(key, (visibility, reported_fullscreen));
                         self.dispatch(Event::VisibilityChanged { key, visibility });
                         changed = true;
@@ -707,7 +740,10 @@ impl<P: Platform> Runtime<P> {
             }
         }
         self.platform.maintain();
-        if !relocated.is_empty() {
+        // After a failed discovery the authoritative batch is empty. The live
+        // inventory then differs until recovery succeeds; let failure backoff
+        // own that retry instead of resetting it on every poll.
+        if (inventory_changed && self.last_failure.is_none()) || !relocated.is_empty() {
             changed = true;
             // Throttle: an inconsistent shell must not turn polling into a
             // discovery loop. A skipped refresh is retried by the next poll.

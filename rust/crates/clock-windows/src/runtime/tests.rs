@@ -74,6 +74,7 @@ struct Fake {
     now: DateTime<FixedOffset>,
     appearance: SystemAppearance,
     font_changed: bool,
+    inventory_changed: bool,
     shell: Option<ShellIdentity>,
     observations: BTreeMap<u64, Observation>,
     overlays: HashSet<TaskbarKey>,
@@ -93,6 +94,7 @@ impl Fake {
             now: wall("2026-10-14T12:00:30+00:00"),
             appearance: SystemAppearance::Light,
             font_changed: false,
+            inventory_changed: false,
             shell: shell(10, 1),
             observations: BTreeMap::new(),
             overlays: HashSet::new(),
@@ -128,6 +130,9 @@ impl Platform for Fake {
         self.calls.push(Call::RequestDiscovery(generation.0));
     }
     fn note_taskbars(&mut self, _: &[TaskbarSnapshot]) {}
+    fn taskbar_inventory_changed(&mut self) -> bool {
+        self.inventory_changed
+    }
     fn observe(&mut self, taskbar: &TaskbarSnapshot) -> Observation {
         // Unscripted taskbars look exactly as discovered.
         self.observations
@@ -650,6 +655,145 @@ fn clock_ticks_cannot_postpone_the_recovery_poll() {
 }
 
 #[test]
+fn parked_discovery_recovers_both_displays_as_they_reveal_independently() {
+    let mut runtime = runtime(Monitors::All);
+    let parked = |id| {
+        let mut snapshot = bar(0, id, false);
+        snapshot.taskbar_rect = rect(snapshot.monitor_rect.left(), 1078, 1920, 48);
+        snapshot
+    };
+    discover(&mut runtime, 0, vec![parked(1), parked(2)]);
+    assert!(runtime.platform.overlays.is_empty());
+    assert!(
+        runtime
+            .reported
+            .values()
+            .all(|r| r.0 == TaskbarVisibility::Hidden)
+    );
+    take(&mut runtime);
+
+    // Primary reveals while secondary remains parked; only primary is measured.
+    let primary = runtime.platform.observe(&bar(0, 1, true));
+    runtime.platform.observations.insert(1, primary);
+    runtime.handle(Input::Signal(Signal::Shell(ShellEvent::TaskbarChanged)));
+    advance(&mut runtime, TOPOLOGY_SETTLE);
+    assert_eq!(requests(&take(&mut runtime)), vec![0]);
+    discover(&mut runtime, 0, vec![bar(0, 1, true), parked(2)]);
+    assert!(runtime.platform.overlays.contains(&key(0, 1)));
+    assert!(!runtime.platform.overlays.contains(&key(0, 2)));
+    take(&mut runtime);
+
+    // No event is required for the secondary: recovery polling sees its reveal.
+    let secondary = runtime.platform.observe(&bar(0, 2, true));
+    runtime.platform.observations.insert(2, secondary);
+    advance(&mut runtime, RECOVERY_POLL);
+    advance(&mut runtime, TOPOLOGY_SETTLE);
+    assert_eq!(requests(&take(&mut runtime)), vec![0]);
+    discover(&mut runtime, 0, vec![bar(0, 1, true), bar(0, 2, true)]);
+    assert_eq!(runtime.platform.overlays.len(), 2);
+    assert_eq!(
+        runtime.state().overlay_state(key(0, 2)),
+        OverlayState::Visible
+    );
+}
+
+#[test]
+fn an_unverified_clock_is_remeasured_on_reveal_even_with_unchanged_bounds() {
+    let mut runtime = runtime(Monitors::All);
+    let mut hidden = bar(0, 2, false);
+    hidden.visibility = TaskbarVisibility::Hidden;
+    let observation = runtime.platform.observe(&hidden);
+    runtime.platform.observations.insert(
+        2,
+        Observation {
+            visible: false,
+            ..observation
+        },
+    );
+    discover(&mut runtime, 0, vec![hidden]);
+    take(&mut runtime);
+    runtime.platform.observations.remove(&2);
+    runtime.handle(Input::Signal(Signal::Shell(ShellEvent::TaskbarChanged)));
+    advance(&mut runtime, TOPOLOGY_SETTLE);
+    assert_eq!(requests(&take(&mut runtime)), vec![0]);
+    discover(&mut runtime, 0, vec![bar(0, 2, true)]);
+    assert_eq!(
+        runtime.state().overlay_state(key(0, 2)),
+        OverlayState::Visible
+    );
+}
+
+#[test]
+fn late_secondary_taskbar_after_explorer_restart_is_discovered_without_an_event() {
+    let mut runtime = runtime(Monitors::All);
+    discover(&mut runtime, 0, vec![bar(0, 1, true), bar(0, 2, true)]);
+    runtime.handle(Input::Signal(Signal::TaskbarCreated));
+    discover(&mut runtime, 1, vec![bar(1, 1, true)]);
+    take(&mut runtime);
+    runtime.platform.inventory_changed = true;
+    advance(&mut runtime, RECOVERY_POLL);
+    advance(&mut runtime, TOPOLOGY_SETTLE);
+    assert_eq!(requests(&take(&mut runtime)), vec![1]);
+    runtime.platform.inventory_changed = false;
+    discover(&mut runtime, 1, vec![bar(1, 1, true), bar(1, 2, true)]);
+    assert_eq!(runtime.platform.overlays.len(), 2);
+    take(&mut runtime);
+    for _ in 0..4 {
+        advance(&mut runtime, RECOVERY_POLL);
+    }
+    assert!(requests(&take(&mut runtime)).is_empty());
+}
+
+#[test]
+fn inventory_mismatch_after_failed_discovery_respects_backoff() {
+    let mut runtime = runtime(Monitors::All);
+    runtime.platform.inventory_changed = true;
+    for attempt in 0..3 {
+        runtime.handle(Input::Discovery(DiscoveryReport {
+            generation: ShellGeneration(0),
+            shell: runtime.shell,
+            outcome: Err(DiscoveryFailure::Deadline),
+        }));
+        take(&mut runtime);
+        let due = runtime.retry.due.unwrap();
+        advance(&mut runtime, TOPOLOGY_SETTLE);
+        assert!(requests(&take(&mut runtime)).is_empty());
+        assert_eq!(runtime.retry.due, Some(due));
+        runtime.platform.mono = due;
+        runtime.handle(Input::Poll);
+        assert_eq!(requests(&take(&mut runtime)), vec![0], "attempt {attempt}");
+        assert!(runtime.settle_due.is_none());
+    }
+}
+
+#[test]
+fn dpi_change_hides_old_cover_before_discovery_finishes() {
+    let mut runtime = runtime(Monitors::All);
+    discover(&mut runtime, 0, vec![bar(0, 1, true), bar(0, 2, true)]);
+    take(&mut runtime);
+    let old = runtime.platform.observe(&bar(0, 2, true));
+    runtime
+        .platform
+        .observations
+        .insert(2, Observation { dpi: 96, ..old });
+    runtime.handle(Input::Signal(Signal::TopologyChanged));
+    assert!(take(&mut runtime).contains(&Call::Destroy(key(0, 2))));
+    assert_eq!(
+        runtime.state().overlay_state(key(0, 1)),
+        OverlayState::Visible
+    );
+    advance(&mut runtime, TOPOLOGY_SETTLE);
+    assert_eq!(requests(&take(&mut runtime)), vec![0]);
+    let mut scaled = bar(0, 2, true);
+    scaled.dpi = 96;
+    discover(&mut runtime, 0, vec![bar(0, 1, true), scaled]);
+    assert_eq!(
+        runtime.state().overlay_state(key(0, 2)),
+        OverlayState::Visible
+    );
+}
+
+#[test]
 fn a_moved_or_resized_taskbar_triggers_one_rediscovery_not_a_loop() {
     let mut runtime = runtime(Monitors::All);
     discover(&mut runtime, 0, vec![bar(0, 1, true)]);
@@ -688,11 +832,12 @@ fn a_dpi_change_or_unplugged_monitor_rediscovers() {
     let unplugged = Observation::GONE;
     runtime.platform.observations.insert(2, unplugged);
     advance(&mut runtime, RECOVERY_POLL);
+    assert!(take(&mut runtime).contains(&Call::Destroy(key(0, 2))));
     advance(&mut runtime, TOPOLOGY_SETTLE);
     assert_eq!(requests(&take(&mut runtime)), vec![0]);
-    // The new batch drops the removed monitor; its overlay is destroyed.
+    // The new batch drops the removed monitor; its overlay was already released.
     discover(&mut runtime, 0, vec![bar(0, 1, true)]);
-    assert!(take(&mut runtime).contains(&Call::Destroy(key(0, 2))));
+    take(&mut runtime);
     assert!(!runtime.platform.overlays.contains(&key(0, 2)));
     // Primary swap: the other taskbar becomes primary under "primary only".
     runtime.handle(Input::Preferences(prefs(Monitors::Primary)));
@@ -700,6 +845,7 @@ fn a_dpi_change_or_unplugged_monitor_rediscovers() {
     swapped_secondary.primary = true;
     let mut former_primary = bar(0, 1, true);
     former_primary.primary = false;
+    runtime.platform.observations.remove(&2); // monitor is attached again
     runtime.handle(Input::Signal(Signal::TopologyChanged));
     advance(&mut runtime, TOPOLOGY_SETTLE);
     take(&mut runtime);

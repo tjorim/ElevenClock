@@ -98,13 +98,13 @@ pub fn select(
         .map(|(_, e)| e)
         .collect();
     let has_class = |class: &str| neighbours.iter().any(|e| e.class == class);
-    // The bell/Show Desktop anchors must be present to trust adjacency. A merged
-    // clock button has no separate bell, and secondary taskbars have no Show
-    // Desktop button; there the sibling overlap check alone guards neighbours.
+    // Split clocks require a separate bell. Show Desktop anchors primary
+    // taskbars only: secondary taskbars omit it in both recorded layouts
+    // (including the split clock captured on x64 build 26300.9711).
     let secondary = elements
         .iter()
         .any(|e| e.parent.is_none() && e.class == "Shell_SecondaryTrayWnd");
-    let needs_show_desktop = layout == Layout::SplitClock || !secondary;
+    let needs_show_desktop = !secondary;
     if (layout == Layout::SplitClock && !has_class("SystemTray.OmniButtonRight"))
         || (needs_show_desktop && !has_class("SystemTray.ShowDesktopButton"))
     {
@@ -347,7 +347,7 @@ mod tests {
         let mut as_primary = secondary_tray();
         as_primary[0].class = "Shell_TrayWnd".into();
         assert_eq!(select(&as_primary, 1234, true), None);
-        // The split layout keeps both anchors even on a secondary taskbar.
+        // A split secondary clock still requires its separate bell.
         let mut split = secondary_tray();
         split[2].class = "SystemTray.OmniButtonLeft".into();
         assert_eq!(select(&split, 1234, true), None);
@@ -360,6 +360,51 @@ mod tests {
             r(2020, 730, 16, 16),
         ));
         assert_eq!(select(&with_glyph, 1234, true), None);
+    }
+
+    #[test]
+    fn split_secondary_clock_without_show_desktop_keeps_the_bell_excluded() {
+        // Windows 11 26H2 x64 26300.9711, second 1280x720 display at 96 DPI.
+        // Normalized from docs/windows-evidence/issue34-26300/auto-hide-off.jsonl.
+        let mut elements = vec![
+            element(None, "", "Shell_SecondaryTrayWnd", r(1280, 672, 1280, 48)),
+            element(
+                Some(0),
+                "SystemTrayIcon",
+                "SystemTray.OmniButtonLeft",
+                r(2454, 672, 70, 48),
+            ),
+            element(
+                Some(1),
+                "TimeInnerTextBlock",
+                "TextBlock",
+                r(2458, 679, 63, 16),
+            ),
+            element(
+                Some(1),
+                "DateInnerTextBlock",
+                "TextBlock",
+                r(2458, 695, 63, 16),
+            ),
+            element(
+                Some(0),
+                "SystemTrayIcon",
+                "SystemTray.OmniButtonRight",
+                r(2528, 672, 24, 48),
+            ),
+        ];
+        let found = select(&elements, 1234, true).unwrap();
+        assert_eq!(Some(found.rect), r(2454, 672, 70, 48));
+        assert_eq!(found.adjacent, vec![r(2528, 672, 24, 48).unwrap()]);
+        assert!(found.exclusions_complete);
+        assert!(!select(&elements, 1234, false).unwrap().exclusions_complete);
+        elements[4].rect = None;
+        assert!(!select(&elements, 1234, true).unwrap().exclusions_complete);
+        elements[4].offscreen = true;
+        assert!(select(&elements, 1234, true).is_none());
+        elements[4].offscreen = false;
+        elements[0].class = "Shell_TrayWnd".into();
+        assert!(select(&elements, 1234, true).is_none());
     }
 
     #[test]

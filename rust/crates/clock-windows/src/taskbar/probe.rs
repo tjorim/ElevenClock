@@ -83,7 +83,8 @@ unsafe extern "system" fn taskbars(hwnd: HWND, param: LPARAM) -> BOOL {
     BOOL(1)
 }
 
-fn taskbar_handles() -> windows::core::Result<Vec<HWND>> {
+/// Cheap top-level window inventory; no child enumeration or UI Automation.
+pub(crate) fn taskbar_handles() -> windows::core::Result<Vec<HWND>> {
     let mut handles = Vec::<HWND>::new();
     // SAFETY: synchronous callback/vector ownership; class strings are static.
     // Direct lookup supplements EnumWindows, which can omit modern shell roots

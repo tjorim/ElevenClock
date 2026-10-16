@@ -375,6 +375,9 @@ unsafe extern "system" fn window_proc(hwnd: HWND, message: u32, wp: WPARAM, lp: 
                 LRESULT(0)
             }
             WM_PAINT | WM_DPICHANGED | WM_DISPLAYCHANGE => {
+                if message != WM_PAINT {
+                    crate::events::enqueue(crate::events::Signal::TopologyChanged);
+                }
                 // Drawing happens in the loop, which owns the surface; the
                 // callback only records that the pixels were invalidated.
                 REPAINT_EPOCH.fetch_add(1, Ordering::Relaxed);

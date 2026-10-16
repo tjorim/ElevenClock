@@ -22,7 +22,7 @@ use crate::{
     render::{Fit, PaintOutcome, PaintRequest, PixelSize, RenderError, Renderer, WorstCase},
     settings::{PlatformError, SettingsWindow},
     taskbar::{
-        probe::{current_shell, physical_rect},
+        probe::{current_shell, physical_rect, taskbar_handles},
         worker::{DEADLINE, DiscoveryWorker, TEARDOWN_LIMIT, same_executable},
     },
     theme::{self, SystemAppearance},
@@ -245,6 +245,29 @@ impl Platform for NativePlatform {
             .iter()
             .map(|s| (s.key, TaskbarInfo { dpi: s.dpi }))
             .collect();
+    }
+    fn taskbar_inventory_changed(&mut self) -> bool {
+        let Ok(handles) = taskbar_handles() else {
+            return false;
+        };
+        let mut current: Vec<_> = handles
+            .into_iter()
+            .filter(|hwnd| {
+                let mut pid = 0;
+                // SAFETY: read-only query on a potentially stale window.
+                unsafe { GetWindowThreadProcessId(*hwnd, Some(&mut pid)) };
+                self.shell.is_some_and(|shell| shell.pid == pid)
+            })
+            .map(|hwnd| hwnd.0 as usize as u64)
+            .collect();
+        let mut known: Vec<_> = self
+            .info
+            .keys()
+            .filter_map(|key| self.worker.handle_for(*key))
+            .collect();
+        current.sort_unstable();
+        known.sort_unstable();
+        current != known
     }
     fn observe(&mut self, taskbar: &TaskbarSnapshot) -> Observation {
         let Some(hwnd) = self.taskbar_window(taskbar.key) else {

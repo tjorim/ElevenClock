@@ -186,11 +186,53 @@ restarts with process/thread/handle accounting. Its development-overlay step is
 
 * Overlay creation failure is reported (`PlacementFailed`) but the reducer keeps its
   view of that overlay until the next Explorer loss or topology change.
-* A DPI change that leaves the physical clock rectangle identical does not repaint
-  (the reducer has no event for it); a real DPI change moves the rectangle.
+* DPI or monitor changes invalidate visibility immediately, releasing the old
+  cover before discovery completes. A fresh batch recreates and repaints it even
+  when the physical clock rectangle is unchanged.
 * The overlay does not forward clicks; clock actions, the menu, tray icon and UIA
   element are [R09](interaction.md).
 * Auto-hide classification (partly off-monitor = hidden; fully on-monitor but
   different = relocated) is a documented heuristic awaiting real-shell evidence.
 * Hook coverage and the 2 s poll are the only defence if an event is missed; hook
   count is exposed for diagnostics (`Notifications::hook_count`).
+
+## Issue #34 recovery follow-up (2026-10-16)
+
+Parked taskbars are classified as hidden even when their rectangle equals the
+discovery snapshot. Each taskbar is observed independently; revealing a taskbar
+whose clock could not be validated schedules fresh discovery, including a reveal
+with unchanged window bounds. Offscreen clock candidates remain rejected.
+
+The observation pass also compares the current shell's top-level taskbar handles
+with the last discovery batch. This cheap native inventory uses no UI Automation
+and detects a secondary taskbar created after a partial Explorer-startup batch,
+even if its event was missed. Requests share the existing two-second throttle,
+settle window and worker; failed discovery retains its exponential backoff.
+Overlay DPI/display messages now queue topology signals as well as invalidating
+pixels. Stale geometry releases the cover before the bounded helper finishes.
+
+Deterministic tests cover parked snapshots, independent reveals on two displays
+(including negative coordinates), unchanged-bounds reveal, late secondary
+creation, retry backoff, and same-bounds DPI changes. Workspace tests and Clippy
+passed locally on Windows, as did the native x64 release build; the startup registry tests required an unsandboxed
+rerun after the sandbox denied access to their temporary test keys.
+
+Computer Use listed only the Codex window. Opening Windows Settings first timed
+out awaiting app approval; a retry reported no targetable window, and a fresh
+window inventory still contained only Codex. Launching Control Panel by its
+returned app ID also reported no targetable window. With full access enabled,
+a later retry successfully captured and navigated Control Panel. Its Taskbar and
+Navigation link opened a Settings window, but Computer Use then explicitly
+returned "Computer Use was not approved to use Settings" on target activation.
+The subsequent approved retry reached Settings and exercised the workspace
+release build on Windows x64 26300.9711 (26H2), with two 1280x720 displays at
+96 DPI in a QEMU guest. It exposed a split secondary clock with a separate bell
+and no Show Desktop button. The selector now accepts that secondary layout while
+still requiring its bell and complete neighbour exclusions; both clock slots
+were then located. Runtime logs show primary recovery after an auto-hide reveal.
+This is partial evidence, not a visual or two-display recovery acceptance pass.
+Auto-hide and the primary-only preference were restored, and test instances exited.
+See the [capture and run record](../windows-evidence/issue34-26300/README.md).
+Independent secondary reveal, Explorer restart, physical-hardware checks,
+independent hit-target review and human ADR review remain open in
+[#34](https://github.com/tjorim/ElevenClock-rs/issues/34).
