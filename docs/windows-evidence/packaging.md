@@ -1,7 +1,8 @@
 # Packaging and installation evidence (R14)
 
-Status: **local packaging and hosted installer lifecycle passed; release blocked**. No clean-VM
-standard-account lifecycle or earlier supported release rollback has been claimed.
+Status: **local packaging, hosted lifecycle, and a partial standard-account GUI
+walkthrough passed; release blocked**. Clean-machine runtime, standard-account
+uninstall/update/rollback and actual Windows logon remain unverified.
 See [release instructions](../releasing.md) for build and ownership contracts.
 
 ## Local session, 2026-10-16
@@ -101,3 +102,67 @@ the run. No release gate was changed by this hosted pass.
 The PR/manual workflow attempts feasible hosted lifecycle/Settings cases. Its
 administrator/developer image cannot demonstrate runtime absence, genuine non-admin
 membership or real logon. Preserve actual results before changing a release gate.
+
+## Standard-account desktop session, 2026-10-16
+
+Computer Use exercised the actual installer and app on Windows 11 Home 26H2 x64,
+build **26300.9711**, two 1280×720 displays at 96 DPI. An out-of-sandbox read of the
+desktop account token confirmed **no Administrators group membership and no
+elevated token**. This machine already contains Rust/MSVC/developer runtimes and
+saved preferences: it is not the required clean-machine or first-run account.
+
+Candidate: `ElevenClock-rs-0.1.0-ab2a96366e9f-x64-dev`, Support commit
+`ab2a96366e9f+modified`; installed and extracted-portable executable SHA256:
+`c9ee5490339cbe21fc6ec11da22d25049e305ede1474b0c90938f280e4c26e20`.
+The runtime predates subsequent CI/documentation-only commits; do not relabel this
+session as testing their rebuilt executable. No legacy overlay ran alongside it.
+
+Observed through native GUI, with no end-user terminal commands or preference edits:
+
+- Existing development clock exited through Settings. The locally built installer
+  proceeded through its GPL/information pages and Install to Finish, without UAC.
+  It installed into the expected current-user Programs directory and created the
+  current-user `ElevenClock-rs.lnk`; the launch-after-install checkbox defaulted off.
+- Start displayed ElevenClock-rs as **Recently added**. The automation tool could
+  not target StartMenuExperienceHost for clicks; actual launch instead used a
+  double-click on that same Start menu shortcut in Explorer's Programs folder.
+  This opened Settings from the installed executable, with no console. Direct
+  selection in the Start surface remains unverified in this session.
+- Existing ISO-week settings survived. Keyboard editing to `%H:%M` updated the
+  preview and Apply reported success. Selecting the original ISO-week preset and
+  Apply restored `%g%V.%u` before further tests.
+- Reset staged default settings; Cancel discarded the draft and closed Settings
+  while the app remained running. Reopening Settings retained the saved ISO-week
+  preset. The title-bar Close also left the same PID running; another interactive
+  launch reopened Settings in that same process.
+- Startup defaulted off. The checkbox enabled startup successfully without UAC,
+  then disabled it successfully. The final real HKCU Run value was absent, matching
+  the original off state. This is not a sign-out/sign-in test.
+- Support reported the primary clock active and the secondary clock unverified,
+  matching #41. Copy diagnostics reported **Diagnostics copied to the clipboard**.
+  Clipboard contents were not independently pasted/compared in this session; the
+  hosted harness supplies that separate evidence.
+- Exit from installed Settings terminated the app (zero remaining clock processes)
+  and the primary Windows clock was visibly back at 16:39 on 16/10/2026.
+- The portable ZIP was extracted into a separate folder; double-clicking its EXE
+  opened Settings without UAC/console. Its process path was the extracted folder,
+  not the installed directory. It retained the shared private preferences and
+  exited through its own Exit button. Installed and portable copies never ran
+  simultaneously.
+
+App-window captures: [installed Settings](packaging-desktop/installed-settings.png),
+[format Apply](packaging-desktop/format-applied.png),
+[startup enabled](packaging-desktop/startup-enabled.png),
+[Support copy result](packaging-desktop/support-copied.png), and
+[portable Settings](packaging-desktop/portable-settings.png).
+The [observed Support text](packaging-desktop/support-observed.txt) is an
+accessibility observation, not a byte-for-byte clipboard capture.
+
+At the end of this walkthrough the candidate remains installed, both clock apps
+are stopped, original ISO-week preferences are restored, and startup is off.
+No standard-account uninstall, version update, rollback or real logon result is
+claimed. A second development candidate (`585ad4df18cc`, executable SHA256
+`f9c99ec5d9d4af5201fcf55f2f1b035b0697a3961e821fd7ddba3db5821f84b1`)
+has been prepared for the next lifecycle
+steps; it is not necessary to wait for a published supported release to test
+development-build update/rollback mechanics. No release-gate boolean was changed.
