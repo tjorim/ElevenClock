@@ -134,7 +134,7 @@ expressions using their MIT alternative. It retains anes 0.1.6's original
 release-commit license files and copyright declaration via an offline, version-
 and digest-checked manifest; r-efi 6.0.0's original bundled AUTHORS is recognized
 by the same checked mapping. No arbitrary terms or missing-notice exemptions
-were added. See `docs/RUST_DEPENDENCIES.md` and `docs/dependency-notices/README.md`.
+were added. See `docs/dependencies.md` and `docs/dependency-notices/README.md`.
 
 ```sh
 python3 scripts/test-rust-license-check.py

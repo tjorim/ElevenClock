@@ -25,18 +25,18 @@ contains that executable, original images and the environment/context records.
 
 | Case | Actual window DPI | Observed outcome | Original capture/context |
 | --- | ---: | --- | --- |
-| 100% | 96 | Readable text, labels and controls; visible keyboard focus; no internal clipping | [Image](R01-matrix/scale-100/settings.png), [context](R01-matrix/scale-100/context.json) |
-| 125% | 120 | Readable text, labels and controls; visible keyboard focus; no internal clipping | [Image](R01-matrix/scale-125/settings.png), [context](R01-matrix/scale-125/context.json) |
-| 150% | 144 | Readable text, labels and controls; visible keyboard focus; no internal clipping | [Image](R01-matrix/scale-150/settings.png), [context](R01-matrix/scale-150/context.json) |
-| 200% | 192 | Readable text, labels and controls; visible keyboard focus; no internal clipping | [Image](R01-matrix/scale-200/settings.png), [context](R01-matrix/scale-200/context.json) |
-| High Contrast Black | 96 | High contrast enabled in Windows; white text on dark background; readable selection/button and visible focus | [Image](R01-matrix/high-contrast/settings.png), [context](R01-matrix/high-contrast/context.json) |
+| 100% | 96 | Readable text, labels and controls; visible keyboard focus; no internal clipping | [Image](settings-foundation-matrix/scale-100/settings.png), [context](settings-foundation-matrix/scale-100/context.json) |
+| 125% | 120 | Readable text, labels and controls; visible keyboard focus; no internal clipping | [Image](settings-foundation-matrix/scale-125/settings.png), [context](settings-foundation-matrix/scale-125/context.json) |
+| 150% | 144 | Readable text, labels and controls; visible keyboard focus; no internal clipping | [Image](settings-foundation-matrix/scale-150/settings.png), [context](settings-foundation-matrix/scale-150/context.json) |
+| 200% | 192 | Readable text, labels and controls; visible keyboard focus; no internal clipping | [Image](settings-foundation-matrix/scale-200/settings.png), [context](settings-foundation-matrix/scale-200/context.json) |
+| High Contrast Black | 96 | High contrast enabled in Windows; white text on dark background; readable selection/button and visible focus | [Image](settings-foundation-matrix/high-contrast/settings.png), [context](settings-foundation-matrix/high-contrast/context.json) |
 
 All five original images were inspected. The black outer margins in ordinary
 captures are PrintWindow's rendering of non-client margins, outside the controls.
 
-![Actual native prototype at 200%](R01-matrix/scale-200/settings.png)
+![Actual native prototype at 200%](settings-foundation-matrix/scale-200/settings.png)
 
-![Actual native prototype with Windows high contrast enabled](R01-matrix/high-contrast/settings.png)
+![Actual native prototype with Windows high contrast enabled](settings-foundation-matrix/high-contrast/settings.png)
 
 These DPI values were **not injected WM_DPICHANGED messages or resized images**.
 The harness changes the Windows Settings Display Scale selector with UI
@@ -50,7 +50,7 @@ High contrast is enabled through the documented `SPI_SETHIGHCONTRAST` API and
 verified through `SPI_GETHIGHCONTRAST`, not a mock flag in the app. The observed
 scheme was High Contrast Black, flags 127, window/button face `0x202020` and
 window text `0xFFFFFF`. The original high-contrast flags/scheme are restored.
-[The environment record](R01-matrix/environment.json) retains modes, actual
+[The environment record](settings-foundation-matrix/environment.json) retains modes, actual
 resolution, scale choices and colors. Microsoft marks
 `SPI_SETLOGICALDPIOVERRIDE` as "Do not use"; the harness does not call it.
 
@@ -64,8 +64,8 @@ native combo selection are checked after each gesture. These tests passed at
 all four actual DPIs and in high contrast.
 
 Alt+C closed the high-contrast prototype. Independent runs verify
-[Escape](R01-matrix/keyboard-escape/context.json) and
-[Enter](R01-matrix/keyboard-enter/context.json). Native window-close messages
+[Escape](settings-foundation-matrix/keyboard-escape/context.json) and
+[Enter](settings-foundation-matrix/keyboard-enter/context.json). Native window-close messages
 also exit normally, with no Explorer or native-clock modification. The Explorer file item was activated with a real queued left-button double-click.
 The resulting process opened the native Settings window and exited with code 0
 after Close. Artifact checks prove GUI subsystem and mandatory icon loading.

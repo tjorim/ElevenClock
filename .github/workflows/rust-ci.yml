@@ -2,9 +2,9 @@ name: Rust foundation
 on:
   push:
     branches: [main, rust-rewrite]
-    paths: ['rust/**', 'assets/**', '.github/workflows/rust-ci.yml', 'docs/RUST_*.md', 'docs/windows-evidence/**', 'scripts/*rust*']
+    paths: ['rust/**', 'assets/**', '.github/workflows/rust-ci.yml', 'docs/contributing.md', 'docs/dependencies.md', 'docs/design/**', 'docs/windows-evidence/**', 'scripts/*rust*']
   pull_request:
-    paths: ['rust/**', 'assets/**', '.github/workflows/rust-ci.yml', 'docs/RUST_*.md', 'docs/windows-evidence/**', 'scripts/*rust*']
+    paths: ['rust/**', 'assets/**', '.github/workflows/rust-ci.yml', 'docs/contributing.md', 'docs/dependencies.md', 'docs/design/**', 'docs/windows-evidence/**', 'scripts/*rust*']
   workflow_dispatch:
 permissions:
   contents: read
@@ -92,7 +92,7 @@ jobs:
         working-directory: rust
         run: cargo audit --deny warnings
       # Gates every PR. The inventory is regenerated on demand (see
-      # docs/RUST_DEPENDENCIES.md); it is not uploaded as an artifact.
+      # docs/dependencies.md); it is not uploaded as an artifact.
       - name: License inventory and original-notice check
         run: |
           python3 scripts/test-rust-license-check.py

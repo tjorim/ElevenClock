@@ -3,7 +3,7 @@
 Status: **code, portable tests and Windows type-checking complete; the interactive
 DPI/theme/long-format screenshot gates below are unchecked.** No Windows desktop
 was available in the authoring environment, so nothing here is a measured Windows
-result. P1 remains NO-GO (see [overlay evidence](overlay-spike.md)); this work
+result. P1 remains NO-GO (see [overlay evidence](../windows-evidence/overlay-spike.md)); this work
 replaces prototype drawing only and enables no production overlay.
 
 ## Renderer API (`clock-windows`)
@@ -89,6 +89,6 @@ execution.**
       (overflow hides the overlay; native clock remains).
 - [ ] Observed handle count during a real GPU/driver reset.
 
-Per the [shared backlog](../RUST_CONTRIBUTING.md#shared-desktop-acceptance-backlog),
+Per the [shared backlog](../contributing.md#shared-desktop-acceptance-backlog),
 attempt these on hosted Windows images first; record anything that is genuinely
 unavailable in [#21](https://github.com/tjorim/ElevenClock/issues/21).

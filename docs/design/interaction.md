@@ -4,7 +4,7 @@ Status: **action dispatch, fixed menu, tray registration, pause, failure handlin
 UI Automation provider are implemented and unit-tested; every interactive gate below is
 unchecked.** The authoring environment was Linux with no Windows desktop: Windows code
 was type-checked and linted for `x86_64-pc-windows-msvc` only, and the Windows-only unit
-tests run in the Windows CI job. **P1 remains NO-GO** ([overlay evidence](overlay-spike.md),
+tests run in the Windows CI job. **P1 remains NO-GO** ([overlay evidence](../windows-evidence/overlay-spike.md),
 [#21](https://github.com/tjorim/ElevenClock/issues/21),
 [#23](https://github.com/tjorim/ElevenClock/issues/23)); nothing here claims overlay
 placement, calendar behavior or Narrator speech on a real build.
@@ -76,7 +76,7 @@ restore uses `NIM_MODIFY` and never stacks a second icon.
 
 | Item | Change |
 | --- | --- |
-| `clock_core::Event::SetPaused(bool)`, `State::is_paused` | **New shared-contract input.** Paused hides every overlay through the existing `HiddenReason::Paused`; never persisted; survives Explorer loss. [RUST_STATE.md](../RUST_STATE.md) updated |
+| `clock_core::Event::SetPaused(bool)`, `State::is_paused` | **New shared-contract input.** Paused hides every overlay through the existing `HiddenReason::Paused`; never persisted; survives Explorer loss. [state-and-scheduling.md](state-and-scheduling.md) updated |
 | `runtime::Platform` | + `open_calendar`, `show_menu`, `open_settings` (required), `restore_tray`, `paused_changed` (default no-op) |
 | `runtime::Input::Action(UserAction)` | `UserAction::{Activate(TaskbarKey), ShowMenu(Option<ScreenPoint>)}` |
 | `runtime::Reason::ActionFailed(String)`, `Diagnostics::paused` | For Settings → Support (R11) |

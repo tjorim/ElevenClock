@@ -7,7 +7,7 @@ the original clock untouched underneath, so quitting or pausing always brings it
 > **Status: work in progress, not released.** The runtime, rendering, settings shell and
 > the clock/tray interaction are implemented; several checks need a real Windows desktop
 > and are still open. See [`docs/windows-evidence`](docs/windows-evidence) for what has and
-> has not been verified, and the [rewrite plan](docs/RUST_REWRITE_PLAN.md) for the roadmap.
+> has not been verified, and the [rewrite plan](docs/rewrite/plan.md) for the roadmap.
 
 ## Name
 
@@ -34,7 +34,7 @@ repository keeps its current name until it is renamed.
 
 Rust stable on Windows (MSVC toolchain and Windows SDK) is needed for the full build; the
 portable crates also build and test on Linux. Commands and conventions are in
-[`docs/RUST_CONTRIBUTING.md`](docs/RUST_CONTRIBUTING.md); in short, from the repository root:
+[`docs/contributing.md`](docs/contributing.md); in short, from the repository root:
 
 ```sh
 cargo fmt --manifest-path rust/Cargo.toml --all --check

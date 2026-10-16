@@ -6,7 +6,7 @@
 //! There is no second state machine: visibility, fullscreen, lock, theme,
 //! preference and generation decisions all stay in `clock_core::reduce`. What
 //! lives here is the *lifecycle* the reducer deliberately leaves to the runtime
-//! (see `docs/RUST_STATE.md`):
+//! (see `docs/design/state-and-scheduling.md`):
 //!
 //! * discovery is requested once per generation, retried with bounded backoff
 //!   after a failure, and re-run if topology changed while it was in flight;

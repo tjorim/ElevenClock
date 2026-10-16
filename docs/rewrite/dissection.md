@@ -2,8 +2,8 @@
 
 Prepared 2026-10-13. This is an implementation proposal and assignment contract,
 not a claim that Rust code or Windows compatibility has already been validated.
-The [overview](RUST_REWRITE_PLAN.md) contains the retained feature scope and date
-examples. The [issue index](RUST_REWRITE_ISSUES.md) records the execution backlog.
+The [overview](plan.md) contains the retained feature scope and date
+examples. The [issue index](issues.md) records the execution backlog.
 
 ## 1. Evidence and conclusions
 
@@ -363,4 +363,4 @@ PyInstaller, Qt and obsolete workflows only in R15 after acceptance and packagin
 
 ## 7. Installation privileges
 
-Follow the [installation and privilege requirements](RUST_REWRITE_PLAN.md#installation-and-privilege-requirements): per-user installer and optional ZIP, standard-user execution, no elevated prerequisites, and a mandatory non-administrator acceptance run. R12 and R14 own startup and packaging verification respectively. Flag unavoidable administrator requirements to the project owner before adopting them.
+Follow the [installation and privilege requirements](plan.md#installation-and-privilege-requirements): per-user installer and optional ZIP, standard-user execution, no elevated prerequisites, and a mandatory non-administrator acceptance run. R12 and R14 own startup and packaging verification respectively. Flag unavoidable administrator requirements to the project owner before adopting them.

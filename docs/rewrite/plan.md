@@ -1,11 +1,11 @@
 # ElevenClock Rust rewrite plan
 
-> Source references to the Python app (`elevenclock/...`, `build.cmd`, `ElevenClock.iss`, `requirements.txt`) point at the baseline commit; those files now live under [`legacy/`](../legacy).
+> Source references to the Python app (`elevenclock/...`, `build.cmd`, `ElevenClock.iss`, `requirements.txt`) point at the baseline commit; those files now live under [`legacy/`](../../legacy).
 
 Prepared 2026-10-13. Planning only; no Rust implementation has started.
 
 This overview is supplemented by [the source dissection and implementation
-contracts](RUST_REWRITE_DISSECTION.md), which define the concrete module layout,
+contracts](dissection.md), which define the concrete module layout,
 Windows-specific design decisions, phase gates and issue breakdown.
 Use that document for implementation details if the overview is less specific.
 
@@ -207,7 +207,7 @@ as a finished taskbar replacement.
 
 ## Implementation sequence and completion criteria
 
-The numbered issue dependencies in [the index](RUST_REWRITE_ISSUES.md) govern
+The numbered issue dependencies in [the index](issues.md) govern
 assignment. The early foundation includes a native Settings window shell so
 window behavior and controls can be assessed before the complete settings UI.
 
