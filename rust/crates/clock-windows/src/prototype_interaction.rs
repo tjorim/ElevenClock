@@ -38,8 +38,10 @@ unsafe fn clock_at(
     unsafe {
         let walker = automation.RawViewWalker()?;
         let mut node = automation.ElementFromPoint(point)?;
+        let mut ancestry = Vec::new();
         for _ in 0..16 {
-            if CLOCK_CLASSES.contains(&node.CurrentClassName()?.to_string().as_str())
+            let class = node.CurrentClassName()?.to_string();
+            if CLOCK_CLASSES.contains(&class.as_str())
                 && node.CurrentControlType()? == UIA_ButtonControlTypeId
                 && node.CurrentProcessId()? as u32 == slot.shell_pid
                 && !node.CurrentIsOffscreen()?.as_bool()
@@ -47,7 +49,13 @@ unsafe fn clock_at(
             {
                 return Ok(node);
             }
-            node = walker.GetParentElement(&node)?;
+            ancestry.push(format!("{class}: {:?}", node.CurrentBoundingRectangle()));
+            node = walker.GetParentElement(&node).map_err(|error| {
+                windows::core::Error::new(
+                    windows::core::HRESULT(0x80004005u32 as i32),
+                    format!("Clock hit ancestry {ancestry:?}; parent unavailable: {error}"),
+                )
+            })?;
         }
     }
     Err(rejected())
