@@ -2,7 +2,7 @@
 
 Status: **local packaging, hosted lifecycle, and a partial standard-account GUI
 walkthrough passed; release blocked**. Clean-machine runtime, standard-account
-uninstall/rollback and actual Windows logon remain unverified.
+rollback and actual Windows logon remain unverified.
 See [release instructions](../releasing.md) for build and ownership contracts.
 
 ## Local session, 2026-10-16
@@ -184,3 +184,20 @@ both package version 0.1.0. It does not prove cross-version preference migration
 or rollback. Those remain separate checks. The original ISO-week private data
 was retained; its pre-uninstall SHA256 is
 `9b2ba72f50c74dc947212e44b137eef9ab69a25f278dae2571231b4e0a631526`.
+
+### Standard-account uninstall
+
+After the updated app exited, the user approved the native uninstall confirmation.
+The uninstaller reported **ElevenClock-rs was successfully removed from your
+computer**, with no UAC prompt. An independent filesystem/process check confirmed
+that the installed EXE, installation directory and current-user Start menu shortcut
+were absent, with zero remaining clock processes. The private data directory and
+`preferences.dat` remained. Its SHA256 was unchanged from the pre-uninstall value
+above, establishing byte-for-byte preference preservation for this run.
+
+[Uninstall completion](packaging-desktop/uninstall-completed.png) records the
+native result. Startup was already off before this uninstall; this session does
+not independently verify removal of an enabled startup registration or unowned
+installation-file/legacy sentinels. Those ownership variants passed in the hosted
+harness and are not relabelled as standard-account results here. The earlier
+development installer is retained for rollback; restoring it is the next check.
