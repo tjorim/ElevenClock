@@ -56,7 +56,12 @@ unsafe fn clock_at(
 /// Dense independent UIA hit sampling is experimental evidence on this exact
 /// desktop, not authorization for R02's production selector.
 pub fn discover(generation: u64, all: bool) -> Result<Vec<ExperimentSlot>> {
-    let records = probe::collect(ShellGeneration(generation))?;
+    let records = probe::collect(ShellGeneration(generation)).map_err(|error| {
+        windows::core::Error::new(
+            windows::core::HRESULT(0x80004005u32 as i32),
+            format!("R03 native/UIA inventory: {error}"),
+        )
+    })?;
     unsafe {
         CoInitializeEx(None, COINIT_MULTITHREADED).ok()?;
     }
@@ -143,7 +148,12 @@ pub fn discover(generation: u64, all: bool) -> Result<Vec<ExperimentSlot>> {
                 .chain([clock.right() - 1])
             {
                 unsafe {
-                    clock_at(&automation, POINT { x, y }, &slot)?;
+                    clock_at(&automation, POINT { x, y }, &slot).map_err(|error| {
+                        windows::core::Error::new(
+                            windows::core::HRESULT(0x80004005u32 as i32),
+                            format!("R03 clock hit at ({x}, {y}): {error}"),
+                        )
+                    })?;
                 }
             }
         }

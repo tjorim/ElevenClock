@@ -178,7 +178,10 @@ fn native_epoch(hwnd: HWND) -> windows::core::Result<NativeEpoch> {
     unsafe {
         let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONULL);
         if !GetMonitorInfoW(monitor, &mut info).as_bool() {
-            return Err(windows::core::Error::from_win32());
+            return Err(probe_error(
+                "native epoch: GetMonitorInfoW",
+                windows::core::Error::from_win32(),
+            ));
         }
         let monitor_rect =
             physical_rect(info.rcMonitor).ok_or_else(windows::core::Error::from_win32)?;
@@ -191,6 +194,13 @@ fn native_epoch(hwnd: HWND) -> windows::core::Result<NativeEpoch> {
             IsWindowVisible(hwnd).as_bool(),
         ))
     }
+}
+
+fn probe_error(operation: &str, error: windows::core::Error) -> windows::core::Error {
+    windows::core::Error::new(
+        windows::core::HRESULT(0x80004005u32 as i32),
+        format!("{operation}: {error}"),
+    )
 }
 
 /// Exact build and update revision, without relying on version virtualization.
@@ -245,17 +255,24 @@ pub fn collect_with(
     generation: ShellGeneration,
     with_uia: bool,
 ) -> windows::core::Result<Vec<TaskbarObservation>> {
-    let handles = taskbar_handles()?;
+    let handles = taskbar_handles().map_err(|e| probe_error("initial taskbar enumeration", e))?;
     let initial: Vec<_> = handles
         .iter()
         .map(|hwnd| native_epoch(*hwnd))
-        .collect::<windows::core::Result<_>>()?;
+        .collect::<windows::core::Result<_>>()
+        .map_err(|e| probe_error("initial native epoch", e))?;
     let mut observations = Vec::new();
     let mut monitors = Vec::new();
     for (index, hwnd) in handles.into_iter().enumerate() {
         let started = Instant::now();
-        let identity = shell_identity(hwnd)?;
-        let taskbar_rect = bounds(hwnd).ok_or_else(windows::core::Error::from_win32)?;
+        let identity =
+            shell_identity(hwnd).map_err(|e| probe_error("taskbar shell identity", e))?;
+        let taskbar_rect = bounds(hwnd).ok_or_else(|| {
+            probe_error(
+                "taskbar bounds unavailable",
+                windows::core::Error::from_win32(),
+            )
+        })?;
         // SAFETY: monitor handle used only on this thread; info has the correct size.
         let monitor = unsafe { MonitorFromWindow(hwnd, MONITOR_DEFAULTTONULL) };
         let mut info = MONITORINFO {
@@ -263,7 +280,10 @@ pub fn collect_with(
             ..Default::default()
         };
         if !unsafe { GetMonitorInfoW(monitor, &mut info) }.as_bool() {
-            return Err(windows::core::Error::from_win32());
+            return Err(probe_error(
+                "taskbar GetMonitorInfoW",
+                windows::core::Error::from_win32(),
+            ));
         }
         let monitor_rect =
             physical_rect(info.rcMonitor).ok_or_else(windows::core::Error::from_win32)?;
@@ -326,11 +346,13 @@ pub fn collect_with(
         observation.native_inventory_incomplete = observation.native_children.len() >= 2048
             || observation.native_children.iter().any(|c| !c.measured);
     }
-    let final_handles = taskbar_handles()?;
+    let final_handles =
+        taskbar_handles().map_err(|e| probe_error("final taskbar enumeration", e))?;
     let final_state: Vec<_> = final_handles
         .iter()
         .map(|hwnd| native_epoch(*hwnd))
-        .collect::<windows::core::Result<_>>()?;
+        .collect::<windows::core::Result<_>>()
+        .map_err(|e| probe_error("final native epoch", e))?;
     if initial != final_state {
         return Err(windows::core::Error::new(
             windows::core::HRESULT(0x80004005u32 as i32),
