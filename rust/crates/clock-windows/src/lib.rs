@@ -11,6 +11,7 @@ pub mod overlay;
 pub mod prototype_interaction;
 
 pub mod preferences_store;
+pub mod settings_model;
 
 pub mod render;
 pub mod theme;

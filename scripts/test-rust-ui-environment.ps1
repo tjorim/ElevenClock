@@ -274,14 +274,15 @@ try {
     # Query those directly: the legacy .NET UIA client omits the classic-control
     # proxies on this runner, while native Settings/Explorer providers still work.
     $settings = [UiEnvironment]::Settings($opened.Id)
-    $combo = [UiEnvironment]::Accessible([UiEnvironment]::GetDlgItem($settings, 1001))
+    $page = [UiEnvironment]::GetDlgItem($settings, 111) # Date and time page
+    $combo = [UiEnvironment]::Accessible([UiEnvironment]::GetDlgItem($page, 1202)) # format editor
     $button = [UiEnvironment]::Accessible([UiEnvironment]::GetDlgItem($settings, 2))
     $name = $combo.accName(0)
     $closeName = $button.accName(0)
     $focusable = (([int]$combo.accState(0)) -band 0x100000) -ne 0
-    $results.accessibleLabels = [ordered]@{provider='Native IAccessible (Oleacc standard-control proxy)'; appearance=$name; appearanceFocusable=$focusable; close=$closeName; role=$combo.accRole(0)}
-    if ($name -notlike 'Appearance*' -or !$focusable) { throw "Native Appearance label/focus failed: name='$name', focusable=$focusable" }
-    if ($closeName -ne 'Close') { throw "Native Close label failed: '$closeName'" }
+    $results.accessibleLabels = [ordered]@{provider='Native IAccessible (Oleacc standard-control proxy)'; format=$name; formatFocusable=$focusable; cancel=$closeName; role=$combo.accRole(0)}
+    if ($name -notlike "Format*" -or !$focusable) { throw "Native Format label/focus failed: name='$name', focusable=$focusable" }
+    if ($closeName -ne "Cancel") { throw "Native Cancel label failed: '$closeName'" }
     $results.explorerDoubleClick = 'Real queued left-button double-click opened the native executable'
     $exitName = ([UiEnvironment]::Accessible([UiEnvironment]::GetDlgItem($settings, 1003))).accName(0)
     if ($exitName -notlike 'Exit*') { throw "Native Exit label failed: '$exitName'" }

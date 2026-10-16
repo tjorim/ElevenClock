@@ -26,13 +26,15 @@
 use crate::{
     events::{RECOVERY_POLL, ShellEvent, Signal, TransitionPoll},
     interaction::{ActivationGate, CalendarOutcome, MenuCommand, ScreenPoint},
-    render::{Overflow, WorstCase},
+    render::{Fit, Overflow, PixelSize, RenderError, WorstCase},
+    settings_model::{FitProblem, LayoutCheck},
     theme::{AppearanceTracker, SystemAppearance},
 };
 use chrono::{DateTime, FixedOffset};
 use clock_core::{
-    ClockText, Effect, Event, OverlayState, PhysicalRect, ShellGeneration, State, TaskbarKey,
-    TaskbarSnapshot, TaskbarVisibility, ValidatedPreferences, reduce,
+    ClockText, CompiledFormat, Effect, Event, Monitors, OverlayState, PhysicalRect,
+    ShellGeneration, State, TaskbarKey, TaskbarSnapshot, TaskbarVisibility, ValidatedPreferences,
+    reduce,
 };
 use std::{
     collections::{BTreeMap, HashMap},
@@ -140,6 +142,18 @@ pub trait Platform {
     fn destroy_overlay(&mut self, key: TaskbarKey);
     fn paint(&mut self, key: TaskbarKey, context: &PaintContext<'_>) -> PaintResult;
     fn hide(&mut self, key: TaskbarKey);
+    /// Would `current` and every worst-case line fit a clock slot of `region` at
+    /// `dpi`? Used by Settings before Apply. `None` when this platform cannot measure.
+    fn plan_fit(
+        &mut self,
+        _current: &ClockText,
+        _worst_case: &WorstCase,
+        _region: PixelSize,
+        _dpi: u32,
+        _font_pt: u8,
+    ) -> Option<Result<Fit, RenderError>> {
+        None
+    }
     /// Send the single deliberate calendar action for the clicked overlay. Must
     /// not block and must never be retried by the caller.
     fn open_calendar(&mut self, key: TaskbarKey) -> CalendarOutcome;
@@ -356,6 +370,16 @@ impl<P: Platform> Runtime<P> {
         for signal in signals {
             self.handle(Input::Signal(signal));
         }
+    }
+
+    /// Taskbars whose clock slot is known and that a given display selection would
+    /// use, as (is primary, slot size, DPI).
+    fn fit_targets(&self, monitors: Monitors) -> Vec<(bool, PixelSize, u32)> {
+        self.snapshots
+            .values()
+            .filter(|s| monitors == Monitors::All || s.primary)
+            .filter_map(|s| Some((s.primary, PixelSize::of(s.clock_rect?), s.dpi)))
+            .collect()
     }
 
     pub fn diagnostics(&self) -> Diagnostics {
@@ -850,6 +874,41 @@ impl<P: Platform> Runtime<P> {
             self.snapshots.clear();
             self.platform.stop();
         }
+    }
+}
+
+/// Settings asks the runtime, which owns the measured clock slots and the renderer,
+/// whether a draft would fit before it is applied.
+impl<P: Platform> LayoutCheck for Runtime<P> {
+    fn check(
+        &mut self,
+        format: &CompiledFormat,
+        font_pt: u8,
+        monitors: Monitors,
+        now: DateTime<FixedOffset>,
+    ) -> Vec<FitProblem> {
+        let targets = self.fit_targets(monitors);
+        let Ok(current) = format.render(now) else {
+            return Vec::new();
+        };
+        if targets.is_empty() {
+            return Vec::new();
+        }
+        let worst_case = WorstCase::for_format(format);
+        targets
+            .into_iter()
+            .filter_map(|(primary, region, dpi)| {
+                match self
+                    .platform
+                    .plan_fit(&current, &worst_case, region, dpi, font_pt)
+                {
+                    Some(Ok(Fit::Overflow(overflow))) => Some(FitProblem { primary, overflow }),
+                    // Fits, cannot be measured here, or measuring failed: the paint
+                    // path still decides and reports through diagnostics.
+                    _ => None,
+                }
+            })
+            .collect()
     }
 }
 
