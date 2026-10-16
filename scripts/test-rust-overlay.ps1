@@ -28,6 +28,7 @@ public static class OverlayEvidence {
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
+    [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr window);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window,out Rect rect);
     [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr window);
     [DllImport("user32.dll")] public static extern int GetWindowLongW(IntPtr window,int index);
@@ -329,7 +330,15 @@ try {
             Start-Sleep -Milliseconds 100
         } while ([DateTime]::UtcNow -lt $deadline)
         if ($nativeBar -eq [IntPtr]::Zero -or [OverlayEvidence]::GetDpiForWindow($nativeBar) -ne $originalDpi) {throw 'Native taskbar DPI restore did not complete'}
+        $settingsHandle=[IntPtr]$settings.Current.NativeWindowHandle
         $settings.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close();$settings=$null
+        # UIA Close returns before the closing animation and HWND teardown.
+        # Establish the fixture only after that window has actually disappeared.
+        $deadline=[DateTime]::UtcNow.AddSeconds(5)
+        while ([OverlayEvidence]::IsWindow($settingsHandle) -and [DateTime]::UtcNow -lt $deadline) {
+            [Windows.Forms.Application]::DoEvents();Start-Sleep -Milliseconds 25
+        }
+        if ([OverlayEvidence]::IsWindow($settingsHandle)) {throw 'Display Settings did not finish closing'}
         Stop-Spike $p;$p=$null
         # Closing Settings can leave GetForegroundWindow null on hosted ARM.
         # Unknown foreground correctly hides coverage. Reestablish the same
@@ -338,6 +347,10 @@ try {
         $fixture.Show();[Windows.Forms.Application]::DoEvents()
         [OverlayEvidence]::SetForegroundWindow($fixture.Handle)|Out-Null
         [OverlayEvidence]::Click(150,115);[Windows.Forms.Application]::DoEvents()
+        $deadline=[DateTime]::UtcNow.AddSeconds(5)
+        while ([OverlayEvidence]::GetForegroundWindow() -ne $fixture.Handle -and [DateTime]::UtcNow -lt $deadline) {
+            [Windows.Forms.Application]::DoEvents();Start-Sleep -Milliseconds 25
+        }
         if ([OverlayEvidence]::GetForegroundWindow() -ne $fixture.Handle) {throw 'Could not establish foreground fixture after DPI restore'}
         $p=Start-Spike "all-after-dpi$suffix" 'all-win-n';$h=Wait-Overlay $true
         $restoredDpi=[OverlayEvidence]::GetDpiForWindow($h)
