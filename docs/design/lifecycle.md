@@ -110,7 +110,9 @@ The Windows type-check is not execution. Results are in the pull request descrip
   handles (±2) or memory (+16 MiB) nor leave helpers or temporary files**.
   The helper is a *fixture process* (this test executable): it exercises supervision,
   not a UI Automation provider.
-* Not covered by any test here: Explorer, UIA, overlay visibility, z-order, DPI.
+* `tests/uia_lifetime.rs` adds real UIA/provider lifetime and opt-in Explorer
+  correlation checks; see the hosted evidence below. Overlay visibility, z-order
+  and DPI require the separate desktop harnesses.
 
 ## Hosted results (PR #28, head 0835017)
 
@@ -130,8 +132,8 @@ unrelated P1 recovery failure. The first lifecycle failure was a harness bug
 
 ## UIA lifetime evidence (hosted, Server 2025 x64)
 
-`tests/uia_lifetime.rs` (custom harness; the CI step sets `ELEVENCLOCK_UIA_EXPLORER=1`
-and `ELEVENCLOCK_EVIDENCE_DIR`) records raw per-call HRESULTs. Observed on the
+`tests/uia_lifetime.rs` (custom harness; the CI step sets `ELEVENCLOCK_RS_UIA_EXPLORER=1`
+and `ELEVENCLOCK_RS_EVIDENCE_DIR`) records raw per-call HRESULTs. Observed on the
 lifecycle run for head 15cadfd:
 
 | Case | Observed |
@@ -150,6 +152,17 @@ generation/shell-identity check and the helper deadline. Retained elements alway
 Windows did **not** restart the shell after `taskkill`; the harness started `explorer.exe`
 itself (`shell_started_manually: true`, no taskbar for 45 s), so this proves correlation
 and stale-object behaviour, not Windows' own shell auto-restart timing.
+
+### Issue #35 confirmation (2026-10-16)
+
+The UIA lifetime step in [run 38839269796](https://github.com/tjorim/ElevenClock-rs/actions/runs/38839269796)
+passed on Server 2025 x64 after #33's handle-accounting fix, as well as both
+Windows 11 ARM64 targets (native and emulated x64). The
+[retained evidence](../windows-evidence/uia-lifetime-hosted/README.md) records the
+exact jobs, measurements and limits. [ADR 0002](../adr/0002-same-executable-discovery-helper.md#measured-com-behaviour-issue-35-2026-10-16)
+now records the measured behaviour; the process deadline and teardown contract
+are unchanged. Error-returning provider modes and geometry injection remain
+optional extensions, as clarified in the issue comment.
 
 ## Postponed to a real Windows machine
 
