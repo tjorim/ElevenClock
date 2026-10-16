@@ -63,14 +63,22 @@ BEGIN
     LTEXT "The theme applies to the clock on the taskbar. This window follows your Windows colors and contrast settings.", -1, 4, 118, 316, 20
 END
 
-// Page 3: Startup (reserved for the opt-in login startup control).
+
+// Page 3: Startup. The checkbox is the Windows login registration itself (never a
+// stored preference): it acts immediately and always shows what the registry holds.
+// The status is a read-only field so it can be reached and read; the line below the
+// Repair button says how the last action went and is announced to screen readers.
 113 DIALOGEX 0, 0, 324, 208
 STYLE DS_SETFONT | DS_CONTROL | WS_CHILD
 EXSTYLE WS_EX_CONTROLPARENT
 FONT 9, "Segoe UI"
 BEGIN
-    LTEXT "&Startup:", -1, 4, 6, 60, 10
-    EDITTEXT 1401, 4, 17, 316, 60, ES_MULTILINE | ES_READONLY | WS_VSCROLL | WS_TABSTOP
+    AUTOCHECKBOX "&Start ElevenClock-rs when I sign in to Windows", 1402, 4, 4, 316, 12, WS_TABSTOP
+    LTEXT "Startup st&atus:", -1, 4, 24, 80, 10
+    EDITTEXT 1401, 4, 35, 316, 52, ES_MULTILINE | ES_READONLY | WS_VSCROLL | WS_TABSTOP
+    PUSHBUTTON "&Repair startup entry", 1404, 4, 91, 84, 14, WS_TABSTOP
+    LTEXT "", 1405, 4, 109, 316, 24
+    LTEXT "This applies to your Windows account only and needs no administrator rights. It takes effect immediately; Apply, Cancel and Reset to defaults do not change it. It is off until you turn it on.", -1, 4, 140, 316, 30
 END
 
 // Page 4: Support. Status, an explicit Refresh, the exact report that Copy

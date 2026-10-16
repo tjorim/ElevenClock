@@ -167,6 +167,19 @@ if (Test-Path $preferences) { $backup = [IO.File]::ReadAllBytes($preferences); R
 
 # Processes of this executable that exist before the run (other tests, helpers).
 $baseline = @(Get-Process -Name elevenclock-rs -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+# --- R12: the real per-user startup registration is saved, cleared and restored ---
+$runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+$approvedKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run'
+$startupName = 'ElevenClockRust'
+$neighbour = 'ElevenClockRustHarnessNeighbour'
+function Get-Registered { (Get-ItemProperty -Path $runKey -Name $startupName -ErrorAction SilentlyContinue).$startupName }
+function Get-Approved { (Get-ItemProperty -Path $approvedKey -Name $startupName -ErrorAction SilentlyContinue).$startupName }
+function Clear-Startup {
+    Remove-ItemProperty -Path $runKey -Name $startupName -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path $approvedKey -Name $startupName -ErrorAction SilentlyContinue
+}
+$startupBackup = @{ Run = Get-Registered; Approved = Get-Approved }
+Clear-Startup
 $app = Start-Process $Executable -PassThru
 function Wait-Settings([bool]$Open, [string]$What) {
     $deadline = [DateTime]::UtcNow.AddSeconds(15)
@@ -272,6 +285,81 @@ try {
     Assert ([SettingsNative]::Text((Control $window 0 1101)) -like 'ElevenClock-rs keeps running*') 'Welcome text must only show once'
     Assert ([SettingsNative]::GetForegroundWindow() -eq $window) 'The second launch must bring Settings to the front'
     $steps.cancel = 'Cancel discarded the draft, the clock kept running and a second launch refocused Settings'
+
+    # 8a. Startup (R12): the checkbox is the real HKCU Run registration, read back from
+    #     Windows after every action. Off by default; only the dedicated value changes.
+    Foreground $window
+    $exe = $app.MainModule.FileName
+    $expectedCommand = '"' + $exe + '" --startup'
+    $check = Control $window $PAGE.Startup 1402
+    $repair = Control $window $PAGE.Startup 1404
+    $feedback = Control $window $PAGE.Startup 1405
+    function Startup-Checked { [SettingsNative]::SendMessageW($check, 0x00F0, [IntPtr]::Zero, [IntPtr]::Zero).ToInt32() } # BM_GETCHECK
+    function Startup-Text { [SettingsNative]::Text((Control $window $PAGE.Startup 1401)) }
+    function Show-Startup-Page {  # leave and re-enter the page: it is read from Windows each time
+        Press 0x22 0x11; Press 0x21 0x11           # Support, then back to Startup
+    }
+    Press 0x22 0x11; Press 0x22 0x11           # Ctrl+PageDown twice: Startup
+    Assert ($null -eq (Get-Registered)) 'Startup must default to off: nothing registered'
+    Assert ((Startup-Checked) -eq 0) 'The startup checkbox must start unchecked'
+    Assert ((Startup-Text) -like 'ElevenClock-rs does not start when you sign in*') "Off status was: $(Startup-Text)"
+    Assert (-not [SettingsNative]::IsWindowEnabled($repair)) 'Repair must be disabled when nothing is stale'
+    Assert ([SettingsNative]::IsWindowEnabled($check)) 'The startup checkbox must be usable'
+    # Keyboard: Tab reaches the checkbox and the status text; Space toggles the checkbox.
+    Press 9; Assert ((Focused-Id $window) -eq 1402) 'Tab from the page tabs must reach the startup checkbox'
+    Press 9; Assert ((Focused-Id $window) -eq 1401) 'Tab must then reach the startup status'
+    Press 9 0x10; Assert ((Focused-Id $window) -eq 1402) 'Shift+Tab must return to the startup checkbox'
+    Set-ItemProperty -Path $runKey -Name $neighbour -Value '"C:\Neighbour\app.exe" /quiet'
+    Press 0x20                                  # Space on the focused checkbox
+    Start-Sleep -Milliseconds 500
+    Assert ((Get-Registered) -eq $expectedCommand) "Enabling must register exactly the quoted executable and marker; found: $(Get-Registered)"
+    Assert ((Startup-Checked) -eq 1) 'The checkbox must show the registration'
+    Assert ((Startup-Text) -like 'ElevenClock-rs starts when you sign in*') "On status was: $(Startup-Text)"
+    Assert ([SettingsNative]::Text($feedback) -like '*will start when you sign in*') "Enable feedback was: $([SettingsNative]::Text($feedback))"
+    Assert ((Get-ItemProperty -Path $runKey -Name $neighbour).$neighbour -eq '"C:\Neighbour\app.exe" /quiet') 'Enabling must leave other Run values untouched'
+    Assert ([SettingsNative]::GetForegroundWindow() -eq $window) 'Changing startup must not move the window'
+    # What Windows would run at logon: the registered command, while the app already runs.
+    $registered = Get-Registered
+    $before = @(Get-Process -Name elevenclock-rs -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+    $logon = Start-Process -FilePath $exe -ArgumentList '--startup' -PassThru
+    if (!$logon.WaitForExit(15000)) { $logon.Kill(); throw 'The logon-style launch did not exit while the app was running' }
+    Assert ($logon.ExitCode -eq 0) "Logon-style launch exit code $($logon.ExitCode)"
+    $after = @(Get-Process -Name elevenclock-rs -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+    Assert (($after.Count -eq $before.Count) -and ($after -contains $app.Id)) 'A logon-style launch must not leave a second instance'
+    Assert ((@(Get-Process -Name elevenclock-rs | Where-Object { [SettingsNative]::Settings($_.Id) -ne [IntPtr]::Zero })).Count -eq 1) 'A logon-style launch must not open another Settings window'
+    # Disable: only the dedicated value goes away; the neighbour stays.
+    Press 0x20; Start-Sleep -Milliseconds 500
+    Assert ($null -eq (Get-Registered)) 'Disabling must remove the registration'
+    Assert ((Startup-Checked) -eq 0) 'The checkbox must show it is off'
+    Assert ((Get-ItemProperty -Path $runKey -Name $neighbour).$neighbour -eq '"C:\Neighbour\app.exe" /quiet') 'Disabling must leave other Run values untouched'
+    Assert ([SettingsNative]::Text($feedback) -like '*no longer start*') "Disable feedback was: $([SettingsNative]::Text($feedback))"
+    $steps.startupToggle = 'Startup defaults off; Space enables exactly the quoted executable + --startup, a logon-style launch leaves one instance, disabling removes only that value'
+    # A moved portable copy: reported, never silently rewritten, repaired only on request.
+    Set-ItemProperty -Path $runKey -Name $startupName -Value '"C:\Gone Away\Eleven Clock\elevenclock-rs.exe" --startup'
+    Show-Startup-Page
+    Assert ([SettingsNative]::IsWindowEnabled($repair)) 'Repair must be offered for a stale entry'
+    Assert ((Startup-Text) -like '*no longer exists*C:\Gone Away\Eleven Clock\elevenclock-rs.exe*') "Stale status was: $(Startup-Text)"
+    Assert ((Get-Registered) -like '*Gone Away*') 'Showing the page must not repair the entry'
+    Click $repair
+    Assert ((Get-Registered) -eq $expectedCommand) 'Repair must point the entry at this executable'
+    Assert (-not [SettingsNative]::IsWindowEnabled($repair)) 'Repair must disable itself once it worked'
+    Assert ((Focused-Id $window) -eq 1402) 'Keyboard focus must stay on the page after Repair'
+    Assert ((Startup-Text) -like 'ElevenClock-rs starts when you sign in*') "Repaired status was: $(Startup-Text)"
+    # Windows' own startup list can switch the entry off; the page says so and can undo it.
+    Set-ItemProperty -Path $approvedKey -Name $startupName -Type Binary -Value ([byte[]](3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    Show-Startup-Page
+    Assert ((Startup-Checked) -eq 0) 'An entry Windows switched off must not show as on'
+    Assert ((Startup-Text) -like '*Windows has it turned off*') "Disabled-in-Windows status was: $(Startup-Text)"
+    Click $check
+    Assert ((Startup-Checked) -eq 1) 'Selecting the checkbox must turn the entry back on'
+    Assert ($null -eq (Get-Approved)) 'Turning it back on must clear the Windows flag of this value'
+    Assert ((Get-Registered) -eq $expectedCommand) 'The registration must still be the exact command'
+    Capture-Window $window 'startup.png'
+    Click $check
+    Assert ($null -eq (Get-Registered)) 'Startup must end the check switched off'
+    Remove-ItemProperty -Path $runKey -Name $neighbour -ErrorAction SilentlyContinue
+    Press 0x21 0x11; Press 0x21 0x11           # back to Date and time
+    $steps.startupRepair = 'A stale entry is reported and repaired only on request; an entry switched off in Windows is shown as off and turned back on by the checkbox'
 
     # 8b. Support (R11): status, a bounded Refresh status, the previewed report, Copy
     #     diagnostics to the real clipboard, redaction and the bounded local log.
@@ -467,6 +555,13 @@ Start-Sleep -Seconds 5
     $app.Refresh()
     if (!$app.HasExited) { $app.Kill() }
     $app.Dispose()
+    Remove-ItemProperty -Path $runKey -Name $neighbour -ErrorAction SilentlyContinue
+    Clear-Startup
+    if ($null -ne $startupBackup.Run) { Set-ItemProperty -Path $runKey -Name $startupName -Value $startupBackup.Run }
+    if ($null -ne $startupBackup.Approved) {
+        if (-not (Test-Path $approvedKey)) { New-Item -Path $approvedKey -Force | Out-Null }
+        Set-ItemProperty -Path $approvedKey -Name $startupName -Type Binary -Value ([byte[]]$startupBackup.Approved)
+    }
     if ($null -ne $backup) {
         New-Item -ItemType Directory -Path (Split-Path $preferences) -Force | Out-Null
         [IO.File]::WriteAllBytes($preferences, $backup)

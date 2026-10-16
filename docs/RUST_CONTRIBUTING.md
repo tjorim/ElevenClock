@@ -199,3 +199,21 @@ cargo test --manifest-path rust/Cargo.toml -p clock-windows --test clipboard_nat
 
 See the [R11 record](windows-evidence/R11.md) for behaviour, limits and the unchecked
 desktop gates.
+
+## R12 login startup development
+
+`clock-windows::startup` holds every rule (the quoted command line, shell-style parsing,
+reconciling the registry value with the running executable, repair) as plain values tested
+on any host; only `startup/native.rs` (the `HKCU` Run value and the `StartupApproved` flag)
+is Windows-only. The value name `ElevenClockRust` and the `--startup` marker are shared
+contracts: the legacy app owns `elevenClock`, and `instance::Role` owns the marker. Startup
+state is never stored in preferences; the registry is read each time. Only an explicit user
+action writes, and nothing outside this app's own value and flag may be touched.
+
+The real-registry tests use a throwaway `HKCU\Software\ElevenClock-rs-tests\...` tree that
+each test removes, so they run with the normal suite. `scripts/test-rust-settings.ps1`
+saves, clears and restores the current user's real `ElevenClockRust` value around its
+Startup step.
+
+See the [R12 record](windows-evidence/R12.md) for the owned value, the uninstall contract
+and the unchecked manual logon and standard-account gates.

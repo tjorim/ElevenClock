@@ -13,6 +13,7 @@ pub mod prototype_interaction;
 pub mod logging;
 pub mod preferences_store;
 pub mod settings_model;
+pub mod startup;
 pub mod support;
 
 pub mod render;
