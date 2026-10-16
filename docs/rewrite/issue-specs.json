@@ -399,12 +399,12 @@
     "scope": [
       "Produce locked MSVC release executable and ZIP containing source/version provenance, applicable notices and SHA256 checksums; preserve separate debug symbols as a CI artifact.",
       "Verify native runtime DLL requirements on a clean supported Windows machine; document if runtime installation is needed instead of claiming a self-contained EXE without testing.",
-      "Resolve README/LICENSE discrepancy by tracing applicable source/assets and preserving obligations; do not relicense merely because code is Rust. Block distribution if unresolved.",
+      "Apply the recorded owner decision in #32: Apache 2.0 for the independently authored Rust implementation and original artwork; retain GPLv3 and original attribution for inherited legacy/ material. Include matching license texts and dependency notices. Complete the remaining product-name review before distribution.",
       "Create per-user installer with a new AppId, install directory, executable/startup identity and uninstall behavior. The per-user installer with Start menu shortcut is the normal end-user deliverable; a ZIP remains optional and useful for development smoke tests.",
       "Check install/update/uninstall, path quoting, startup disabled default, coexistence with legacy files and rollback to old release. Do not run both overlay apps at once during validation.",
       "Release workflow uploads artifacts on PR/manual runs; publishing versioned releases/signing requires configured identity and release action, not automatic creation during this issue.",
       "Verify double-click/Start menu launch, quiet login startup, first-run Settings, no-console behavior and a complete Settings/Support journey on a clean Windows account without terminal commands.",
-      "Install binaries under %LOCALAPPDATA%\\Programs\\ElevenClockRust, private data under %LOCALAPPDATA%\\ElevenClockRust, and the shortcut in the current user's Start menu. Installer/uninstaller run unelevated (Inno Setup PrivilegesRequired=lowest with no elevation override); app manifest uses asInvoker. No system-wide mode in v1.",
+      "Install binaries under %LOCALAPPDATA%\\Programs\\ElevenClock-rs, private data under %LOCALAPPDATA%\\ElevenClock-rs, and the shortcut in the current user's Start menu. The R12 startup registry value remains ElevenClockRust. Installer/uninstaller run unelevated (Inno Setup PrivilegesRequired=lowest with no elevation override); app manifest uses asInvoker. No system-wide mode in v1.",
       "Test missing native-runtime prerequisites under a standard account. Prefer supported app-local deployment/linking; flag any unavoidable admin requirement and alternatives to the owner before adoption. Never silently launch an elevated prerequisite installer."
     ],
     "accept": [

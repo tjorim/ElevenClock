@@ -1,7 +1,7 @@
 # Native x64 packaging (R14)
 
 The installer and ZIP are **unsigned development candidates**. Distribution is
-blocked by [#32's provenance, asset and name review](https://github.com/tjorim/ElevenClock-rs/issues/32),
+blocked by [#32's remaining product-name review](https://github.com/tjorim/ElevenClock-rs/issues/32),
 the open [R13 acceptance gates](windows-evidence/acceptance.md), and clean Windows
 standard-account installation/runtime validation. A closed tracker is not evidence
 that its acceptance matrix passed. Actual results are in the
@@ -93,15 +93,18 @@ Windows 11 x64 without VC developer runtimes, Python or Qt. Any missing runtime 
 admin requirement blocks distribution pending review of supported app-local or
 linking alternatives. No elevated prerequisite is silently run.
 
-[#32](https://github.com/tjorim/ElevenClock-rs/issues/32) records upstream GPLv3
-since `4b8de83` (2022-01-16), the stale later Apache README sentence, the rewrite's
-derivation and the copied icon. Retain GPL and original notices; no relicensing or
-permission to reuse name/assets is assumed. Package attribution credits ElevenClock /
-Martí Climent and Xavier Delugo, as in `legacy/README.md`. `media/` is not installed;
-existing sources/assets/notices remain in the source companion. The full dependency
+The [owner decision and provenance record](windows-evidence/licensing-provenance.md)
+document Apache 2.0 for the independently authored Rust implementation and original
+replacement icon. The packaging script copies the root Apache LICENSE into
+`LICENSE.txt` for both installer and portable ZIP. The inherited Python application
+and imagery remain under `legacy/`, including GPLv3 in `legacy/LICENSE` and the
+original credits to Martí Climent and Xavier Delugo. They remain in the source
+companion and are not installed. The stale upstream Apache README sentence does
+not relicense that legacy material. Product-name review remains open in
+[#32](https://github.com/tjorim/ElevenClock-rs/issues/32). The full dependency
 inventory supplies original notices (including build/test dependencies); Rust's
 COPYRIGHT.html supplies toolchain notices. Hash-checked supplemental notices retain
-LF bytes on Windows. The unresolved #32 decisions block distribution.
+LF bytes on Windows. The remaining name review and Windows gates block distribution.
 
 ## Lifecycle and rollback
 

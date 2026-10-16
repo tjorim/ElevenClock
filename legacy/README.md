@@ -5,6 +5,10 @@
 > `legacy/` (paths in them are relative to that folder). The text below is the original
 > upstream README and describes upstream's releases and links, not this repository's.
 
+> **License:** this inherited application and its artwork retain
+> [GPLv3](LICENSE). The Apache sentence in the historical text below is stale;
+> the root Apache 2.0 license applies to the new Rust implementation, not this directory.
+
  <h1><img height=40 src="https://github.com/marticliment/ElevenClock/blob/main/elevenclock/resources/icon.png?raw=true"> ElevenClock</h1>
 
 [![Downloads@4.4.1.1](https://img.shields.io/github/downloads/marticliment/elevenclock/4.4.1.1/total?style=for-the-badge)](https://github.com/martinet101/ElevenClock/releases/latest/download/ElevenClock.Installer.exe)
