@@ -11,7 +11,8 @@
 //!
 //! A stock x64 desktop (build 26200.9457, #21) instead exposes one merged
 //! `SystemTray.OmniButton` with the same time/date children and Show Desktop as
-//! its neighbour; see [`Layout`].
+//! its neighbour; on a secondary taskbar the same button stands alone. See
+//! [`Layout`].
 use clock_core::PhysicalRect;
 
 /// The inventory fields the selection needs; native types convert into this.
@@ -98,9 +99,14 @@ pub fn select(
         .collect();
     let has_class = |class: &str| neighbours.iter().any(|e| e.class == class);
     // The bell/Show Desktop anchors must be present to trust adjacency. A merged
-    // clock button has no separate bell; Show Desktop is still required.
+    // clock button has no separate bell, and secondary taskbars have no Show
+    // Desktop button; there the sibling overlap check alone guards neighbours.
+    let secondary = elements
+        .iter()
+        .any(|e| e.parent.is_none() && e.class == "Shell_SecondaryTrayWnd");
+    let needs_show_desktop = layout == Layout::SplitClock || !secondary;
     if (layout == Layout::SplitClock && !has_class("SystemTray.OmniButtonRight"))
-        || !has_class("SystemTray.ShowDesktopButton")
+        || (needs_show_desktop && !has_class("SystemTray.ShowDesktopButton"))
     {
         return None;
     }
@@ -298,6 +304,62 @@ mod tests {
         both.push(element(Some(left), "TimeInnerTextBlock", "TextBlock", None));
         both.push(element(Some(left), "DateInnerTextBlock", "TextBlock", None));
         assert_eq!(select(&both, 1234, true), None);
+    }
+
+    /// Same build, second 96-DPI display (#21): the secondary taskbar's tray holds
+    /// only the merged clock [1970..2040]; there is no Show Desktop button.
+    fn secondary_tray() -> Vec<CandidateElement> {
+        vec![
+            element(None, "", "Shell_SecondaryTrayWnd", r(1024, 720, 1024, 48)), // 0
+            element(
+                Some(0),
+                "Appid: MSEdge",
+                "Taskbar.TaskListButtonAutomationPeer",
+                r(1500, 720, 44, 48),
+            ), // 1
+            element(
+                Some(0),
+                "SystemTrayIcon",
+                "SystemTray.OmniButton",
+                r(1970, 720, 70, 48),
+            ), // 2
+            element(
+                Some(2),
+                "TimeInnerTextBlock",
+                "TextBlock",
+                r(1974, 727, 63, 16),
+            ),
+            element(
+                Some(2),
+                "DateInnerTextBlock",
+                "TextBlock",
+                r(1974, 743, 63, 16),
+            ),
+        ]
+    }
+
+    #[test]
+    fn secondary_taskbars_need_no_show_desktop_anchor() {
+        let found = select(&secondary_tray(), 1234, true).unwrap();
+        assert_eq!(Some(found.rect), r(1970, 720, 70, 48));
+        assert!(found.exclusions_complete);
+        // The same tray on a primary taskbar still lacks its required anchor.
+        let mut as_primary = secondary_tray();
+        as_primary[0].class = "Shell_TrayWnd".into();
+        assert_eq!(select(&as_primary, 1234, true), None);
+        // The split layout keeps both anchors even on a secondary taskbar.
+        let mut split = secondary_tray();
+        split[2].class = "SystemTray.OmniButtonLeft".into();
+        assert_eq!(select(&split, 1234, true), None);
+        // Other visible content inside the merged button is still refused.
+        let mut with_glyph = secondary_tray();
+        with_glyph.push(element(
+            Some(2),
+            "InnerTextBlock",
+            "TextBlock",
+            r(2020, 730, 16, 16),
+        ));
+        assert_eq!(select(&with_glyph, 1234, true), None);
     }
 
     #[test]
