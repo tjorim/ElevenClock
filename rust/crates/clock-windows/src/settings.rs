@@ -16,6 +16,7 @@ use crate::{
     preferences_store::{PreferenceSession, PreferencesStore},
     runtime::{Diagnostics, Input, Platform, Reason, Runtime},
     settings_model::{ApplyOutcome, FONT_MAX, FONT_MIN, Field, SettingsController, TOKEN_HELP},
+    startup::{self, RegistryRunKey, StartupController, StartupState, current_executable},
     support::{
         self, Clipboard, Environment, Progress, RefreshWatch, WindowsClipboard, copy_message,
     },
@@ -74,7 +75,12 @@ const ID_FONT_SPIN: i32 = 1304;
 const ID_FONT_ERROR: i32 = 1305;
 pub const ID_THEME: i32 = 1306;
 
+/// Startup page: the status text, the checkbox that is the registration itself,
+/// Repair startup entry, and the line that says how the last of those went.
 const ID_STARTUP_INFO: i32 = 1401;
+pub const ID_STARTUP_CHECK: i32 = 1402;
+pub const ID_STARTUP_REPAIR: i32 = 1404;
+const ID_STARTUP_FEEDBACK: i32 = 1405;
 /// Support page: status text, Refresh status, the report preview, Copy
 /// diagnostics, and the line that says how the last of those went.
 const ID_SUPPORT_INFO: i32 = 1501;
@@ -393,6 +399,21 @@ pub struct SettingsWindow<S> {
     /// Whether this window opened as the first-run welcome.
     welcome: bool,
     support: SupportPage,
+    startup: StartupPage,
+}
+
+/// Startup page state. Nothing here is a preference: the registry is read each time
+/// the page is shown or acted on, so the checkbox can only show what Windows holds.
+struct StartupPage {
+    /// `None` when the running executable's path cannot be determined.
+    controller: Option<StartupController<RegistryRunKey>>,
+}
+
+#[derive(Clone, Copy)]
+enum StartupAction {
+    Enable,
+    Disable,
+    Repair,
 }
 
 /// Support page state. The text shown is always derived from one `Diagnostics`
@@ -429,6 +450,10 @@ impl<S: PreferencesStore> SettingsWindow<S> {
                     environment: support::detect_environment(),
                     shown: None,
                     refresh: None,
+                },
+                startup: StartupPage {
+                    controller: current_executable()
+                        .map(|path| StartupController::new(RegistryRunKey::new(), path)),
                 },
             })
         }
@@ -482,6 +507,7 @@ impl<S: PreferencesStore> SettingsWindow<S> {
         self.sync_all(dialog);
         self.refresh(dialog, runtime);
         self.update_support(dialog, runtime);
+        self.show_startup(dialog);
         // SAFETY: shows our own window and brings it forward.
         unsafe {
             let _ = ShowWindow(dialog, SW_SHOW);
@@ -562,12 +588,7 @@ impl<S: PreferencesStore> SettingsWindow<S> {
             isize::from(FONT_MAX),
         );
         set_text(control(dialog, PAGE_DATE, ID_TOKENS), TOKEN_HELP);
-        set_text(
-            control(dialog, PAGE_STARTUP, ID_STARTUP_INFO),
-            "Starting ElevenClock-rs when you sign in to Windows is not available yet. A later \
-             update adds an opt-in setting here.\n\nUntil then ElevenClock-rs runs only when you \
-             start it, for example from the Start menu, and nothing starts automatically.",
-        );
+        // The Startup controls are filled by `show_startup` from the registry.
         // The Support controls are filled by `update_support` from live diagnostics.
         let intro = if self.welcome {
             "Welcome to ElevenClock-rs. Choose how the clock looks, then select OK. ElevenClock-rs \
@@ -730,6 +751,88 @@ impl<S: PreferencesStore> SettingsWindow<S> {
         }
     }
 
+    /// Show what Windows holds for login startup: the checkbox, the status text and
+    /// whether Repair applies. Reads the registry; changes nothing.
+    fn show_startup(&mut self, dialog: HWND) {
+        let page = |id| control(dialog, PAGE_STARTUP, id);
+        let (text, on, can_toggle, can_repair) = match self.startup.controller.as_mut() {
+            None => (
+                "ElevenClock-rs could not determine where it is running from, so it cannot \
+                 manage starting at sign-in."
+                    .to_owned(),
+                false,
+                false,
+                false,
+            ),
+            Some(controller) => match controller.state() {
+                Ok(state) => (
+                    startup::describe(&state),
+                    // An entry that exists but is stale is still registered: clearing the
+                    // box removes it. One Windows switched off does not start, so it
+                    // shows as off and selecting the box turns it back on.
+                    matches!(state, StartupState::On | StartupState::Stale(_)),
+                    true,
+                    matches!(state, StartupState::Stale(_)),
+                ),
+                Err(error) => (error.message(), false, false, false),
+            },
+        };
+        quietly(|| {
+            set_text(page(ID_STARTUP_INFO), &text);
+            checked(page(ID_STARTUP_CHECK), on);
+        });
+        enable(dialog, page(ID_STARTUP_CHECK), can_toggle);
+        enable(dialog, page(ID_STARTUP_REPAIR), can_repair);
+    }
+
+    /// A user-chosen change to the registration. The answer shown afterwards is
+    /// always read back from Windows, so a failed write cannot leave the checkbox
+    /// claiming something the registry does not hold.
+    fn change_startup(&mut self, dialog: HWND, action: StartupAction) {
+        let Some(controller) = self.startup.controller.as_mut() else {
+            return;
+        };
+        let (result, done, failed) = match action {
+            StartupAction::Enable => (
+                controller.enable(),
+                "ElevenClock-rs will start when you sign in to Windows.",
+                "Startup was not turned on.",
+            ),
+            StartupAction::Disable => (
+                controller.disable(),
+                "ElevenClock-rs will no longer start when you sign in.",
+                "Startup was not turned off.",
+            ),
+            StartupAction::Repair => (
+                controller.repair(),
+                "The startup entry now starts this copy of ElevenClock-rs.",
+                "The startup entry was not repaired.",
+            ),
+        };
+        let message = match result {
+            Ok(()) => {
+                logging::log("login startup registration changed");
+                done.to_owned()
+            }
+            Err(error) => {
+                logging::log(&format!(
+                    "login startup was not changed: {}",
+                    error.message()
+                ));
+                format!("{} {failed}", error.message())
+            }
+        };
+        if matches!(action, StartupAction::Repair) {
+            // Repair disables itself once it has worked: keep the keyboard on the page.
+            // SAFETY: moves focus to a live child control of our own dialog.
+            let _ = unsafe { SetFocus(Some(control(dialog, PAGE_STARTUP, ID_STARTUP_CHECK))) };
+        }
+        self.show_startup(dialog);
+        let feedback = control(dialog, PAGE_STARTUP, ID_STARTUP_FEEDBACK);
+        set_text(feedback, &message);
+        announce(feedback);
+    }
+
     /// Refresh status: ask for a fresh, bounded discovery. The window stays
     /// responsive; `update_support` shows the answer when it arrives.
     fn start_refresh<P: Platform>(&mut self, dialog: HWND, runtime: &mut Runtime<P>) {
@@ -799,7 +902,12 @@ impl<S: PreferencesStore> SettingsWindow<S> {
         };
         match event {
             UiEvent::Relayout => layout_pages(dialog),
-            UiEvent::PageChanged => show_selected_page(dialog),
+            UiEvent::PageChanged => {
+                show_selected_page(dialog);
+                // The registration can change outside this window (Task Manager,
+                // Windows Settings), so the page is read again whenever it is opened.
+                self.show_startup(dialog);
+            }
             UiEvent::Close => self.finish(dialog),
             UiEvent::Command { id, code } => match (id, code) {
                 (id, _) if id == IDCANCEL.0 => self.finish(dialog),
@@ -815,6 +923,23 @@ impl<S: PreferencesStore> SettingsWindow<S> {
                     crate::runtime::native::request_exit();
                     self.finish(dialog);
                 }
+                (ID_STARTUP_CHECK, 0) => {
+                    let on = send(
+                        control(dialog, PAGE_STARTUP, ID_STARTUP_CHECK),
+                        BM_GETCHECK,
+                        0,
+                        0,
+                    ) == 1; // BST_CHECKED
+                    self.change_startup(
+                        dialog,
+                        if on {
+                            StartupAction::Enable
+                        } else {
+                            StartupAction::Disable
+                        },
+                    );
+                }
+                (ID_STARTUP_REPAIR, 0) => self.change_startup(dialog, StartupAction::Repair),
                 (ID_SUPPORT_REFRESH, _) => self.start_refresh(dialog, runtime),
                 (ID_SUPPORT_COPY, _) => self.copy_report(dialog),
                 (ID_PRESET, code) if code == CBN_SELCHANGE => {
@@ -987,6 +1112,7 @@ impl<S: PreferencesStore> SettingsWindow<S> {
                     let current = send(tab, TCM_GETCURSEL, 0, 0).max(0) as usize;
                     send(tab, TCM_SETCURSEL, (current + step) % PAGES.len(), 0);
                     show_selected_page(dialog);
+                    queue(UiEvent::PageChanged);
                     let _ = SetFocus(Some(tab));
                     return true;
                 }
