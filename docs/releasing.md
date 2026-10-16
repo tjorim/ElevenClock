@@ -103,7 +103,7 @@ Only in a disposable account, with neither overlay app running:
 
 ```powershell
 ./scripts/test-rust-installer.ps1 -DisposableAccount
-# On a fresh disposable account, when an earlier supported installer exists:
+# On a fresh disposable account, with a distinct earlier development/release build:
 ./scripts/test-rust-installer.ps1 -DisposableAccount -PreviousInstaller C:/artifacts/earlier-setup.exe
 ```
 
@@ -113,7 +113,10 @@ startup removal, private/unowned/legacy preservation, quoted Unicode paths, port
 startup preservation, ZIP launch and quiet marker launch. It preserves sentinel
 files intentionally, so use a fresh account per run. With an earlier installer it
 checks update hashes and restoring/launching that earlier executable. Same-version
-reinstall is never counted as version-update/rollback evidence. Hosted results
+reinstall of the identical executable is never counted as update/rollback evidence.
+Two distinct development builds can verify replacement/rollback mechanics even
+before a supported release exists; record their hashes and distinguish this from
+cross-version preference migration. Hosted results
 record administrator membership and elevation; developer images cannot prove the
 clean-runtime, non-admin or actual Windows-logon cases.
 
@@ -122,6 +125,8 @@ install the saved earlier supported installer and launch from Start. Check its
 Support version; choose startup again in Settings if wanted. Private data remains;
 if the older version cannot read it, use its native Reset to defaults, not manual
 preference edits. Verify Exit reveals the Windows clock. There is **no earlier
-supported Rust installer**, so this cross-version flow remains unverified. Returning
+supported Rust installer**; development-build A → B → uninstall → A mechanics now
+passed on a standard Windows 11 account (see the evidence record), while cross-version
+release compatibility remains unverified. Returning
 to the native clock immediately requires only Exit/uninstall: the underlying clock
 was never disabled. Start legacy ElevenClock only after the Rust app has exited.

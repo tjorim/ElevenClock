@@ -1,8 +1,9 @@
 # Packaging and installation evidence (R14)
 
-Status: **local packaging, hosted lifecycle, and a partial standard-account GUI
-walkthrough passed; release blocked**. Clean-machine runtime, standard-account
-rollback and actual Windows logon remain unverified.
+Status: **local packaging, hosted lifecycle, and standard-account development-build
+install/update/uninstall/rollback and GUI checks passed; release blocked**.
+Clean-machine runtime, fresh-account first run, actual Windows logon and the
+remaining ownership/compatibility variants below remain unverified.
 See [release instructions](../releasing.md) for build and ownership contracts.
 
 ## Local session, 2026-10-16
@@ -92,9 +93,11 @@ the run. No release gate was changed by this hosted pass.
 - [ ] Missing-runtime test: no preinstalled VC developer runtime; record success or
       exact missing prerequisite. Any unavoidable admin requirement blocks adoption
       pending owner review of app-local/linking alternatives.
-- [ ] Earlier **supported** installer: update then rollback restores its exact hash,
-      Start launch and native-clock recovery. No earlier supported Rust installer
-      exists. Check older-version handling of newer preferences through native UI.
+- [x] Two distinct development builds: update, uninstall, restore the earlier
+      executable's exact hash, launch it with retained preferences, and Exit to
+      the native Windows clock. This is development-build rollback mechanics,
+      not cross-version schema migration or an earlier supported-release claim.
+      Repeat release-to-release migration/rollback when distinct releases exist.
 - [ ] #32 licensing/name/asset decisions, R13 acceptance, signing/release identity.
       Candidates are unsigned; no automatic public release. Distribution remains
       blocked in `packaging/release-gates.json`.
@@ -158,12 +161,12 @@ App-window captures: [installed Settings](packaging-desktop/installed-settings.p
 The [observed Support text](packaging-desktop/support-observed.txt) is an
 accessibility observation, not a byte-for-byte clipboard capture.
 
-At the end of this walkthrough the candidate remains installed, both clock apps
-are stopped, original ISO-week preferences are restored, and startup is off.
-No standard-account uninstall, version update, rollback or real logon result is
-claimed. A second development candidate (`585ad4df18cc`, executable SHA256
+At the end of the initial GUI walkthrough the candidate remained installed, both
+clock apps were stopped, original ISO-week preferences were restored, and startup
+was off. Update/uninstall/rollback had not yet been exercised; their subsequent
+results are recorded below. A second development candidate (`585ad4df18cc`, executable SHA256
 `f9c99ec5d9d4af5201fcf55f2f1b035b0697a3961e821fd7ddba3db5821f84b1`)
-has been prepared for the next lifecycle
+was prepared for the following lifecycle
 steps; it is not necessary to wait for a published supported release to test
 development-build update/rollback mechanics. No release-gate boolean was changed.
 
@@ -201,3 +204,28 @@ not independently verify removal of an enabled startup registration or unowned
 installation-file/legacy sentinels. Those ownership variants passed in the hosted
 harness and are not relabelled as standard-account results here. The earlier
 development installer is retained for rollback; restoring it is the next check.
+
+### Completed development-build rollback
+
+The user installed the retained earlier candidate and the wizard reached Finish.
+The installed executable SHA256 returned exactly to
+`c9ee5490339cbe21fc6ec11da22d25049e305ede1474b0c90938f280e4c26e20`,
+distinct from the second build's hash. The Start menu shortcut was recreated.
+Selecting **Open ElevenClock-rs Settings** on the completion page and Finish
+launched the restored executable from the installed directory. It loaded the
+saved ISO-week format, and Support confirmed `ab2a96366e9f+modified`, with the
+primary clock active and the secondary still unverified.
+
+[Rollback completion](packaging-desktop/rollback-completed.png) and
+[restored Support](packaging-desktop/rollback-support.png) record the result.
+Exit then terminated the restored app (zero clock processes), and the Windows
+clock was visible again. The private preferences hash remained exactly
+`9b2ba72f50c74dc947212e44b137eef9ab69a25f278dae2571231b4e0a631526`.
+
+This completes the A → B → uninstall → A replacement/rollback mechanics between
+two distinct development executables, both version 0.1.0. It does not claim
+cross-version schema migration or support for an unreleased candidate. The absence
+of an earlier public release does not prevent this development-build test; repeat
+release-to-release compatibility when such versions exist. The final machine state
+is the earlier candidate installed but stopped, original ISO-week preferences
+retained, and startup off. No release-gate boolean was changed.
