@@ -44,6 +44,9 @@ cargo test --manifest-path rust/Cargo.toml --workspace --all-targets --locked
 
 ## License
 
+Native x64 installer/ZIP candidate packaging and the remaining distribution gates
+are documented in [the release guide](docs/releasing.md).
+
 The checked-in [`LICENSE`](LICENSE) is the GNU General Public License v3. In upstream's history the
 license was Apache 2.0 only in the first commit (2021-09-19), MIT for twelve days, and GPLv3 since
 2022-01-16; the Apache 2.0 sentence in upstream's README was added later (2023-04-10) and is stale.

@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# These are original upstream notice copies verified byte-for-byte by SHA256.
+# Windows checkouts must not turn their LF bytes into CRLF.
+docs/dependency-notices/** text eol=lf
