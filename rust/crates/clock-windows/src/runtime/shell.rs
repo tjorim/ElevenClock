@@ -50,15 +50,13 @@ pub fn classify(snapshot: &TaskbarSnapshot, observation: &Observation) -> Placem
     {
         return Placement::Relocated;
     }
-    if !observation.visible {
+    if !observation.visible || !monitor.contains(rect) {
         return Placement::Present(TaskbarVisibility::Hidden);
     }
     if rect == snapshot.taskbar_rect {
         Placement::Present(TaskbarVisibility::Visible)
-    } else if monitor.contains(rect) {
-        Placement::Relocated
     } else {
-        Placement::Present(TaskbarVisibility::Hidden)
+        Placement::Relocated
     }
 }
 
@@ -136,6 +134,16 @@ mod tests {
         };
         assert_eq!(
             classify(&s, &o),
+            Placement::Present(TaskbarVisibility::Hidden)
+        );
+    }
+
+    #[test]
+    fn a_snapshot_discovered_while_parked_is_still_hidden() {
+        let mut s = snapshot();
+        s.taskbar_rect = rect(-1920, 1078, 1920, 48);
+        assert_eq!(
+            classify(&s, &observed(&s)),
             Placement::Present(TaskbarVisibility::Hidden)
         );
     }

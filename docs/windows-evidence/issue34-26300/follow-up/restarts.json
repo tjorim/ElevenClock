@@ -1,0 +1,97 @@
+{
+  "executable": "rust/target/x86_64-pc-windows-msvc/release/elevenclock-rs.exe",
+  "steps": {
+    "startupWindows": [
+      "ElevenClock-rs.Runtime.Host | ElevenClock-rs.Host.[user-scoped SID redacted] | hidden",
+      "ElevenClock-rs.Overlay | ElevenClock-rs | visible",
+      "ElevenClock-rs.Overlay | ElevenClock-rs | visible",
+      "IME | Default IME | hidden"
+    ],
+    "quietStart": "Process running, no Settings window, host window present",
+    "startupSample": {
+      "threads": 7,
+      "handles": 265,
+      "workingSetKiB": 23716,
+      "processes": 1
+    },
+    "maxProcessesWhileIdle": 1,
+    "idleSample": {
+      "threads": 7,
+      "handles": 265,
+      "workingSetKiB": 23716,
+      "processes": 1
+    },
+    "overlaysVisibleAtStart": 2,
+    "secondLaunch": "Existing process showed Settings; the duplicate exited with code 0",
+    "closeToBackground": "Settings closed; process kept running",
+    "explorerRestarts": [
+      {
+        "restart": 1,
+        "maxProcesses": 2,
+        "after": {
+          "threads": 7,
+          "handles": 285,
+          "workingSetKiB": 27116,
+          "processes": 2
+        },
+        "overlaysRightAfterLoss": 0,
+        "overlaysAfterRecovery": 0
+      },
+      {
+        "restart": 2,
+        "maxProcesses": 2,
+        "after": {
+          "threads": 9,
+          "handles": 280,
+          "workingSetKiB": 27160,
+          "processes": 1
+        },
+        "overlaysRightAfterLoss": 0,
+        "overlaysAfterRecovery": 0
+      },
+      {
+        "restart": 3,
+        "maxProcesses": 2,
+        "after": {
+          "threads": 9,
+          "handles": 285,
+          "workingSetKiB": 27160,
+          "processes": 2
+        },
+        "overlaysRightAfterLoss": 0,
+        "overlaysAfterRecovery": 0
+      },
+      {
+        "restart": 4,
+        "maxProcesses": 2,
+        "after": {
+          "threads": 9,
+          "handles": 280,
+          "workingSetKiB": 27172,
+          "processes": 1
+        },
+        "overlaysRightAfterLoss": 0,
+        "overlaysAfterRecovery": 0
+      },
+      {
+        "restart": 5,
+        "maxProcesses": 2,
+        "after": {
+          "threads": 6,
+          "handles": 286,
+          "workingSetKiB": 27120,
+          "processes": 2
+        },
+        "overlaysRightAfterLoss": 0,
+        "overlaysAfterRecovery": 0
+      }
+    ],
+    "afterRestartsSample": {
+      "threads": 6,
+      "handles": 284,
+      "workingSetKiB": 27192,
+      "processes": 1
+    },
+    "exit": "Exit code 0; no elevenclock-rs process remained"
+  }
+}

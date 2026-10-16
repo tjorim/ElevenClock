@@ -1,0 +1,17 @@
+{
+  "WindowsBuild": "26300",
+  "UBR": 9711,
+  "DisplayVersion": "26H2",
+  "Edition": "Core",
+  "CPU": {
+    "Name": "AMD Ryzen 7 5800H with Radeon Graphics         ",
+    "Manufacturer": "AuthenticAMD"
+  },
+  "Machine": {
+    "Manufacturer": "QEMU",
+    "Model": "Standard PC (Q35 + ICH9, 2009)"
+  },
+  "Commit": "b864cf9d6b8bf8c4618a9b470a32f35d8d4d46f2",
+  "Rust": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "CapturedUtc": "2026-10-16T18:39:25.1383895Z"
+}
