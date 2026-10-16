@@ -109,7 +109,14 @@ function Capture-Overlay([string]$name) {
 function Overlay { [OverlayEvidence]::FindOverlay() }
 function Wait-Overlay([bool]$visible, [int]$seconds=20) {
     $end=[DateTime]::UtcNow.AddSeconds($seconds)
-    do { [Windows.Forms.Application]::DoEvents();$h=Overlay;if ($h -ne [IntPtr]::Zero -and [OverlayEvidence]::IsWindowVisible($h) -eq $visible) { return $h };Start-Sleep -Milliseconds 25 } while ([DateTime]::UtcNow -lt $end)
+    do {
+        [Windows.Forms.Application]::DoEvents();$h=Overlay
+        # Destruction is already a successful hidden observation. Waiting until
+        # the deadline can miss it if Explorer and the overlay recover quickly.
+        if (!$visible -and $h -eq [IntPtr]::Zero) {return [IntPtr]::Zero}
+        if ($h -ne [IntPtr]::Zero -and [OverlayEvidence]::IsWindowVisible($h) -eq $visible) {return $h}
+        Start-Sleep -Milliseconds 25
+    } while ([DateTime]::UtcNow -lt $end)
     if (!$visible -and (Overlay) -eq [IntPtr]::Zero) { return [IntPtr]::Zero }
     Capture 'wait-failed'; throw "Overlay visible=$visible not observed"
 }
@@ -324,11 +331,19 @@ try {
         if ($nativeBar -eq [IntPtr]::Zero -or [OverlayEvidence]::GetDpiForWindow($nativeBar) -ne $originalDpi) {throw 'Native taskbar DPI restore did not complete'}
         $settings.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close();$settings=$null
         Stop-Spike $p;$p=$null
+        # Closing Settings can leave GetForegroundWindow null on hosted ARM.
+        # Unknown foreground correctly hides coverage. Reestablish the same
+        # ordinary fixture used for the initial nonactivation test.
+        $fixture.WindowState='Normal';$fixture.Bounds=New-Object Drawing.Rectangle(100,100,480,320)
+        $fixture.Show();[Windows.Forms.Application]::DoEvents()
+        [OverlayEvidence]::SetForegroundWindow($fixture.Handle)|Out-Null
+        [OverlayEvidence]::Click(150,115);[Windows.Forms.Application]::DoEvents()
+        if ([OverlayEvidence]::GetForegroundWindow() -ne $fixture.Handle) {throw 'Could not establish foreground fixture after DPI restore'}
         $p=Start-Spike "all-after-dpi$suffix" 'all-win-n';$h=Wait-Overlay $true
         $restoredDpi=[OverlayEvidence]::GetDpiForWindow($h)
         if ($restoredDpi -ne $originalDpi) {throw "Overlay DPI restore not observed: $restoredDpi, expected $originalDpi"}
         Capture-Overlay "dpi-restored$suffix"
-        $context.results.dpiCycles+=[ordered]@{cycle=$cycle;before=$beforeDpi;after=$afterDpi;restored=$restoredDpi;freshProcessAfterSettingsClosed=$true}
+        $context.results.dpiCycles+=[ordered]@{cycle=$cycle;before=$beforeDpi;after=$afterDpi;restored=$restoredDpi;freshProcessAfterSettingsClosed=$true;foregroundFixtureBeforeFreshLaunch=$true}
         Save-Context
         Stop-Spike $p;$p=$null
     }
