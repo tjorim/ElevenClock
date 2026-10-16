@@ -18,7 +18,11 @@ use windows::{
 #[derive(Debug)]
 pub struct NativeChild {
     pub class: String,
+    /// `None` both when the query failed and when the window has no area.
     pub rect: Option<PhysicalRect>,
+    /// `GetWindowRect` succeeded. A measured zero-area window has no hit target,
+    /// so only an unmeasured child leaves the exclusion inventory incomplete.
+    pub measured: bool,
     pub visible: bool,
 }
 
@@ -54,10 +58,18 @@ fn class(hwnd: HWND) -> String {
 }
 
 fn bounds(hwnd: HWND) -> Option<PhysicalRect> {
+    measure(hwnd)?
+}
+
+/// `None` if the query failed; `Some(None)` for a measured zero-area window.
+fn measure(hwnd: HWND) -> Option<Option<PhysicalRect>> {
     let mut rect = RECT::default();
     // SAFETY: rect lives throughout the call; stale handles fail closed.
     unsafe { GetWindowRect(hwnd, &mut rect) }.ok()?;
-    physical_rect(rect)
+    if rect.right == rect.left || rect.bottom == rect.top {
+        return Some(None);
+    }
+    physical_rect(rect).map(Some)
 }
 
 unsafe extern "system" fn taskbars(hwnd: HWND, param: LPARAM) -> BOOL {
@@ -113,9 +125,11 @@ unsafe extern "system" fn children(hwnd: HWND, param: LPARAM) -> BOOL {
     if records.len() >= 2048 {
         return BOOL(0);
     }
+    let measured = measure(hwnd);
     records.push(NativeChild {
         class: class(hwnd),
-        rect: bounds(hwnd),
+        rect: measured.flatten(),
+        measured: measured.is_some(),
         // SAFETY: IsWindowVisible accepts a potentially stale window handle.
         visible: unsafe { IsWindowVisible(hwnd) }.as_bool(),
     });
@@ -309,7 +323,7 @@ pub fn collect_with(
     }
     for observation in &mut observations {
         observation.native_inventory_incomplete = observation.native_children.len() >= 2048
-            || observation.native_children.iter().any(|c| c.rect.is_none());
+            || observation.native_children.iter().any(|c| !c.measured);
     }
     let final_handles = taskbar_handles()?;
     let final_state: Vec<_> = final_handles

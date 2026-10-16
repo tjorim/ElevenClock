@@ -12,6 +12,23 @@ Add-Type @'
 using System;
 using System.Runtime.InteropServices;
 public static class SettingsNative {
+    public delegate bool EnumProc(IntPtr window, IntPtr parameter);
+    [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc callback, IntPtr parameter);
+    [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr window);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowTextW(IntPtr window, System.Text.StringBuilder text, int count);
+    // The process' visible Settings window, found by title. A visible overlay can be
+    // the process' MainWindowHandle, so that property cannot identify Settings.
+    public static IntPtr Settings(int process) {
+        IntPtr found = IntPtr.Zero;
+        EnumWindows((window, parameter) => {
+            uint owner; GetWindowThreadProcessId(window, out owner);
+            if (owner != (uint)process || !IsWindowVisible(window)) return true;
+            var title = new System.Text.StringBuilder(256); GetWindowTextW(window, title, title.Capacity);
+            if (title.ToString() == "ElevenClock-rs Settings") { found = window; return false; }
+            return true;
+        }, IntPtr.Zero);
+        return found;
+    }
     [StructLayout(LayoutKind.Sequential)]
     public struct Rect { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)]
@@ -68,9 +85,9 @@ try {
         Start-Sleep -Milliseconds 200
         $app.Refresh()
         if ($app.HasExited) { throw 'Prototype exited before opening Settings' }
-    } while ($app.MainWindowHandle -eq 0 -and [DateTime]::UtcNow -lt $deadline)
-    if ($app.MainWindowTitle -ne 'ElevenClock-rs Settings') { throw 'Expected native Settings window' }
-    $window = $app.MainWindowHandle
+    } while ([SettingsNative]::Settings($app.Id) -eq [IntPtr]::Zero -and [DateTime]::UtcNow -lt $deadline)
+    $window = [SettingsNative]::Settings($app.Id)
+    if ($window -eq [IntPtr]::Zero) { throw 'Expected native Settings window' }
     $dpi = [SettingsNative]::GetDpiForWindow($window)
     if ($ExpectedDpi -ne 0 -and $dpi -ne $ExpectedDpi) { throw "Actual window DPI $dpi differs from requested $ExpectedDpi" }
     $first = [SettingsNative]::GetNextDlgTabItem($window, [IntPtr]::Zero, $false)
@@ -141,7 +158,7 @@ try {
         version = $os.Version
         build = $os.BuildNumber
         dpi = [SettingsNative]::GetDpiForWindow($window)
-        title = $app.MainWindowTitle
+        title = 'ElevenClock-rs Settings'
         tabOrder = @(1001, 1003, 2)
         forwardAndReverseDialogFocus = 'passed'
         queuedKeyboardInput = 'Tab, Shift+Tab, Alt+A and theme-selection arrows passed'
@@ -156,12 +173,12 @@ try {
             Start-Sleep -Milliseconds 100
             $app.Refresh()
             if ($app.HasExited) { throw "Application exited while waiting for: $What" }
-            $isOpen = $app.MainWindowHandle -ne 0 -and $app.MainWindowTitle -eq 'ElevenClock-rs Settings'
+            $isOpen = [SettingsNative]::Settings($app.Id) -ne [IntPtr]::Zero
         } while ($isOpen -ne $Open -and [DateTime]::UtcNow -lt $deadline)
         if ($isOpen -ne $Open) { throw "Timed out waiting for: $What" }
     }
     switch ($CloseGesture) {
-        'Window' { if (!$app.CloseMainWindow()) { throw 'Could not request native window close' } }
+        'Window' { [SettingsNative]::SendMessageW($window, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null } # WM_CLOSE
         'Escape' { [SettingsNative]::KeyStroke(27, 0) }
         'Enter' { [SettingsNative]::KeyStroke(13, 0) }
         'Mnemonic' { [SettingsNative]::KeyStroke(67, 18) }
@@ -176,10 +193,10 @@ try {
     if (!$again.WaitForExit(15000)) { $again.Kill(); throw 'Second launch did not exit' }
     if ($again.ExitCode -ne 0) { throw "Second launch exit code $($again.ExitCode)" }
     Wait-Settings $true 'second launch to show Settings in the existing process'
-    $windows = @(Get-Process -Name elevenclock-rs -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -eq 'ElevenClock-rs Settings' })
+    $windows = @(Get-Process -Name elevenclock-rs -ErrorAction SilentlyContinue | Where-Object { [SettingsNative]::Settings($_.Id) -ne [IntPtr]::Zero })
     if ($windows.Count -ne 1) { throw "Expected one Settings window, found $($windows.Count)" }
     # Exit stops the application and releases everything it started.
-    $exit = [SettingsNative]::GetDlgItem($app.MainWindowHandle, 1003)
+    $exit = [SettingsNative]::GetDlgItem([SettingsNative]::Settings($app.Id), 1003)
     if ($exit -eq [IntPtr]::Zero) { throw 'Exit button not found' }
     [SettingsNative]::SendMessageW($exit, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
     if (!$app.WaitForExit(10000)) { throw 'Exit did not stop the application' }

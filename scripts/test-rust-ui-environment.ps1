@@ -10,6 +10,24 @@ Add-Type -ReferencedAssemblies @('System.dll', [Accessibility.IAccessible].Assem
 using System;
 using System.Runtime.InteropServices;
 public static class UiEnvironment {
+    delegate bool SettingsEnumProc(IntPtr window, IntPtr parameter);
+    [DllImport("user32.dll", EntryPoint = "EnumWindows")] static extern bool SettingsEnumWindows(SettingsEnumProc callback, IntPtr parameter);
+    [DllImport("user32.dll", EntryPoint = "GetWindowThreadProcessId")] static extern uint SettingsOwner(IntPtr window, out uint process);
+    [DllImport("user32.dll", EntryPoint = "IsWindowVisible")] static extern bool SettingsVisible(IntPtr window);
+    [DllImport("user32.dll", EntryPoint = "GetWindowTextW", CharSet = CharSet.Unicode)] static extern int SettingsTitle(IntPtr window, System.Text.StringBuilder text, int count);
+    // The process' visible Settings window, found by title. A visible overlay can be
+    // the process' MainWindowHandle, so that property cannot identify Settings.
+    public static IntPtr Settings(int process) {
+        IntPtr found = IntPtr.Zero;
+        SettingsEnumWindows((window, parameter) => {
+            uint owner; SettingsOwner(window, out owner);
+            if (owner != (uint)process || !SettingsVisible(window)) return true;
+            var title = new System.Text.StringBuilder(256); SettingsTitle(window, title, title.Capacity);
+            if (title.ToString() == "ElevenClock-rs Settings") { found = window; return false; }
+            return true;
+        }, IntPtr.Zero);
+        return found;
+    }
     [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]
     public struct DisplayMode {
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst=32)] public string Device;
@@ -247,16 +265,17 @@ try {
         Start-Sleep -Milliseconds 200
         $opened = Get-Process -Name elevenclock-rs -ErrorAction SilentlyContinue | Where-Object { $_.Id -notin $before } | Select-Object -First 1
         if ($opened) { $opened.Refresh() }
-    } while ((!$opened -or $opened.MainWindowHandle -eq 0) -and [DateTime]::UtcNow -lt $deadline)
-    if (!$opened -or $opened.MainWindowTitle -ne 'ElevenClock-rs Settings') { throw 'Explorer double-click did not open native Settings' }
+    } while ((!$opened -or [UiEnvironment]::Settings($opened.Id) -eq [IntPtr]::Zero) -and [DateTime]::UtcNow -lt $deadline)
+    if (!$opened -or [UiEnvironment]::Settings($opened.Id) -eq [IntPtr]::Zero) { throw 'Explorer double-click did not open native Settings' }
     # Retain a process handle for exit-code queries on an Explorer-started process.
     $null = $opened.Handle
     if (!$opened.WaitForInputIdle(5000)) { throw 'Prototype did not reach its input loop after double-click' }
     # Classic controls expose their default IAccessible objects through Oleacc.
     # Query those directly: the legacy .NET UIA client omits the classic-control
     # proxies on this runner, while native Settings/Explorer providers still work.
-    $combo = [UiEnvironment]::Accessible([UiEnvironment]::GetDlgItem($opened.MainWindowHandle, 1001))
-    $button = [UiEnvironment]::Accessible([UiEnvironment]::GetDlgItem($opened.MainWindowHandle, 2))
+    $settings = [UiEnvironment]::Settings($opened.Id)
+    $combo = [UiEnvironment]::Accessible([UiEnvironment]::GetDlgItem($settings, 1001))
+    $button = [UiEnvironment]::Accessible([UiEnvironment]::GetDlgItem($settings, 2))
     $name = $combo.accName(0)
     $closeName = $button.accName(0)
     $focusable = (([int]$combo.accState(0)) -band 0x100000) -ne 0
@@ -264,24 +283,24 @@ try {
     if ($name -notlike 'Appearance*' -or !$focusable) { throw "Native Appearance label/focus failed: name='$name', focusable=$focusable" }
     if ($closeName -ne 'Close') { throw "Native Close label failed: '$closeName'" }
     $results.explorerDoubleClick = 'Real queued left-button double-click opened the native executable'
-    $exitName = ([UiEnvironment]::Accessible([UiEnvironment]::GetDlgItem($opened.MainWindowHandle, 1003))).accName(0)
+    $exitName = ([UiEnvironment]::Accessible([UiEnvironment]::GetDlgItem($settings, 1003))).accName(0)
     if ($exitName -notlike 'Exit*') { throw "Native Exit label failed: '$exitName'" }
     $results.accessibleLabels.exit = $exitName
     # Closing Settings keeps the clock running (R08); a second launch reopens it.
     $exe = $opened.MainModule.FileName
-    if (!$opened.CloseMainWindow()) { throw 'Could not request close on the double-clicked app' }
+    [UiEnvironment]::SendMessageW($settings, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null # WM_CLOSE
     $deadline = [DateTime]::UtcNow.AddSeconds(10)
-    do { Start-Sleep -Milliseconds 100; $opened.Refresh() } while (!$opened.HasExited -and $opened.MainWindowHandle -ne 0 -and [DateTime]::UtcNow -lt $deadline)
+    do { Start-Sleep -Milliseconds 100; $opened.Refresh() } while (!$opened.HasExited -and [UiEnvironment]::Settings($opened.Id) -ne [IntPtr]::Zero -and [DateTime]::UtcNow -lt $deadline)
     if ($opened.HasExited) { throw 'Closing Settings stopped the double-clicked app' }
-    if ($opened.MainWindowHandle -ne 0) { throw 'Settings window did not close' }
+    if ([UiEnvironment]::Settings($opened.Id) -ne [IntPtr]::Zero) { throw 'Settings window did not close' }
     $results.explorerCloseToBackground = 'Settings closed; the double-clicked process kept running'
     $again = Start-Process $exe -PassThru
     if (!$again.WaitForExit(15000)) { $again.Kill(); throw 'Second launch did not exit' }
     $deadline = [DateTime]::UtcNow.AddSeconds(10)
-    do { Start-Sleep -Milliseconds 100; $opened.Refresh() } while ($opened.MainWindowHandle -eq 0 -and [DateTime]::UtcNow -lt $deadline)
-    if ($opened.MainWindowTitle -ne 'ElevenClock-rs Settings') { throw 'Second launch did not focus the existing Settings window' }
+    do { Start-Sleep -Milliseconds 100 } while ([UiEnvironment]::Settings($opened.Id) -eq [IntPtr]::Zero -and [DateTime]::UtcNow -lt $deadline)
+    if ([UiEnvironment]::Settings($opened.Id) -eq [IntPtr]::Zero) { throw 'Second launch did not focus the existing Settings window' }
     $results.explorerSecondLaunch = 'Second launch exited and the existing process reopened Settings'
-    [UiEnvironment]::SendMessageW([UiEnvironment]::GetDlgItem($opened.MainWindowHandle, 1003), 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+    [UiEnvironment]::SendMessageW([UiEnvironment]::GetDlgItem([UiEnvironment]::Settings($opened.Id), 1003), 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
     if (!$opened.WaitForExit(10000)) { throw 'Exit did not stop the double-clicked app' }
     if ($opened.ExitCode -ne 0) { throw "Double-clicked app exit code: '$($opened.ExitCode)'" }
     $results.explorerExitCode = $opened.ExitCode
