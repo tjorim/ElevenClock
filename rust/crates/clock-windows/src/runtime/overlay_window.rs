@@ -3,7 +3,8 @@
 //! The window is a borderless, non-activating tool window sized to the verified
 //! clock rectangle. It is never parented into Explorer, never changes Explorer's
 //! styles and never uses an unconditional global topmost: z-order mirrors the
-//! visible taskbar's own band, immediately above it (R03 strategy, unchanged).
+//! visible taskbar's own band, immediately above it (R03 strategy). It is created
+//! in that band and keeps it while hidden; see `overlay::band_action` (#23).
 use crate::{
     accessibility::{ClockAccessible, is_root_object, return_object},
     interaction::{Interaction, PressTracker, ScreenPoint, post_interaction},
@@ -137,12 +138,19 @@ fn relative_predecessor(root: HWND, root_topmost: bool) -> Result<Option<HWND>> 
 
 impl Overlay {
     pub fn create(renderer: &Renderer, taskbar: HWND, bounds: PhysicalRect) -> Result<Self> {
+        // Born in the taskbar's band: Windows ignores a later HWND_TOPMOST from
+        // this background process while the desktop is foreground (#23).
+        let band = if topmost(taskbar) {
+            WS_EX_TOPMOST
+        } else {
+            WINDOW_EX_STYLE(0)
+        };
         // SAFETY: class registered by OverlayClass; creates a hidden popup owned
         // by this thread. WS_EX_NOACTIVATE/TOOLWINDOW keep it out of Alt-Tab and
         // focus. It is never shown here.
         let hwnd = unsafe {
             CreateWindowExW(
-                WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
+                WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | band,
                 CLASS_NAME,
                 w!("ElevenClock-rs"),
                 WS_POPUP,
@@ -213,21 +221,10 @@ impl Overlay {
     }
 
     pub fn hide(&mut self) {
-        // SAFETY: hiding our own window; also demote so a hidden overlay never
-        // lingers in the taskbar's topmost band.
+        // SAFETY: hiding our own window. It keeps its band: a hidden window
+        // covers nothing, and a demoted one may not be allowed back (#23).
         unsafe {
             let _ = ShowWindow(self.hwnd, SW_HIDE);
-            if topmost(self.hwnd) {
-                let _ = SetWindowPos(
-                    self.hwnd,
-                    Some(HWND_NOTOPMOST),
-                    0,
-                    0,
-                    0,
-                    0,
-                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-                );
-            }
         }
         self.shown = false;
     }
@@ -267,6 +264,15 @@ impl Overlay {
                     0,
                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
                 )?;
+            }
+            // SetWindowPos can succeed without changing the band; never show a
+            // window that would sit below the taskbar.
+            if topmost(self.hwnd) != root_topmost {
+                self.hide();
+                return Err(windows::core::Error::new(
+                    windows::core::HRESULT(0x80004005u32 as i32),
+                    "Taskbar-band change ignored",
+                ));
             }
         }
         let preceding = relative_predecessor(self.taskbar, root_topmost)?.unwrap_or(HWND_TOP);

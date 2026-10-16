@@ -101,6 +101,9 @@ fn bounds(hwnd: HWND) -> Option<PhysicalRect> {
     }
     crate::taskbar::probe::physical_rect(r)
 }
+fn topmost(hwnd: HWND) -> bool {
+    unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST.0 as isize != 0 }
+}
 fn shell_current(hwnd: HWND, slot: &ExperimentSlot) -> bool {
     unsafe {
         let mut pid = 0;
@@ -268,8 +271,15 @@ pub fn run(
                     for slot in slots {
                         let bar = taskbar(&slot)?;
                         let r = slot.clock;
+                        // Born in the taskbar's band: promotion is ignored
+                        // while the desktop is foreground (see band_action).
+                        let band = if topmost(bar) {
+                            WS_EX_TOPMOST
+                        } else {
+                            WINDOW_EX_STYLE(0)
+                        };
                         let hwnd = CreateWindowExW(
-                            WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
+                            WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | band,
                             class.lpszClassName,
                             w!("2642.2"),
                             WS_POPUP,
@@ -353,15 +363,12 @@ pub fn run(
                     let _ = observations.try_send(state.clone());
                     last_observation = state;
                 }
-                let root_topmost =
-                    GetWindowLongPtrW(window.taskbar, GWL_EXSTYLE) & WS_EX_TOPMOST.0 as isize != 0;
-                let own_topmost =
-                    GetWindowLongPtrW(window.hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST.0 as isize != 0;
-                let band = band_action(show, root_topmost, own_topmost);
+                let root_topmost = topmost(window.taskbar);
+                let band = band_action(show, root_topmost, topmost(window.hwnd));
                 if band != BandAction::Preserve {
                     // Hide before band changes: temporary promotion is never
                     // exposed above unrelated topmost windows. Only our HWND
-                    // changes, and hidden/fullscreen coverage is demoted.
+                    // changes; hidden coverage keeps its band.
                     let _ = ShowWindow(window.hwnd, SW_HIDE);
                     let target = if band == BandAction::PromoteToTaskbar {
                         HWND_TOPMOST
@@ -381,6 +388,12 @@ pub fn run(
                             "Taskbar-band placement failed: 0x{:08X}",
                             error.code().0 as u32
                         ));
+                        continue;
+                    }
+                    // SetWindowPos can succeed without changing the band; never
+                    // show a window that would sit below the taskbar.
+                    if topmost(window.hwnd) != root_topmost {
+                        let _ = observations.try_send("Taskbar-band change ignored".into());
                         continue;
                     }
                 }
