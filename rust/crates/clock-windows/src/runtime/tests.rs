@@ -1272,3 +1272,152 @@ fn settings_fit_check_reports_nothing_when_it_fits_or_cannot_measure() {
     assert!(fresh.check(&fit_format(), 9, Monitors::All, now).is_empty());
     assert!(fresh.platform.fit_calls.is_empty());
 }
+
+// ---- Support: Refresh status, report data and the transition log (R11) ----------
+
+use crate::support::{Progress, REFRESH_LIMIT, RefreshWatch, Replacement};
+
+fn fail_discovery(runtime: &mut Runtime<Fake>, failure: DiscoveryFailure) {
+    let generation = runtime.state().generation().0;
+    runtime.handle(Input::Discovery(DiscoveryReport {
+        generation: ShellGeneration(generation),
+        shell: runtime.shell,
+        outcome: Err(failure),
+    }));
+}
+
+#[test]
+fn diagnostics_carry_monitor_bounds_dpi_and_strategy_for_the_report() {
+    let mut runtime = runtime(Monitors::All);
+    discover(&mut runtime, 0, vec![bar(0, 1, true), bar(0, 2, false)]);
+    let d = runtime.diagnostics();
+    assert!(d.shell_running && !d.discovery_pending);
+    assert_eq!(d.discovery_completed, 1);
+    let [primary, secondary] = &d.taskbars[..] else {
+        panic!("two taskbars")
+    };
+    assert_eq!(primary.monitor_rect, rect(0, 0, 1920, 1080));
+    assert_eq!((primary.dpi, secondary.dpi), (96, 144));
+    assert_eq!(primary.strategy, DiscoveryStrategy::NativeChildren);
+    assert!(primary.clock_located && !secondary.clock_located);
+    assert_eq!(secondary.monitor_rect, rect(-1920, 0, 1920, 1080));
+}
+
+#[test]
+fn refresh_status_runs_one_bounded_discovery_and_reports_the_answer() {
+    let mut runtime = runtime(Monitors::All);
+    discover(&mut runtime, 0, vec![bar(0, 1, true)]);
+    take(&mut runtime);
+    let watch = RefreshWatch::start(&runtime.diagnostics());
+    runtime.refresh_status();
+    runtime.refresh_status(); // a second click while one is queued adds nothing
+    let d = runtime.diagnostics();
+    assert!(d.discovery_pending);
+    assert_eq!(watch.progress(&d, Duration::ZERO), Progress::Waiting);
+    assert!(requests(&take(&mut runtime)).is_empty(), "settles first");
+    advance(&mut runtime, TOPOLOGY_SETTLE);
+    assert_eq!(requests(&take(&mut runtime)), vec![0]);
+    // Nothing has answered yet: still waiting, and the UI thread is not blocked.
+    let d = runtime.diagnostics();
+    assert_eq!(
+        watch.progress(&d, Duration::from_secs(1)),
+        Progress::Waiting
+    );
+    discover(&mut runtime, 0, vec![bar(0, 1, true)]);
+    let d = runtime.diagnostics();
+    assert!(!d.discovery_pending);
+    assert_eq!(watch.progress(&d, Duration::from_secs(2)), Progress::Done);
+    assert_eq!(
+        crate::support::status(&d).replacement,
+        Replacement::Active,
+        "a successful refresh shows the clock as active"
+    );
+}
+
+#[test]
+fn a_refresh_that_times_out_in_the_helper_still_completes_with_the_reason() {
+    let mut runtime = runtime(Monitors::All);
+    discover(&mut runtime, 0, vec![bar(0, 1, true)]);
+    let watch = RefreshWatch::start(&runtime.diagnostics());
+    runtime.refresh_status();
+    advance(&mut runtime, TOPOLOGY_SETTLE);
+    take(&mut runtime);
+    // The UI Automation helper hit its deadline: a failure report, not a hang.
+    fail_discovery(&mut runtime, DiscoveryFailure::Deadline);
+    let d = runtime.diagnostics();
+    assert_eq!(watch.progress(&d, Duration::from_secs(5)), Progress::Done);
+    assert_eq!(d.last_discovery_failure, Some(DiscoveryFailure::Deadline));
+    let status = crate::support::status(&d);
+    assert_eq!(status.replacement, Replacement::NativeClock);
+    assert!(status.explanation.contains("did not finish in time"));
+}
+
+#[test]
+fn a_helper_that_never_answers_cannot_keep_refresh_waiting_forever() {
+    let mut runtime = runtime(Monitors::All);
+    discover(&mut runtime, 0, vec![bar(0, 1, true)]);
+    let watch = RefreshWatch::start(&runtime.diagnostics());
+    runtime.refresh_status();
+    advance(&mut runtime, TOPOLOGY_SETTLE);
+    let d = runtime.diagnostics();
+    assert!(d.discovery_pending);
+    assert_eq!(watch.progress(&d, REFRESH_LIMIT), Progress::TimedOut);
+}
+
+#[test]
+fn refresh_is_a_no_op_when_discovery_is_off_or_the_app_is_finished() {
+    let mut runtime = runtime(Monitors::All);
+    runtime.discovery_disabled = true;
+    take(&mut runtime);
+    runtime.refresh_status();
+    advance(&mut runtime, TOPOLOGY_SETTLE);
+    assert!(requests(&take(&mut runtime)).is_empty());
+    let watch = RefreshWatch::start(&runtime.diagnostics());
+    assert_eq!(
+        watch.progress(&runtime.diagnostics(), Duration::ZERO),
+        Progress::Done
+    );
+    runtime.handle(Input::Quit);
+    take(&mut runtime);
+    runtime.refresh_status();
+    assert!(take(&mut runtime).is_empty());
+}
+
+#[test]
+fn only_state_transitions_are_logged_never_repaints_or_ticks() {
+    let mut runtime = runtime(Monitors::All);
+    assert!(runtime.transition_lines().is_empty());
+    discover(&mut runtime, 0, vec![bar(0, 1, true), bar(0, 2, false)]);
+    let lines = runtime.transition_lines();
+    assert_eq!(
+        lines,
+        vec![
+            "primary taskbar 1: clock replaced".to_owned(),
+            "secondary taskbar 2: Windows clock in use: ElevenClock-rs could not verify where \
+             the Windows clock is on this taskbar, so it leaves the Windows clock alone. This \
+             Windows version may not be supported yet"
+                .to_owned(),
+        ]
+    );
+    // A minute of ticks, repaints and a repeat of the same state: silence.
+    for _ in 0..5 {
+        runtime.platform.now += chrono::Duration::seconds(1);
+        runtime.handle(Input::Timer);
+        assert!(runtime.transition_lines().is_empty());
+    }
+    discover(&mut runtime, 0, vec![bar(0, 1, true), bar(0, 2, false)]);
+    assert!(runtime.transition_lines().is_empty());
+    // Failure, recovery, pause and removal each log once.
+    runtime.refresh_status();
+    advance(&mut runtime, TOPOLOGY_SETTLE);
+    fail_discovery(&mut runtime, DiscoveryFailure::NoTaskbar);
+    let lines = runtime.transition_lines();
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.starts_with("taskbar discovery failed (1 in a row)")),
+        "{lines:?}"
+    );
+    assert!(lines.contains(&"taskbar 1: gone".to_owned()), "{lines:?}");
+    assert!(runtime.transition_lines().is_empty());
+}

@@ -4,6 +4,7 @@
 //! There is no console, no public command suite and no usage text. Explorer
 //! launches the same executable for the Start menu, a double-click and login
 //! startup; the only inputs are two private markers owned by `instance::Role`.
+use crate::logging;
 use clock_windows::{
     PlatformError,
     instance::{self, Acquired, LaunchMode, Role},
@@ -26,6 +27,7 @@ pub fn main() -> ExitCode {
         Role::Application(launch) => match application(launch) {
             Ok(()) => ExitCode::SUCCESS,
             Err(error) => {
+                logging::failed(&error);
                 error.show();
                 ExitCode::FAILURE
             }
@@ -47,12 +49,16 @@ fn application(launch: LaunchMode) -> Result<(), PlatformError> {
             Ok(())
         }
         Acquired::Primary(guard) => {
+            // Only the primary instance logs, so two processes never share a file.
+            logging::start();
             // An unresolvable data folder must not stop the clock: run with defaults.
             // Every save then fails visibly in Settings rather than being lost.
-            match LocalPreferencesStore::new() {
+            let result = match LocalPreferencesStore::new() {
                 Ok(store) => start(store, launch, &guard),
                 Err(_) => start(UnavailableStore, launch, &guard),
-            }
+            };
+            logging::stopped();
+            result
         }
     }
 }

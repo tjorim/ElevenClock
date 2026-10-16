@@ -26,15 +26,17 @@
 use crate::{
     events::{RECOVERY_POLL, ShellEvent, Signal, TransitionPoll},
     interaction::{ActivationGate, CalendarOutcome, MenuCommand, ScreenPoint},
+    logging,
     render::{Fit, Overflow, PixelSize, RenderError, WorstCase},
     settings_model::{FitProblem, LayoutCheck},
+    support,
     theme::{AppearanceTracker, SystemAppearance},
 };
 use chrono::{DateTime, FixedOffset};
 use clock_core::{
-    ClockText, CompiledFormat, Effect, Event, Monitors, OverlayState, PhysicalRect,
-    ShellGeneration, State, TaskbarKey, TaskbarSnapshot, TaskbarVisibility, ValidatedPreferences,
-    reduce,
+    ClockText, CompiledFormat, DiscoveryStrategy, Effect, Event, Monitors, OverlayState,
+    PhysicalRect, ShellGeneration, State, TaskbarKey, TaskbarSnapshot, TaskbarVisibility,
+    ValidatedPreferences, reduce,
 };
 use std::{
     collections::{BTreeMap, HashMap},
@@ -227,6 +229,12 @@ pub struct TaskbarDiagnostic {
     pub primary: bool,
     pub state: OverlayState,
     pub reason: Option<Reason>,
+    /// Bounds of the monitor this taskbar is on, in physical pixels.
+    pub monitor_rect: PhysicalRect,
+    pub dpi: u32,
+    pub strategy: DiscoveryStrategy,
+    /// Whether clock-only bounds were proven for this taskbar.
+    pub clock_located: bool,
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct Diagnostics {
@@ -237,6 +245,21 @@ pub struct Diagnostics {
     pub last_discovery_failure: Option<DiscoveryFailure>,
     pub consecutive_failures: u32,
     pub discovery_disabled: bool,
+    /// Windows Explorer (the shell) was running when last checked.
+    pub shell_running: bool,
+    /// A discovery is running or about to start.
+    pub discovery_pending: bool,
+    /// Discovery results processed so far; Support uses it to see a new answer.
+    pub discovery_completed: u64,
+}
+
+/// The last state written to the log, so that only changes are logged.
+#[derive(Default)]
+struct Logged {
+    taskbars: BTreeMap<u64, String>,
+    failure: Option<String>,
+    paused: bool,
+    disabled: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -273,6 +296,8 @@ pub struct Runtime<P: Platform> {
     poll_due: Option<Duration>,
     refresh_not_before: Duration,
     retry: Retry,
+    discovery_completed: u64,
+    logged: Logged,
     last_failure: Option<DiscoveryFailure>,
     discovery_disabled: bool,
     activation: ActivationGate,
@@ -301,6 +326,8 @@ impl<P: Platform> Runtime<P> {
             poll_due: None,
             refresh_not_before: Duration::ZERO,
             retry: Retry::default(),
+            discovery_completed: 0,
+            logged: Logged::default(),
             last_failure: None,
             discovery_disabled: false,
             activation: ActivationGate::default(),
@@ -364,6 +391,71 @@ impl<P: Platform> Runtime<P> {
         if !self.finished {
             self.rearm_poll();
         }
+        self.log_transitions();
+    }
+
+    /// Write what *changed* since the last call to the bounded log: one line per
+    /// taskbar outcome, discovery failure or recovery, pause and resume. Repaints
+    /// and ticks change none of these, so they never reach the log.
+    fn log_transitions(&mut self) {
+        if !logging::enabled() {
+            return;
+        }
+        for line in self.transition_lines() {
+            logging::log(&line);
+        }
+    }
+
+    /// The lines for what changed since the previous call (and remembers the new
+    /// state). Pure apart from that memory, so it is tested without a log file.
+    fn transition_lines(&mut self) -> Vec<String> {
+        let diagnostics = self.diagnostics();
+        let mut lines: Vec<String> = Vec::new();
+        let mut seen: BTreeMap<u64, String> = BTreeMap::new();
+        for bar in &diagnostics.taskbars {
+            let summary = support::taskbar_summary(bar, diagnostics.paused);
+            if self.logged.taskbars.get(&bar.key.id.0) != Some(&summary) {
+                lines.push(format!(
+                    "{} taskbar {}: {summary}",
+                    if bar.primary { "primary" } else { "secondary" },
+                    bar.key.id.0,
+                ));
+            }
+            seen.insert(bar.key.id.0, summary);
+        }
+        for id in self.logged.taskbars.keys() {
+            if !seen.contains_key(id) {
+                lines.push(format!("taskbar {id}: gone"));
+            }
+        }
+        self.logged.taskbars = seen;
+        let failure = diagnostics.last_discovery_failure.map(|f| f.to_string());
+        if failure != self.logged.failure {
+            lines.push(match &failure {
+                Some(why) => format!(
+                    "taskbar discovery failed ({} in a row): {why}",
+                    diagnostics.consecutive_failures
+                ),
+                None => "taskbar discovery recovered".to_owned(),
+            });
+            self.logged.failure = failure;
+        }
+        if diagnostics.paused != self.logged.paused {
+            lines.push(
+                if diagnostics.paused {
+                    "replacement paused"
+                } else {
+                    "replacement resumed"
+                }
+                .to_owned(),
+            );
+            self.logged.paused = diagnostics.paused;
+        }
+        if diagnostics.discovery_disabled && !self.logged.disabled {
+            lines.push("taskbar discovery turned off for this session".to_owned());
+            self.logged.disabled = true;
+        }
+        lines
     }
 
     pub fn handle_signals(&mut self, signals: impl IntoIterator<Item = Signal>) {
@@ -406,6 +498,10 @@ impl<P: Platform> Runtime<P> {
                     primary: snapshot.primary,
                     state: overlay,
                     reason,
+                    monitor_rect: snapshot.monitor_rect,
+                    dpi: snapshot.dpi,
+                    strategy: snapshot.strategy,
+                    clock_located: snapshot.clock_rect.is_some(),
                 }
             })
             .collect();
@@ -416,7 +512,25 @@ impl<P: Platform> Runtime<P> {
             last_discovery_failure: self.last_failure.clone(),
             consecutive_failures: self.retry.failures,
             discovery_disabled: self.discovery_disabled,
+            shell_running: self.shell.is_some(),
+            discovery_pending: self.in_flight.is_some() || self.settle_due.is_some(),
+            discovery_completed: self.discovery_completed,
         }
+    }
+
+    /// Settings → Support "Refresh status": look at the taskbars again now. This is
+    /// the ordinary bounded discovery (a helper process with a hard deadline, never
+    /// UI Automation on this thread), requested as if the display layout changed.
+    /// The answer arrives later as [`Input::Discovery`] and bumps
+    /// `Diagnostics::discovery_completed`; a stuck or failing helper only produces a
+    /// failure report, so callers can always stop waiting.
+    pub fn refresh_status(&mut self) {
+        if self.finished {
+            return;
+        }
+        logging::log("status refresh requested");
+        self.topology_changed();
+        self.rearm_poll();
     }
 
     // ---- signals -------------------------------------------------------
@@ -671,6 +785,7 @@ impl<P: Platform> Runtime<P> {
 
     fn accept(&mut self, generation: ShellGeneration, snapshots: Vec<TaskbarSnapshot>) {
         self.platform.note_taskbars(&snapshots);
+        self.discovery_completed = self.discovery_completed.wrapping_add(1);
         let previous = std::mem::take(&mut self.reported);
         self.snapshots = snapshots.iter().map(|s| (s.key.id.0, s.clone())).collect();
         self.reported = snapshots

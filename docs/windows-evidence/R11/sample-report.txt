@@ -1,0 +1,22 @@
+ElevenClock-rs diagnostics
+Generated (UTC): 2026-10-16 07:16:25
+Contains no user name, file paths or window titles. Nothing is sent anywhere; this text is only copied if you choose Copy diagnostics.
+
+App version: 0.1.0
+App commit: 482dd5f36842+modified
+Windows: 10.0.26200.9711 (25H2)
+Architecture: Windows x64, app x64
+
+Clock replacement: Active
+Summary: The ElevenClock-rs clock is showing on your taskbar. Other displays keep the Windows clock because Settings shows the clock on the primary display only.
+Paused by user: no
+Windows Explorer running: yes
+Taskbar discovery: last attempt succeeded
+
+Taskbars: 2
+1. Primary taskbar: clock replaced
+   Monitor: 1280x720 px at (0, 0), DPI 96 (100%)
+   Discovery strategy: UI Automation; clock located: yes
+2. Secondary taskbar: not used: this display is not selected in Settings (Appearance)
+   Monitor: 1280x720 px at (1280, 0), DPI 96 (100%)
+   Discovery strategy: UI Automation; clock located: yes

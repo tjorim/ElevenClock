@@ -239,23 +239,30 @@ pub struct LocalPreferencesStore {
     path: PathBuf,
     recovery_save_allowed: bool,
 }
+/// The app-owned per-user data folder below Known Folder LocalAppData. Preferences
+/// and the bounded logs both live here; never HOME or a path override.
+#[cfg(windows)]
+pub(crate) fn app_data_dir() -> io::Result<PathBuf> {
+    use windows::Win32::{
+        System::Com::CoTaskMemFree,
+        UI::Shell::{FOLDERID_LocalAppData, KF_FLAG_DEFAULT, SHGetKnownFolderPath},
+    };
+    // SAFETY: API allocates a NUL-terminated path. Copy it before freeing with
+    // CoTaskMemFree on every path; no native pointer escapes this function.
+    let folder = unsafe { SHGetKnownFolderPath(&FOLDERID_LocalAppData, KF_FLAG_DEFAULT, None) }
+        .map_err(io::Error::other)?;
+    let wide = unsafe { folder.as_wide() };
+    use std::os::windows::ffi::OsStringExt;
+    let path = PathBuf::from(std::ffi::OsString::from_wide(wide));
+    unsafe { CoTaskMemFree(Some(folder.0.cast())) };
+    Ok(path.join("ElevenClock-rs"))
+}
+
 #[cfg(windows)]
 impl LocalPreferencesStore {
     pub fn new() -> Result<Self, StoreError> {
-        use windows::Win32::{
-            System::Com::CoTaskMemFree,
-            UI::Shell::{FOLDERID_LocalAppData, KF_FLAG_DEFAULT, SHGetKnownFolderPath},
-        };
-        // SAFETY: API allocates a NUL-terminated path. Copy it before freeing with
-        // CoTaskMemFree on every path; no native pointer escapes this function.
-        let folder = unsafe { SHGetKnownFolderPath(&FOLDERID_LocalAppData, KF_FLAG_DEFAULT, None) }
-            .map_err(|e| StoreError::Io(io::Error::other(e)))?;
-        let wide = unsafe { folder.as_wide() };
-        use std::os::windows::ffi::OsStringExt;
-        let path = PathBuf::from(std::ffi::OsString::from_wide(wide));
-        unsafe { CoTaskMemFree(Some(folder.0.cast())) };
         Ok(Self {
-            path: path.join("ElevenClock-rs").join("preferences.dat"),
+            path: app_data_dir()?.join("preferences.dat"),
             recovery_save_allowed: false,
         })
     }
